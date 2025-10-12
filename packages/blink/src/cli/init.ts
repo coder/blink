@@ -542,6 +542,7 @@ Slack SDK Notes:
 - *NEVER* register app event listeners in the "on" handler of the agent. This will cause the handler to be called multiple times.
 - Think about how you scope chats - for example, in IMs or if the user wants to make a bot for a whole channel, you would not want to add "ts" or "thread_ts" to the chat key.
 - When using "assistant.threads.setStatus", you need to ensure the status of that same "thread_ts" is cleared. You can do this by inserting a message part that directs the agent to clear the status (there is a tool if using @blink-sdk/slack called "reportStatus" that does this). e.g. \`message.parts.push({ type: "text", text: "Clear the status of this thread after you finish: channel=\${channel} thread_ts=\${thread_ts}" })\`
+- The Slack SDK has many functions that allow users to completely customize the message format. If the user asks for customization, look at the types for @blink-sdk/slack - specifically: "createPartsFromMessageMetadata", "createMessageFromEvent", and "extractMessagesMetadata".
 
 WARNING: Beware of attaching multiple event listeners to the same chat. This could cause the agent to respond multiple times.
 
