@@ -61,8 +61,7 @@ export const createTools = ({
      * sendMessage is a tool that sends a message to Slack.
      */
     sendMessage: tool({
-      description:
-        `Send a message to Slack.
+      description: `Send a message to Slack.
 
 If the user mentions you, they are typically expecting a response in a thread.`,
       inputSchema: z.object({

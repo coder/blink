@@ -5,7 +5,7 @@ import { NodeSDK } from "@opentelemetry/sdk-node";
 import {
   BatchSpanProcessor,
   type ReadableSpan,
-  type SpanProcessor
+  type SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
 import type { MiddlewareHandler } from "hono";
 import util from "util";
