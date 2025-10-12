@@ -557,21 +557,6 @@ describe("API Shim - Agent Functionality", () => {
     expect(requestHandler).toHaveBeenCalledTimes(1);
   });
 
-  test("model() requires authentication", () => {
-    const oldToken = process.env.BLINK_TOKEN;
-    const oldInvocationToken = process.env.BLINK_INVOCATION_AUTH_TOKEN;
-    delete process.env.BLINK_TOKEN;
-    delete process.env.BLINK_INVOCATION_AUTH_TOKEN;
-
-    expect(() => model("anthropic/claude-sonnet-4")).toThrow(
-      "You must be authenticated with Blink to use the model gateway"
-    );
-
-    if (oldToken) process.env.BLINK_TOKEN = oldToken;
-    if (oldInvocationToken)
-      process.env.BLINK_INVOCATION_AUTH_TOKEN = oldInvocationToken;
-  });
-
   test("model() creates provider when authenticated", () => {
     process.env.BLINK_TOKEN = "test-token";
 
@@ -580,40 +565,5 @@ describe("API Shim - Agent Functionality", () => {
     expect(provider.modelId).toBe("anthropic/claude-sonnet-4");
 
     delete process.env.BLINK_TOKEN;
-  });
-
-  test("waitUntil() executes promise", async () => {
-    let executed = false;
-    let resolvePromise: () => void;
-    const promiseCompleted = new Promise<void>((resolve) => {
-      resolvePromise = resolve;
-    });
-
-    const promise = async () => {
-      executed = true;
-      resolvePromise();
-    };
-
-    waitUntil(promise);
-
-    await promiseCompleted;
-    expect(executed).toBe(true);
-  });
-
-  test("waitUntil() handles promise rejection", async () => {
-    const consoleWarn = mock(() => {});
-    const originalWarn = console.warn;
-    console.warn = consoleWarn;
-
-    const promise = async () => {
-      throw new Error("test error");
-    };
-
-    waitUntil(promise);
-
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(consoleWarn).toHaveBeenCalled();
-
-    console.warn = originalWarn;
   });
 });

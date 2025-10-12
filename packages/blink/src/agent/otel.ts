@@ -9,7 +9,7 @@ import {
 } from "@opentelemetry/sdk-trace-base";
 import type { MiddlewareHandler } from "hono";
 import util from "util";
-import { APIServerURLEnvironmentVariable } from "./client";
+import { APIServerURLEnvironmentVariable } from "./constants";
 
 let otelSDK: NodeSDK | undefined;
 let consolePatched = false;

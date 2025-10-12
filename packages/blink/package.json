@@ -1,6 +1,6 @@
 {
   "name": "blink",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "Blink is a JavaScript runtime for building and deploying AI agents.",
   "type": "module",
   "bin": {
@@ -101,6 +101,7 @@
     "open": "^10.2.0",
     "react": "^19.1.1",
     "react-devtools-core": "^6.1.5",
+    "sonda": "^0.9.0",
     "tsdown": "0.14.2",
     "uuid": "^13.0.0",
     "xdg-app-paths": "^8.3.0"

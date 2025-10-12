@@ -11,8 +11,9 @@ import type { api } from "../agent";
 import { convertResponseToUIMessageStream } from "../internal/convert-response-to-ui-message-stream";
 import type { ID } from "../types";
 import type { UIOptions, UIOptionsSchema } from "../ui";
+import { APIServerURLEnvironmentVariable } from "../constants";
 
-export const APIServerURLEnvironmentVariable = "BLINK_API_URL";
+export { APIServerURLEnvironmentVariable };
 
 export { StreamResponseFormatHeader } from "../index.browser";
 

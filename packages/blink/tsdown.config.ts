@@ -1,6 +1,7 @@
 import { defineConfig, type CopyEntry } from "tsdown";
 import { dirname, join } from "path";
 import { stat, readFile, writeFile, mkdir } from "fs/promises";
+import Sonda from "sonda/rolldown";
 
 const copies: CopyEntry[] = [];
 const lydellNodePtyCopiedPaths: Record<string, string> = {};
@@ -64,6 +65,7 @@ export default defineConfig([
     outputOptions: {
       dir: "dist/node",
     },
+    plugins: [Sonda()],
   },
   {
     // These are all bundled for the browser so non-Node clients can use them.
