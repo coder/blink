@@ -546,10 +546,12 @@ const sseHeaders = {
  * @param model the model name. browse models at: https://vercel.com/ai-gateway/models.
  */
 export const model = (model: string, options?: { token?: string }) => {
+  // This bypass is *ONLY* for temporary testing
+  // until we fix the onboarding flow.
   const token =
     options?.token ??
     process.env.BLINK_TOKEN ??
-    process.env.BLINK_INVOCATION_AUTH_TOKEN;
+    process.env.BLINK_INVOCATION_AUTH_TOKEN ?? "fake-key";
 //   if (!token) {
 //     throw new Error(`You must be authenticated with Blink to use the model gateway.
 
