@@ -938,6 +938,8 @@ const app = new App({
 
 // This will trigger when the bot is @mentioned.
 app.event("app_mention", async ({ event }) => {
+  // The argument here is a JSON-serializable value.
+  // To maintain the same chat context, use the same key.
   const chat = await agent.chat.upsert([
     "slack",
     event.team,
@@ -992,9 +994,9 @@ Blink agents are short-lived HTTP servers that restart on code changes and do no
 *NEVER* use module-level Maps, Sets, or variables to store state (e.g. \`const activeBots = new Map()\`).
 
 Instead:
-• Use \`agent.store\` for persistent key-value storage
-• Query external APIs to fetch current state
-• Use webhooks to trigger actions rather than polling in-memory state
+- Use \`agent.store\` for persistent key-value storage
+- Query external APIs to fetch current state
+- Use webhooks to trigger actions rather than polling in-memory state
 
 The agent process can restart at any time, so all important state must be externalized.
 </technical_knowledge>
