@@ -262,7 +262,7 @@ Be sure to use the <@id> format for mentions.`,
       text: `This message was sent by a user in Slack. You *must* respond by sending a Slack message. Message metadata (use for responding and reacting):
 
 Timestamp Formatted: ${metadata.createdAt.toLocaleString()}
-Timestamp Raw: ${message.thread_ts ?? message.ts ?? "N/A"}
+Timestamp Raw: ${message.ts ?? "N/A"}
 Channel ID: ${message.channel ?? "N/A"}
 ${metadata.user ? `From User: ${metadata.user.name} (<@${metadata.user.id ?? "N/A"}>) (${metadata.user.real_name ?? metadata.user.profile?.display_name ?? "N/A"})` : ""}
 `,

@@ -500,7 +500,6 @@ app.event("app_mention", async ({ event }) => {
   // To maintain the same chat context, use the same key.
   const chat = await agent.chat.upsert([
     "slack",
-    event.team,
     event.channel,
     event.thread_ts ?? event.ts,
   ]);
@@ -594,10 +593,44 @@ Blink agents are short-lived HTTP servers that restart on code changes and do no
 
 *NEVER* use module-level Maps, Sets, or variables to store state (e.g. \`const activeBots = new Map()\`).
 
-Instead:
+For global state persistence, you can use the agent store:
 - Use \`agent.store\` for persistent key-value storage
 - Query external APIs to fetch current state
 - Use webhooks to trigger actions rather than polling in-memory state
+
+For message-level state persistence, use message metadata:
+\`\`\`typescript
+import { UIMessage } from "blink";
+import * as blink from "blink";
+
+const agent = new blink.Agent<UIMessage<{
+  source: "github";
+  associated_id: string;
+}>>();
+
+agent.on("request", async (request) => {
+  // comes from github, we want to do something deterministic in the chat loop with that ID...
+  // insert a message with that metadata into the chat
+  const chat = await agent.chat.upsert("some-github-key");
+  await agent.chat.sendMessages(request.chat.id, [{
+    role: "user",
+    parts: [{
+      type: "text",
+      text: "example",
+    }],
+    metadata: {
+      source: "github",
+      associated_id: "some-github-id",
+    }
+  }])
+})
+
+agent.on("chat", async ({ messages }) => {
+  const message = messages.find(message => message.metadata?.source === "github")
+  
+  // Now we can use that metadata...
+})
+\`\`\`
 
 The agent process can restart at any time, so all important state must be externalized.
 </technical_knowledge>

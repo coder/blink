@@ -406,8 +406,11 @@ export const createDiskStore = <T extends object>(
           }
         },
         async release() {
-          releaseLockfile();
-          locks.delete(key);
+          try {
+            releaseLockfile();
+          } finally {
+            locks.delete(key);
+          }
         },
       };
     },

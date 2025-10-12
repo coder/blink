@@ -47,9 +47,9 @@ export function createLocalServer(options: CreateLocalServerOptions) {
         chatId,
         chatsDirectory,
       });
-      manager.setAgent(options.getAgent());
       chatManagers.set(chatId, manager);
     }
+    manager.setAgent(options.getAgent());
     return manager;
   };
 
