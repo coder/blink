@@ -373,7 +373,7 @@ IMPORTANT: This MUST be text, not an emoji.`),
     }),
 
     getUserInfo: tool({
-      description: "Get information about a Slack user by ID.",
+      description: `Get information about a Slack user by ID.${!disableViewingUserProfilePictures ? " The profile picture of the user will be returned if available." : ""}`,
       inputSchema: z.object({
         user_id: z
           .string()
@@ -445,7 +445,7 @@ IMPORTANT: This MUST be text, not an emoji.`),
     }),
 
     reportStatus: tool({
-      description: `Report your status to Slack. You *MUST* do this BEFORE executing tools or thinking, it DRAMATICALLY IMPROVES THE USER EXPERIENCE by helping them understand what you\'re working on. Do this after running tools, before sending messages as well. e.g. "is responding to XXX inquiry...". It will appear as: "<your name> <message>". So prefix with "is" and suffix with an ellipsis.
+      description: `Report your status to Slack. You *MUST* do this BEFORE executing tools or thinking, it DRAMATICALLY IMPROVES THE USER EXPERIENCE by helping them understand what you\'re working on. Run this in parallel as you execute other tools, expressing your intent. Do this after running tools, before sending messages as well. e.g. "is responding to XXX inquiry...". It will appear as: "<your name> <message>". So prefix with "is" and suffix with an ellipsis.
         
 Clear the status by passing an empty string.`,
       inputSchema: z.object({
