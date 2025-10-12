@@ -176,41 +176,39 @@ export const createPartsFromMessageMetadata = ({
 }: CreatePartsFromMessageMetadataOptions): UIMessage["parts"] => {
   const parts: UIMessage["parts"] = [];
 
-  for (const file of metadata.files) {
-    if (file.result.type === "downloaded") {
-      const base64 = Buffer.from(file.result.content).toString("base64");
-      parts.push({
-        type: "file",
-        url: `data:${file.file.mimetype};base64,${base64}`,
-        mediaType: file.file.mimetype,
-      });
-    } else if (file.result.type === "error") {
-      parts.push({
-        type: "text",
-        text: `The user attached file ${file.file.name}, but it could not be downloaded. Error: ${file.result.error.message}`,
-      });
-    } else if (file.result.type === "too_large") {
-      parts.push({
-        type: "text",
-        text: `The user attached file ${file.file.name}, but it was too large (${file.result.size} bytes) to download.`,
-      });
-    } else if (file.result.type === "not_supported") {
-      parts.push({
-        type: "text",
-        text: `The user attached file ${file.file.name}, but the file type (${file.file.mimetype}) is not supported.`,
-      });
-    } else if (file.result.type === "no_url") {
-      parts.push({
-        type: "text",
-        text: `The user attached file ${file.file.name}, but no download URL was available.`,
-      });
-    } else {
-      parts.push({
-        type: "text",
-        text: `The user attached file ${file.file.name}, but it was not downloaded.`,
-      });
-    }
+  let shouldRespondInThread = Boolean(
+    metadata.mentions.find(
+      (mention) => mention.type === "user" && mention.user.id === botUserId
+    )
+  );
+  if (metadata.channel?.is_im || metadata.channel?.is_mpim) {
+    shouldRespondInThread = false;
   }
+
+  parts.push(
+    {
+      type: "text",
+      text: `You *must* respond by sending a Slack message. Slack message metadata (use for responding and reacting):
+
+Timestamp Formatted: ${metadata.createdAt.toLocaleString()}
+Timestamp Raw: ${message.ts ?? "N/A"}
+Thread Timestamp: ${message.thread_ts ?? "N/A"}
+Channel ID: ${message.channel ?? "N/A"}
+${metadata.user ? `From User: ${metadata.user.name} (<@${metadata.user.id ?? "N/A"}>) (${metadata.user.real_name ?? metadata.user.profile?.display_name ?? "N/A"})` : ""}
+`,
+    },
+    {
+      type: "text",
+      text: shouldRespondInThread
+        ? "You *must* reply with using the message's timestamp."
+        : "You *may* reply with using the message's timestamp or directly to the channel.",
+    },
+    {
+      type: "text",
+      text: `Slack Message Content:
+${message.text ?? ""}`,
+    }
+  );
 
   const text: string[] = [];
   for (const mention of metadata.mentions) {
@@ -247,39 +245,41 @@ Use these mentions to tag channels, teams, and users if relevant.
 Be sure to use the <@id> format for mentions.`,
   });
 
-  let shouldRespondInThread = Boolean(
-    metadata.mentions.find(
-      (mention) => mention.type === "user" && mention.user.id === botUserId
-    )
-  );
-  if (metadata.channel?.is_im || metadata.channel?.is_mpim) {
-    shouldRespondInThread = false;
-  }
-
-  parts.push(
-    {
-      type: "text",
-      text: `This message was sent by a user in Slack. You *must* respond by sending a Slack message. Message metadata (use for responding and reacting):
-
-Timestamp Formatted: ${metadata.createdAt.toLocaleString()}
-Timestamp Raw: ${message.ts ?? "N/A"}
-Thread Timestamp: ${message.thread_ts ?? "N/A"}
-Channel ID: ${message.channel ?? "N/A"}
-${metadata.user ? `From User: ${metadata.user.name} (<@${metadata.user.id ?? "N/A"}>) (${metadata.user.real_name ?? metadata.user.profile?.display_name ?? "N/A"})` : ""}
-`,
-    },
-    {
-      type: "text",
-      text: shouldRespondInThread
-        ? "You *must* reply with the message's timestamp."
-        : "You *may* reply with the message's timestamp or directly to the channel - you choose.",
-    },
-    {
-      type: "text",
-      text: `Slack Message Content:
-${message.text ?? ""}`,
+  for (const file of metadata.files) {
+    if (file.result.type === "downloaded") {
+      const base64 = Buffer.from(file.result.content).toString("base64");
+      parts.push({
+        type: "file",
+        url: `data:${file.file.mimetype};base64,${base64}`,
+        mediaType: file.file.mimetype,
+      });
+    } else if (file.result.type === "error") {
+      parts.push({
+        type: "text",
+        text: `The user attached file ${file.file.name}, but it could not be downloaded. Error: ${file.result.error.message}`,
+      });
+    } else if (file.result.type === "too_large") {
+      parts.push({
+        type: "text",
+        text: `The user attached file ${file.file.name}, but it was too large (${file.result.size} bytes) to download.`,
+      });
+    } else if (file.result.type === "not_supported") {
+      parts.push({
+        type: "text",
+        text: `The user attached file ${file.file.name}, but the file type (${file.file.mimetype}) is not supported.`,
+      });
+    } else if (file.result.type === "no_url") {
+      parts.push({
+        type: "text",
+        text: `The user attached file ${file.file.name}, but no download URL was available.`,
+      });
+    } else {
+      parts.push({
+        type: "text",
+        text: `The user attached file ${file.file.name}, but it was not downloaded.`,
+      });
     }
-  );
+  }
 
   return parts;
 };
@@ -290,20 +290,20 @@ export interface MessageMetadata {
    */
   mentions: Array<
     | {
-        type: "channel";
-        id: string;
-        channel: NonNullable<ConversationsInfoResponse["channel"]>;
-      }
+      type: "channel";
+      id: string;
+      channel: NonNullable<ConversationsInfoResponse["channel"]>;
+    }
     | {
-        type: "team";
-        id: string;
-        team: NonNullable<TeamInfoResponse["team"]>;
-      }
+      type: "team";
+      id: string;
+      team: NonNullable<TeamInfoResponse["team"]>;
+    }
     | {
-        type: "user";
-        id: string;
-        user: NonNullable<UsersInfoResponse["user"]>;
-      }
+      type: "user";
+      id: string;
+      user: NonNullable<UsersInfoResponse["user"]>;
+    }
   >;
 
   /**
@@ -313,24 +313,24 @@ export interface MessageMetadata {
     file: NonNullable<GenericMessageEvent["files"]>[number];
     // Content will only be fetched if the file is in the supportedFileTypes.
     result:
-      | {
-          type: "downloaded";
-          content: Buffer;
-        }
-      | {
-          type: "not_supported";
-        }
-      | {
-          type: "too_large";
-          size: number;
-        }
-      | {
-          type: "error";
-          error: Error;
-        }
-      | {
-          type: "no_url";
-        };
+    | {
+      type: "downloaded";
+      content: Buffer;
+    }
+    | {
+      type: "not_supported";
+    }
+    | {
+      type: "too_large";
+      size: number;
+    }
+    | {
+      type: "error";
+      error: Error;
+    }
+    | {
+      type: "no_url";
+    };
   }>;
 
   /**
@@ -415,9 +415,9 @@ export const extractMessagesMetadata = async <
     file: NonNullable<GenericMessageEvent["files"]>[number];
     messageIndex: number;
     reason?:
-      | { type: "no_url" }
-      | { type: "too_large"; size: number }
-      | { type: "not_supported" };
+    | { type: "no_url" }
+    | { type: "too_large"; size: number }
+    | { type: "not_supported" };
   }> = [];
 
   // First pass: collect all IDs and files from all messages
