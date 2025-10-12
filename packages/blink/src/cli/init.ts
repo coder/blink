@@ -504,7 +504,7 @@ app.event("app_mention", async ({ event }) => {
     event.channel,
     event.thread_ts ?? event.ts,
   ]);
-  const message = await slack.createMessageFromEvent({
+  const { message } = await slack.createMessageFromEvent({
     client: app.client,
     event,
   });

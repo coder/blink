@@ -90,6 +90,11 @@ export interface CreateMessageFromEventOptions
   event: GenericMessageEvent | AppMentionEvent;
 }
 
+export interface CreateMessageFromEventResult {
+  message: UIMessage;
+  metadata: MessageMetadata;
+}
+
 /**
  * createMessageFromEvent creates a message from a Slack event.
  *
@@ -99,7 +104,7 @@ export interface CreateMessageFromEventOptions
  */
 export const createMessageFromEvent = async (
   options: CreateMessageFromEventOptions
-): Promise<UIMessage> => {
+): Promise<CreateMessageFromEventResult> => {
   const id = options.event.client_msg_id ?? crypto.randomUUID();
 
   const [botInfo, [response]] = await Promise.all([
@@ -134,9 +139,12 @@ export const createMessageFromEvent = async (
   });
 
   return {
-    id,
-    parts,
-    role: "user",
+    message: {
+      id,
+      parts,
+      role: "user",
+    },
+    metadata: response.metadata,
   };
 };
 
