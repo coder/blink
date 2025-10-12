@@ -92,6 +92,10 @@ export default async function init(directory?: string): Promise<void> {
       main: "agent.ts",
       type: "module",
       private: true,
+      scripts: {
+        dev: "blink dev",
+        deploy: "blink deploy",
+      },
     }),
     "agent.ts": `import { convertToModelMessages, streamText, tool } from "ai";
 import * as blink from "blink";
@@ -193,7 +197,7 @@ data
   const child = spawn(
     packageManager,
     [
-      "install",
+      packageManager === "yarn" ? "add" : "install",
       "--save-dev",
       "zod",
       "ai",
@@ -223,10 +227,10 @@ data
   console.log("");
 
   const runDevCommand = {
-    bun: "bunx blink dev",
-    npm: "npx blink dev",
-    pnpm: "pnpx blink dev",
-    yarn: "yarn blink dev",
+    bun: "bun run dev",
+    npm: "npm run dev",
+    pnpm: "pnpm run dev",
+    yarn: "yarn dev",
   }[packageManager];
 
   log.success(`To get started, run:
