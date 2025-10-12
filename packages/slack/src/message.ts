@@ -212,8 +212,8 @@ export const createPartsFromMessageMetadata = ({
     }
   }
 
+  const text: string[] = [];
   for (const mention of metadata.mentions) {
-    const text: string[] = [];
     switch (mention.type) {
       case "channel":
         text.push(`Channel: ${mention.id} => ${mention.channel.name}`);
@@ -237,15 +237,15 @@ export const createPartsFromMessageMetadata = ({
         }
         break;
     }
-    parts.push({
-      type: "text",
-      text: `Mentions found in the message:
+  }
+  parts.push({
+    type: "text",
+    text: `Mentions found in the message:
 ${text.join("\n")}
 
 Use these mentions to tag channels, teams, and users if relevant.
 Be sure to use the <@id> format for mentions.`,
-    });
-  }
+  });
 
   let shouldRespondInThread = Boolean(
     metadata.mentions.find(
@@ -290,20 +290,20 @@ export interface MessageMetadata {
    */
   mentions: Array<
     | {
-        type: "channel";
-        id: string;
-        channel: NonNullable<ConversationsInfoResponse["channel"]>;
-      }
+      type: "channel";
+      id: string;
+      channel: NonNullable<ConversationsInfoResponse["channel"]>;
+    }
     | {
-        type: "team";
-        id: string;
-        team: NonNullable<TeamInfoResponse["team"]>;
-      }
+      type: "team";
+      id: string;
+      team: NonNullable<TeamInfoResponse["team"]>;
+    }
     | {
-        type: "user";
-        id: string;
-        user: NonNullable<UsersInfoResponse["user"]>;
-      }
+      type: "user";
+      id: string;
+      user: NonNullable<UsersInfoResponse["user"]>;
+    }
   >;
 
   /**
@@ -313,24 +313,24 @@ export interface MessageMetadata {
     file: NonNullable<GenericMessageEvent["files"]>[number];
     // Content will only be fetched if the file is in the supportedFileTypes.
     result:
-      | {
-          type: "downloaded";
-          content: Buffer;
-        }
-      | {
-          type: "not_supported";
-        }
-      | {
-          type: "too_large";
-          size: number;
-        }
-      | {
-          type: "error";
-          error: Error;
-        }
-      | {
-          type: "no_url";
-        };
+    | {
+      type: "downloaded";
+      content: Buffer;
+    }
+    | {
+      type: "not_supported";
+    }
+    | {
+      type: "too_large";
+      size: number;
+    }
+    | {
+      type: "error";
+      error: Error;
+    }
+    | {
+      type: "no_url";
+    };
   }>;
 
   /**
@@ -415,9 +415,9 @@ export const extractMessagesMetadata = async <
     file: NonNullable<GenericMessageEvent["files"]>[number];
     messageIndex: number;
     reason?:
-      | { type: "no_url" }
-      | { type: "too_large"; size: number }
-      | { type: "not_supported" };
+    | { type: "no_url" }
+    | { type: "too_large"; size: number }
+    | { type: "not_supported" };
   }> = [];
 
   // First pass: collect all IDs and files from all messages
