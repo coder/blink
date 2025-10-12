@@ -1,3 +1,5 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
 import * as compute from "@blink-sdk/compute";
 import * as search from "@blink-sdk/web-search";
 import {
@@ -7,14 +9,12 @@ import {
   tool,
   type UIMessage,
 } from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
 import { spawn } from "child_process";
 import { readFile, writeFile } from "fs/promises";
-import { join, relative } from "path";
 import open from "open";
+import { join } from "path";
 import { z } from "zod";
-import { agent as createAgent, type Agent } from "../agent/agent";
+import { Agent } from "../agent/agent";
 import { Client } from "../agent/client";
 import * as blink from "../agent/index.node";
 import { getDevhookID } from "../cli/lib/devhook";
@@ -35,7 +35,7 @@ export function createEditAgent(options: {
   directory: string;
   token?: string;
 }): EditAgent {
-  const agent = createAgent();
+  const agent = new Agent();
 
   let userAgentUrl: string | undefined;
   let tsserver: TSServer | undefined;

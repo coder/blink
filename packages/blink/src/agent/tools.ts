@@ -223,7 +223,7 @@ export const tools = Object.freeze({
                 writer.write({
                   type: "tool-output-available",
                   toolCallId: toRun.toolCallId,
-                  output: result,
+                  output: lastOutput,
                 });
               } catch (err) {
                 writer.write({

@@ -8,8 +8,8 @@ import type { EventSourceMessage } from "eventsource-parser/stream";
 import { EventSourceParserStream } from "eventsource-parser/stream";
 import { hc } from "hono/client";
 import type { api } from "../agent";
-import type { Chat, ID } from "../types";
 import { convertResponseToUIMessageStream } from "../internal/convert-response-to-ui-message-stream";
+import type { ID } from "../types";
 import type { UIOptions, UIOptionsSchema } from "../ui";
 
 export const APIServerURLEnvironmentVariable = "BLINK_API_URL";
