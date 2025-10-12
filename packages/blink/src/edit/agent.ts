@@ -203,6 +203,7 @@ do should *not* provide "oauth_config" in the manifest.
 For the best user experience, default to the following bot scopes:
 - "app_mentions:read"
 - "reactions:write"
+- "reactions:read"
 - "channels:history"
 - "chat:write"
 - "groups:history"

@@ -550,13 +550,13 @@ export const model = (model: string, options?: { token?: string }) => {
     options?.token ??
     process.env.BLINK_TOKEN ??
     process.env.BLINK_INVOCATION_AUTH_TOKEN;
-  if (!token) {
-    throw new Error(`You must be authenticated with Blink to use the model gateway.
+//   if (!token) {
+//     throw new Error(`You must be authenticated with Blink to use the model gateway.
 
-Authenticate with "blink login".
+// Authenticate with "blink login".
 
-Feel free to use other providers like OpenAI, Anthropic, or Google.`);
-  }
+// Feel free to use other providers like OpenAI, Anthropic, or Google.`);
+//   }
 
   const baseURL =
     process.env.INTERNAL_BLINK_API_SERVER_URL ?? "https://blink.so";

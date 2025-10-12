@@ -62,7 +62,9 @@ export const createTools = ({
      */
     sendMessage: tool({
       description:
-        "Send a message to Slack. Maintain the medium of the conversation. e.g. if the user tags you, they are typically expecting a response in a thread. If not, they likely expect a response in the channel.",
+        `Send a message to Slack.
+
+If the user mentions you, they are typically expecting a response in a thread.`,
       inputSchema: z.object({
         message: z.string().describe(
           `The message to send to Slack.
@@ -166,7 +168,9 @@ ${formattingRules}`
     }),
 
     reactToMessage: tool({
-      description: "React to a message in Slack.",
+      description: `React to a message in Slack.
+
+Prefer reacting to the most recent messages in a thread.`,
       inputSchema: z.object({
         channel: z.string().describe("The channel to react to the message in."),
         ts: z.string().describe("The timestamp of the message to react to."),
