@@ -1,0 +1,46 @@
+{
+  "name": "@blink-sdk/compute",
+  "version": "0.0.15",
+  "description": "A set of tools that allow Blink to use a computer.",
+  "keywords": [
+    "blink",
+    "compute",
+    "tools",
+    "agent"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Coder",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coder/blink.git"
+  },
+  "homepage": "https://github.com/coder/blink/tree/main/packages/sdk/compute",
+  "bugs": {
+    "url": "https://github.com/coder/blink/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "tsdown"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.cjs"
+    }
+  },
+  "peerDependencies": {
+    "@blink-sdk/compute-protocol": ">= 0.0.6",
+    "zod": ">= 4",
+    "ai": ">= 5"
+  },
+  "devDependencies": {
+    "diff": "^8.0.2"
+  }
+}

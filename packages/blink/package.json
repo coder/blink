@@ -1,0 +1,118 @@
+{
+  "name": "blink",
+  "version": "0.1.114",
+  "description": "Blink is a JavaScript runtime for building and deploying AI agents.",
+  "type": "module",
+  "bin": {
+    "blink": "./dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/browser/agent/index.browser.d.ts",
+        "import": "./dist/browser/agent/index.browser.js",
+        "require": "./dist/browser/agent/index.browser.cjs"
+      },
+      "node": {
+        "types": "./dist/node/agent/index.node.d.ts",
+        "import": "./dist/node/agent/index.node.js",
+        "require": "./dist/node/agent/index.node.cjs"
+      },
+      "default": {
+        "types": "./dist/node/agent/index.node.d.ts",
+        "import": "./dist/node/agent/index.node.js",
+        "require": "./dist/node/agent/index.node.cjs"
+      }
+    },
+    "./test": {
+      "types": "./dist/node/test.d.ts",
+      "import": "./dist/node/test.js",
+      "require": "./dist/node/test.cjs"
+    },
+    "./build": {
+      "types": "./dist/node/build/index.d.ts",
+      "import": "./dist/node/build/index.js",
+      "require": "./dist/node/build/index.cjs"
+    },
+    "./client": {
+      "types": "./dist/browser/agent/client/index.d.ts",
+      "import": "./dist/browser/agent/client/index.js",
+      "require": "./dist/browser/agent/client/index.cjs",
+      "browser": "./dist/browser/agent/client/index.js"
+    },
+    "./control": {
+      "types": "./dist/browser/control/index.d.ts",
+      "import": "./dist/browser/control/index.js",
+      "require": "./dist/browser/control/index.cjs",
+      "browser": "./dist/browser/control/index.js"
+    },
+    "./react": {
+      "browser": {
+        "types": "./dist/browser/react/index.browser.d.ts",
+        "import": "./dist/browser/react/index.browser.js",
+        "require": "./dist/browser/react/index.browser.cjs"
+      },
+      "node": {
+        "types": "./dist/node/react/index.node.d.ts",
+        "import": "./dist/node/react/index.node.js",
+        "require": "./dist/node/react/index.node.cjs"
+      },
+      "default": {
+        "types": "./dist/node/react/index.node.d.ts",
+        "import": "./dist/node/react/index.node.js",
+        "require": "./dist/node/react/index.node.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev-install": "rm -rf ./*.tgz && bun run build && npm pack && bun remove -g blink && bun install -g $(pwd)/*.tgz"
+  },
+  "devDependencies": {
+    "@ai-sdk/anthropic": "^2.0.15",
+    "@ai-sdk/google": "^2.0.13",
+    "@ai-sdk/openai": "^2.0.28",
+    "@ai-sdk/openai-compatible": "^1.0.19",
+    "@ai-sdk/react": "^2.0.35",
+    "@ai-sdk/xai": "^2.0.16",
+    "@blink.so/api": "^0.0.11",
+    "@clack/prompts": "^0.11.0",
+    "@hono/node-server": "^1.19.3",
+    "@hugodutka/gemini-cli": "npm:@kylecarbs/gemini-cli@0.6.0-nightly-20250912-6",
+    "@opentelemetry/auto-instrumentations-node": "^0.64.6",
+    "@types/marked-terminal": "^6.1.1",
+    "@whatwg-node/server": "^0.10.12",
+    "commander": "^14.0.0",
+    "emittery": "^1.2.0",
+    "eventsource-parser": "^3.0.6",
+    "filenamify": "^7.0.0",
+    "hono": "^4.9.8",
+    "ignore": "^7.0.2",
+    "ink": "^6.2.3",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "marked": "^16.2.1",
+    "marked-terminal": "^7.3.0",
+    "open": "^10.2.0",
+    "react": "^19.1.1",
+    "react-devtools-core": "^6.1.5",
+    "tsdown": "0.14.2",
+    "uuid": "^13.0.0",
+    "xdg-app-paths": "^8.3.0"
+  },
+  "optionalDependencies": {
+    "esbuild": "^0.25.9"
+  },
+  "peerDependencies": {
+    "zod": ">= 4",
+    "ai": ">= 5",
+    "react": ">= 18"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "@blink-sdk/slack",
+  "version": "1.0.0",
+  "author": {
+    "name": "Coder",
+    "email": "support@blink.so",
+    "url": "https://blink.so"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coder/blink.git"
+  },
+  "peerDependencies": {
+    "@slack/bolt": ">= ^4.5.0",
+    "@slack/web-api": ">= ^7.0.0",
+    "@slack/logger": ">= ^4.0.0",
+    "ai": ">= 5",
+    "zod": ">= 4"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "bugs": {
+    "url": "https://github.com/coder/blink/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "homepage": "https://github.com/coder/blink/tree/main/packages/sdk/slack",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown src/index.ts --dts --format esm,cjs"
+  },
+  "type": "module"
+}

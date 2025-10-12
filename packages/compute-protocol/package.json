@@ -1,0 +1,66 @@
+{
+  "name": "@blink-sdk/compute-protocol",
+  "description": "The compute protocol for the Blink SDK.",
+  "version": "0.0.6",
+  "type": "module",
+  "keywords": [
+    "blink",
+    "compute",
+    "agent"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Coder",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coder/blink.git"
+  },
+  "homepage": "https://github.com/coder/blink/tree/main/packages/compute-protocol",
+  "bugs": {
+    "url": "https://github.com/coder/blink/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown"
+  },
+  "exports": {
+    "./client": {
+      "import": "./dist/client.js",
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.cjs"
+    },
+    "./server": {
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.cjs"
+    },
+    "./schema": {
+      "import": "./dist/schema.js",
+      "types": "./dist/schema.d.ts",
+      "default": "./dist/schema.cjs"
+    },
+    "./transport": {
+      "import": "./dist/transport.js",
+      "types": "./dist/transport.d.ts",
+      "default": "./dist/transport.cjs"
+    }
+  },
+  "devDependencies": {
+    "@types/tar-stream": "^3.1.4",
+    "@types/ws": "^8.18.1",
+    "@xterm/addon-serialize": "^0.13.0",
+    "@xterm/headless": "^5.5.0",
+    "dotenv": "^17.2.3",
+    "tar-stream": "^3.1.7",
+    "ws": "^8.18.3",
+    "zod": "^4.1.11"
+  },
+  "peerDependencies": {
+    "zod": ">= 4",
+    "ws": ">= 8"
+  }
+}

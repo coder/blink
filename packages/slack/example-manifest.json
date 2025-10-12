@@ -1,0 +1,75 @@
+{
+  "display_information": {
+    "name": "Blink Slackbot",
+    "description": "Blink Slackbot"
+  },
+  "features": {
+    "app_home": {
+      "home_tab_enabled": true,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "Blink Slackbot",
+      "always_online": true
+    },
+    "assistant_view": {
+      "assistant_description": "A slack bot built with Blink"
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "<devhook-url>",
+      "bot_events": [
+        "app_mention",
+        "assistant_thread_context_changed",
+        "assistant_thread_started",
+        "link_shared",
+        "member_joined_channel",
+        "message.channels",
+        "message.groups",
+        "message.im",
+        "reaction_added",
+        "reaction_removed"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "<devhook-url>",
+      "message_menu_options_url": "<devhook-url>"
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": true
+  },
+  "oauth_config": {
+    "redirect_urls": ["<devhook-url>"],
+    "scopes": {
+      "user": [
+        "channels:history",
+        "channels:read",
+        "groups:history",
+        "groups:read",
+        "users:read"
+      ],
+      "bot": [
+        "app_mentions:read",
+        "assistant:write",
+        "channels:history",
+        "channels:read",
+        "chat:write",
+        "commands",
+        "emoji:read",
+        "files:read",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "reactions:read",
+        "reactions:write",
+        "users:read",
+        "links:read",
+        "mpim:read"
+      ]
+    }
+  }
+}

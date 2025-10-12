@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "outDir": "./dist/api",
+    "declaration": true
+  },
+  "include": ["src/agent/**/*.ts", "src/test.ts"]
+}

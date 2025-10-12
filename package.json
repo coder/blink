@@ -1,0 +1,23 @@
+{
+  "private": true,
+  "name": "blink-repo",
+  "type": "module",
+  "scripts": {
+    "format": "prettier --write --cache .",
+    "test": "bun test",
+    "typecheck": "tsgo --noEmit"
+  },
+  "workspaces": [
+    "packages/*",
+    "packages/sdk/*"
+  ],
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@typescript/native-preview": "^7.0.0-dev.20250907.1",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.5"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

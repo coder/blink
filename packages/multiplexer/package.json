@@ -1,0 +1,8 @@
+{
+  "name": "@blink-sdk/multiplexer",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/multiplexer.ts"
+  }
+}

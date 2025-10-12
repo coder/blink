@@ -1,0 +1,41 @@
+{
+  "name": "@blink-sdk/model-intent",
+  "version": "0.0.4",
+  "keywords": [
+    "blink",
+    "model-intent",
+    "bot",
+    "agent"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Coder",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coder/blink.git"
+  },
+  "homepage": "https://github.com/coder/blink/tree/main/packages/sdk/model-intent",
+  "bugs": {
+    "url": "https://github.com/coder/blink/issues"
+  },
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "peerDependencies": {
+    "zod": ">=4",
+    "ai": ">=5"
+  }
+}
