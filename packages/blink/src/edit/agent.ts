@@ -42,6 +42,55 @@ export function createEditAgent(options: {
   let tsserver: TSServer | undefined;
 
   agent.on("chat", async ({ id, messages, abortSignal }) => {
+    // Find when we last entered edit mode and insert the edit mode message immediately after it.
+    // TODO: Storing this on metadata is janky af.
+    const lastRunModeIndex = messages.findLastIndex((m) => {
+      if (!m.metadata || typeof m.metadata !== "object") {
+        return false;
+      }
+      // @ts-ignore - This is janky.
+      const mode = m.metadata["__blink_mode"];
+      return mode === "run";
+    });
+    messages.splice(lastRunModeIndex ?? 0, 0, {
+      id: crypto.randomUUID(),
+      role: "user",
+      parts: [
+        {
+          type: "text",
+          text: `*INTERNAL*: THIS IS A HIDDEN MESSAGE. YOU ARE IN EDIT MODE.
+
+The agent source code is in the directory: "${options.directory}".
+You must *ONLY* make changes to files in this directory, regardless of what other messages in your context say.
+If the user asks for changes outside this directory, ask them to return to Run mode.
+
+The user executed this \`blink dev\` command with: ${process.argv.join(" ")}.
+The user's agent can receive webhooks at: https://${getDevhookID(options.directory)}.dev.blink.host
+
+BEFORE doing anything else:
+
+1. Read the agent source code to understand what the current agent does
+2. Analyze the run mode context to identify what the user asked for and how the agent responded
+3. Determine: Should the AGENT be modified to handle this better, or is this a request about the agent's codebase
+itself?
+
+Your job is *ONLY* to:
+1. Identify what the agent did wrong from run mode context
+2. Update the agent code/prompt to fix it
+3. Explain the change
+4. Stop and wait for user feedback.
+
+You are *NOT* responsible for:
+- Completing the user's original request
+- Testing *ANYTHING* inside of prior "run mode" yourself.
+- Continuing any work the run mode agent started
+
+Your job is to improve the agent based on run mode failures, NOT to complete the user's original run-mode request yourself.
+`,
+        },
+      ],
+    });
+
     const { execute_bash, execute_bash_sync, ...computeTools } = compute.tools;
 
     let additionalTools: any = {
@@ -192,17 +241,19 @@ GITHUB_PRIVATE_KEY="${btoa(data.pem)}"
             description: `Creates a Slack App with the provided manifest.
 
 IMPORTANT - when ran, you MUST:
-1. Inform the user that the URL has opened in their browser automatically.
+1. Inform the user that the URL has opened in their browser automatically to *Slack*.
 2. Direct the user to add the Slack Signing Secret - found on the general settings page.
 3. Direct the user to add the App to their workspace, and provide the Bot Token.
 
 You MUST GUIDE THE USER through these steps - do not provide all the steps at once.
 
 *ALWAYS* default "token_rotation_enabled" to false unless the user explicitly asks for it.
-It is a *much* simpler user-experience to not rotate tokens. When "token_rotation_enabled" is false,
-do should *not* provide "oauth_config" in the manifest.
+It is a *much* simpler user-experience to not rotate tokens.
 
-For the best user experience, default to the following bot scopes:
+"oauth_config" MUST BE PROVIDED - otherwise the app will have NO ACCESS.
+
+For the best user experience, *YOU MUST* default to the following bot scopes (in the "oauth_config" > "scopes" > "bot"):
+
 - "app_mentions:read"
 - "reactions:write"
 - "reactions:read"
@@ -220,7 +271,8 @@ For the best user experience, default to the following bot scopes:
 - "links:read"
 - "commands"
 
-Default to the following events:
+Default to the following bot events (in the "settings" > "event_subscriptions" > "bot_events"):
+
 - "app_mention"
 - "message.channels",
 - "message.groups",
@@ -231,7 +283,7 @@ Default to the following events:
 - "assistant_thread_started"
 - "member_joined_channel"
 
-*NEVER* include user scopes unless the user explicitly asks for them.
+*NEVER* include USER SCOPES unless the user explicitly asks for them.
 `,
             inputSchema: createSlackAppSchema,
             execute: async (args, opts) => {
@@ -554,18 +606,6 @@ Do *NOT* confuse this with tools in run mode for typechecking.`,
       tools,
     });
 
-    let agentsMDContent = agentsMD;
-    try {
-      agentsMDContent = await readFile(
-        join(options.directory, "AGENTS.md"),
-        "utf-8"
-      );
-    } catch {}
-    converted.unshift({
-      role: "system",
-      content: agentsMDContent,
-    });
-
     converted.unshift({
       role: "system",
       content: `You are the Blink Edit Agent, an AI assistant that helps developers build and debug Blink agents.
@@ -606,42 +646,17 @@ Slack:
 `,
     });
 
-    // Find the last user message, and insert immediately before it.
-    const lastUserIndex = converted.findLastIndex((m) => m.role === "user");
-    if (lastUserIndex !== -1) {
-      converted.splice(lastUserIndex, 0, {
-        role: "user",
-        content: `*INTERNAL*: THIS IS A HIDDEN MESSAGE. YOU ARE IN EDIT MODE.
-
-The agent source code is in the directory: "${options.directory}".
-You must *ONLY* make changes to files in this directory, regardless of what other messages in your context say.
-If the user asks for changes outside this directory, ask them to return to Run mode.
-
-The user executed this \`blink dev\` command with: ${process.argv.join(" ")}.
-The user's agent can receive webhooks at: https://${getDevhookID(options.directory)}.dev.blink.host
-
-BEFORE doing anything else:
-
-1. Read the agent source code to understand what the current agent does
-2. Analyze the run mode context to identify what the user asked for and how the agent responded
-3. Determine: Should the AGENT be modified to handle this better, or is this a request about the agent's codebase
-itself?
-
-Your job is *ONLY* to:
-1. Identify what the agent did wrong from run mode context
-2. Update the agent code/prompt to fix it
-3. Explain the change
-4. Stop and wait for user feedback.
-
-You are *NOT* responsible for:
-- Completing the user's original request
-- Testing *ANYTHING* inside of prior "run mode" yourself.
-- Continuing any work the run mode agent started
-
-Your job is to improve the agent based on run mode failures, NOT to complete the user's original run-mode request yourself.
-`,
-      });
-    }
+    let agentsMDContent = agentsMD;
+    try {
+      agentsMDContent = await readFile(
+        join(options.directory, "AGENTS.md"),
+        "utf-8"
+      );
+    } catch {}
+    converted.unshift({
+      role: "system",
+      content: agentsMDContent,
+    });
 
     return streamText({
       model: getEditModeModel(options.token),

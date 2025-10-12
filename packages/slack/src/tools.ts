@@ -7,13 +7,13 @@ import {
   extractMessagesMetadata,
   formatMessage,
   formattingRules,
-  type ExtractMessageMetadataFromEventOptions,
+  type ExtractMessagesMetadataOptions,
   type MessageMetadata,
 } from "./message";
 
 export interface CreateToolsOptions
   extends Pick<
-    ExtractMessageMetadataFromEventOptions,
+    ExtractMessagesMetadataOptions<any>,
     "supportedFileTypes" | "maxFileSize"
   > {
   readonly client: WebClient;
@@ -61,9 +61,7 @@ export const createTools = ({
      * sendMessage is a tool that sends a message to Slack.
      */
     sendMessage: tool({
-      description: `Send a message to Slack.
-
-If the user mentions you, they are typically expecting a response in a thread.`,
+      description: `Send a message to Slack.`,
       inputSchema: z.object({
         message: z.string().describe(
           `The message to send to Slack.
@@ -447,8 +445,9 @@ IMPORTANT: This MUST be text, not an emoji.`),
     }),
 
     reportStatus: tool({
-      description:
-        'Report your status to Slack. You *MUST* do this BEFORE executing tools or thinking, it DRAMATICALLY IMPROVES THE USER EXPERIENCE by helping them understand what you\'re working on. Do this after running tools, before sending messages as well. e.g. "is responding to XXX inquiry...". It will appear as: "<your name> <message>". So prefix with "is" and suffix with an ellipsis.',
+      description: `Report your status to Slack. You *MUST* do this BEFORE executing tools or thinking, it DRAMATICALLY IMPROVES THE USER EXPERIENCE by helping them understand what you\'re working on. Do this after running tools, before sending messages as well. e.g. "is responding to XXX inquiry...". It will appear as: "<your name> <message>". So prefix with "is" and suffix with an ellipsis.
+        
+Clear the status by passing an empty string.`,
       inputSchema: z.object({
         message: z
           .string()

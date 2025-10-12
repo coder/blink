@@ -276,6 +276,11 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
             }
           : msg.metadata;
 
+      if (typeof metadata === "object" && metadata !== null) {
+        // @ts-ignore - This is janky.
+        metadata["__blink_mode"] = modeRef.current;
+      }
+
       return {
         id: (msg.id as ID) ?? crypto.randomUUID(),
         created_at: new Date().toISOString(),

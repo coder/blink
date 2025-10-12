@@ -442,7 +442,9 @@ export const createSlackAppSchema = z.object({
             .describe("Make the Messages tab read-only."),
         })
         .optional()
-        .describe("Configuration for the App Home."),
+        .describe(
+          'Configuration for the App Home. If specified, the "bot" scope is *REQUIRED*.'
+        ),
 
       assistant_view: z
         .object({
@@ -486,7 +488,7 @@ export const createSlackAppSchema = z.object({
   oauth_config: z
     .object({
       redirect_urls: z
-        .array(z.string().url())
+        .array(z.url())
         .optional()
         .describe("OAuth redirect URLs."),
       scopes: z
@@ -506,7 +508,6 @@ export const createSlackAppSchema = z.object({
         })
         .describe("OAuth scopes for bot and user tokens."),
     })
-    .optional()
     .describe("OAuth configuration for the Slack app."),
 
   settings: z

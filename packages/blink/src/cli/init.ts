@@ -279,6 +279,10 @@ Changes to the agent are hot-reloaded. As you make edits, the user can immediate
 5. Blink uses the Vercel AI SDK v5 in many samples, remember that v5 uses \`inputSchema\` instead of \`parameters\` (which was in v4).
 6. Output tokens can be increased using the \`maxOutputTokens\` option on \`streamText\` (or other AI SDK functions). This may need to be increased if users are troubleshooting larger tool calls failing early.
 7. Use the TypeScript language service tools (\`typescript_completions\`, \`typescript_quickinfo\`, \`typescript_definition\`, \`typescript_diagnostics\`) to understand APIs, discover available methods, check types, and debug errors. These tools use tsserver to provide IDE-like intelligence.
+
+If the user is asking for a behavioral change, you should update the agent's system prompt.
+This will not ensure the behavior, but it will guide the agent towards the desired behavior.
+If the user needs 100% behavioral certainty, adjust tool behavior instead.
 </agent_development>
 
 <agent_web_requests>
@@ -531,6 +535,15 @@ agent.on("chat", async ({ messages }) => {
   });
 })
 \`\`\`
+
+Slack SDK Notes:
+- "app_mention" event is triggered in both private channels and public channels.
+- "message" event is triggered regardless of being mentioned or not, and will *also* be fired when "app_mention" is triggered.
+- *NEVER* register app event listeners in the "on" handler of the agent. This will cause the handler to be called multiple times.
+- Think about how you scope chats - for example, in IMs or if the user wants to make a bot for a whole channel, you would not want to add "ts" or "thread_ts" to the chat key.
+- When using "assistant.threads.setStatus", you need to ensure the status of that same "thread_ts" is cleared. You can do this by inserting a message part that directs the agent to clear the status (there is a tool if using @blink-sdk/slack called "reportStatus" that does this). e.g. \`message.parts.push({ type: "text", text: "Clear the status of this thread after you finish: channel=\${channel} thread_ts=\${thread_ts}" })\`
+
+WARNING: Beware of attaching multiple event listeners to the same chat. This could cause the agent to respond multiple times.
 
 **@blink-sdk/web-search**
 \`\`\`typescript

@@ -1,8 +1,7 @@
 // Error messages constants
 export const ERROR_MESSAGES = {
-  // VercelReceiver errors
-  SIGNING_SECRET_REQUIRED:
-    "SLACK_SIGNING_SECRET is required for VercelReceiver",
+  // Receiver errors
+  SIGNING_SECRET_REQUIRED: "SLACK_SIGNING_SECRET is required for Receiver",
   APP_NOT_INITIALIZED: "App not initialized",
   REQUEST_TIMEOUT: "Request timeout",
   EVENT_NOT_ACKNOWLEDGED: "Event not acknowledged within timeout period",

@@ -83,7 +83,12 @@ NEVER USE:
  * Feel free to use `extractMessageDetailsFromEvent` to construct your own message.
  */
 export interface CreateMessageFromEventOptions
-  extends ExtractMessageMetadataFromEventOptions {}
+  extends Omit<
+    ExtractMessagesMetadataOptions<GenericMessageEvent | AppMentionEvent>,
+    "messages"
+  > {
+  event: GenericMessageEvent | AppMentionEvent;
+}
 
 /**
  * createMessageFromEvent creates a message from a Slack event.
@@ -96,10 +101,35 @@ export const createMessageFromEvent = async (
   options: CreateMessageFromEventOptions
 ): Promise<UIMessage> => {
   const id = options.event.client_msg_id ?? crypto.randomUUID();
-  const details = await extractMessageMetadataFromEvent(options);
+
+  const [botInfo, [response]] = await Promise.all([
+    options.client.auth
+      .test()
+      .then((res) => {
+        if (!res.ok) {
+          return undefined;
+        }
+        return res;
+      })
+      .catch(() => undefined),
+    extractMessagesMetadata({
+      client: options.client,
+      messages: [
+        {
+          ...options.event,
+          files: options.event.files as GenericMessageEvent["files"],
+        },
+      ],
+      supportedFileTypes: options.supportedFileTypes,
+      maxFileSize: options.maxFileSize,
+    }),
+  ]);
+  if (!response) {
+    throw new Error("Failed to extract message metadata");
+  }
   const parts = createPartsFromMessageMetadata({
-    metadata: details,
-    botId: details.botId,
+    metadata: response.metadata,
+    botUserId: botInfo?.user_id,
     message: options.event,
   });
 
@@ -121,9 +151,9 @@ export interface CreatePartsFromMessageMetadataOptions {
   metadata: MessageMetadata;
 
   /**
-   * botId can be supplied to help the bot identify itself.
+   * botUserId can be supplied to help the bot identify itself.
    */
-  botId?: string;
+  botUserId?: string;
 }
 
 /**
@@ -133,7 +163,7 @@ export interface CreatePartsFromMessageMetadataOptions {
  */
 export const createPartsFromMessageMetadata = ({
   metadata,
-  botId,
+  botUserId,
   message,
 }: CreatePartsFromMessageMetadataOptions): UIMessage["parts"] => {
   const parts: UIMessage["parts"] = [];
@@ -184,7 +214,7 @@ export const createPartsFromMessageMetadata = ({
         text.push(`Team: ${mention.id} => ${mention.team.name}`);
         break;
       case "user":
-        if (mention.id === botId) {
+        if (mention.id === botUserId) {
           text.push(
             `Bot (this is you!): ${mention.id} => ${mention.user.name} (${mention.user.real_name ?? mention.user.profile?.display_name ?? "N/A"})`
           );
@@ -209,16 +239,31 @@ Be sure to use the <@id> format for mentions.`,
     });
   }
 
+  let shouldRespondInThread = Boolean(
+    metadata.mentions.find(
+      (mention) => mention.type === "user" && mention.user.id === botUserId
+    )
+  );
+  if (metadata.channel?.is_im || metadata.channel?.is_mpim) {
+    shouldRespondInThread = false;
+  }
+
   parts.push(
     {
       type: "text",
       text: `This message was sent by a user in Slack. You *must* respond by sending a Slack message. Message metadata (use for responding and reacting):
 
-${message.thread_ts ? "Thread " : ""}Timestamp Formatted: ${metadata.createdAt.toLocaleString()}
-${message.thread_ts ? "Thread " : ""}Timestamp Raw: ${message.thread_ts ?? message.ts ?? "N/A"}
+Timestamp Formatted: ${metadata.createdAt.toLocaleString()}
+Timestamp Raw: ${message.thread_ts ?? message.ts ?? "N/A"}
 Channel ID: ${message.channel ?? "N/A"}
 ${metadata.user ? `From User: ${metadata.user.name} (<@${metadata.user.id ?? "N/A"}>) (${metadata.user.real_name ?? metadata.user.profile?.display_name ?? "N/A"})` : ""}
 `,
+    },
+    {
+      type: "text",
+      text: shouldRespondInThread
+        ? "You *must* reply with the message's timestamp."
+        : "You *may* reply with the message's timestamp or directly to the channel - you choose.",
     },
     {
       type: "text",
@@ -228,75 +273,6 @@ ${message.text ?? ""}`,
   );
 
   return parts;
-};
-
-export interface ExtractMessageMetadataFromEventOptions
-  extends Omit<
-    ExtractMessagesMetadataOptions<GenericMessageEvent | AppMentionEvent>,
-    "messages"
-  > {
-  event: GenericMessageEvent | AppMentionEvent;
-
-  /**
-   * botId is the ID of the bot that sent the message.
-   *
-   * If not provided, it will be fetched from the client.
-   */
-  botId?: string;
-}
-
-export interface ExtractMessageMetadataFromEventResult extends MessageMetadata {
-  /**
-   * botId is the ID of the bot that sent the message.
-   */
-  botId?: string;
-}
-
-/**
- * extractMessageMetadataFromEvent extracts message metadata from a Slack event.
- * @param client
- * @param event
- * @returns
- */
-export const extractMessageMetadataFromEvent = async ({
-  client,
-  event,
-  botId,
-  supportedFileTypes = defaultSupportedFileTypes,
-  maxFileSize = 10 * 1024 * 1024,
-}: ExtractMessageMetadataFromEventOptions): Promise<ExtractMessageMetadataFromEventResult> => {
-  const promises: Promise<void>[] = [];
-  if (!botId) {
-    promises.push(
-      client.auth
-        .test()
-        .then((res) => {
-          botId = res.bot_id;
-        })
-        .catch(() => undefined)
-    );
-  }
-  const metadata = await extractMessagesMetadata({
-    client,
-    messages: [
-      {
-        ...event,
-        files: event.files as GenericMessageEvent["files"],
-      },
-    ],
-    supportedFileTypes,
-    maxFileSize,
-  });
-  // Wait for everything to settle.
-  await Promise.all(promises);
-  const detail = metadata[0];
-  if (!detail) {
-    throw new Error("No message metadata found for event");
-  }
-  return {
-    ...detail.metadata,
-    botId,
-  };
 };
 
 export interface MessageMetadata {
