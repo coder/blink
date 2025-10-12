@@ -339,6 +339,12 @@ export class ChatManager {
     this.processQueueOrRun();
   }
 
+  async stop(): Promise<void> {
+    this.status = "idle";
+    this.abortController?.abort();
+    this.notifyListeners();
+  }
+
   private async processQueueOrRun(): Promise<void> {
     if (!this.agent) {
       // Set error state instead of throwing

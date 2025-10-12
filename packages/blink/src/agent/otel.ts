@@ -1,17 +1,15 @@
 import { trace } from "@opentelemetry/api";
-import { type ExportResult, ExportResultCode } from "@opentelemetry/core";
-import { OTLPTraceExporter as OTLPHttpTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { OTLPTraceExporter as OTLPHttpTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import {
   BatchSpanProcessor,
   type ReadableSpan,
-  type SpanExporter,
-  type SpanProcessor,
+  type SpanProcessor
 } from "@opentelemetry/sdk-trace-base";
 import type { MiddlewareHandler } from "hono";
-import { APIServerURLEnvironmentVariable } from "./client";
 import util from "util";
+import { APIServerURLEnvironmentVariable } from "./client";
 
 let otelSDK: NodeSDK | undefined;
 let consolePatched = false;

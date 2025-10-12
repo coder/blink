@@ -133,13 +133,6 @@ export interface AgentChat<MESSAGE extends UIMessage = UIMessage> {
   stop(id: ID): Promise<void>;
 
   /**
-   * Reset a chat.
-   *
-   * @param id the ID of the chat.
-   */
-  reset(id: ID): Promise<void>;
-
-  /**
    * Delete a chat.
    *
    * @param id the ID of the chat.

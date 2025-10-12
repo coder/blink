@@ -234,22 +234,6 @@ export class Agent<MESSAGE extends UIMessage> {
     },
 
     /**
-     * reset a chat. If not running, it will return without error.
-     *
-     * @param id the ID of the chat.
-     */
-    reset: async (id: ID): Promise<void> => {
-      const response = await this.client.chat[":id"].reset.$post({
-        param: {
-          id,
-        },
-      });
-      if (response.status !== 204) {
-        throw new Error("Failed to reset chat!");
-      }
-    },
-
-    /**
      * delete a chat. If not found, it will return without error.
      *
      * @param id the ID of the chat.

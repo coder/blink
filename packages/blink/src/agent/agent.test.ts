@@ -25,7 +25,6 @@ function createMockApiServer() {
     chatDeleteMessages: [] as any[],
     chatStart: [] as any[],
     chatStop: [] as any[],
-    chatReset: [] as any[],
     chatDelete: [] as any[],
     storeGet: [] as any[],
     storeSet: [] as any[],
@@ -87,9 +86,6 @@ function createMockApiServer() {
     },
     async stop(id) {
       calls.chatStop.push({ id });
-    },
-    async reset(id) {
-      calls.chatReset.push({ id });
     },
     async delete(id) {
       calls.chatDelete.push({ id });
@@ -349,17 +345,6 @@ describe("API Shim - Agent with Mock API Server", () => {
 
     expect(mockServer.calls.chatStop).toHaveLength(1);
     expect(mockServer.calls.chatStop[0].id).toBe(chatId);
-  });
-
-  test("Agent.chat.reset() calls API", async () => {
-    const instance = new Agent();
-
-    const chatId = "00000000-0000-0000-0000-000000000000" as ID;
-
-    await instance.chat.reset(chatId);
-
-    expect(mockServer.calls.chatReset).toHaveLength(1);
-    expect(mockServer.calls.chatReset[0].id).toBe(chatId);
   });
 
   test("Agent.chat.delete() calls API", async () => {

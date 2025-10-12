@@ -195,11 +195,6 @@ const chat = createRouter()
     await c.env.chat.stop(id);
     return c.body(null, 204);
   })
-  .post("/:id/reset", withChatID, async (c) => {
-    const { id } = c.req.valid("param");
-    await c.env.chat.reset(id);
-    return c.body(null, 204);
-  })
   .delete("/:id", withChatID, async (c) => {
     const { id } = c.req.valid("param");
     await c.env.chat.delete(id);

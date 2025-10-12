@@ -109,13 +109,12 @@ export function createLocalServer(options: CreateLocalServerOptions) {
       await manager.start();
     },
     async stop(id) {
-      return Promise.resolve();
-    },
-    async reset(id) {
-      return Promise.resolve();
+      const manager = getChatManager(id);
+      await manager.stop();
     },
     async delete(id) {
-      return Promise.resolve();
+      const manager = getChatManager(id);
+      await manager.resetChat();
     },
   };
 
