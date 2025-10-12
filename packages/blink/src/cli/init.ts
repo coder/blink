@@ -541,8 +541,41 @@ Slack SDK Notes:
 - "message" event is triggered regardless of being mentioned or not, and will *also* be fired when "app_mention" is triggered.
 - *NEVER* register app event listeners in the "on" handler of the agent. This will cause the handler to be called multiple times.
 - Think about how you scope chats - for example, in IMs or if the user wants to make a bot for a whole channel, you would not want to add "ts" or "thread_ts" to the chat key.
-- When using "assistant.threads.setStatus", you need to ensure the status of that same "thread_ts" is cleared. You can do this by inserting a message part that directs the agent to clear the status (there is a tool if using @blink-sdk/slack called "reportStatus" that does this). e.g. \`message.parts.push({ type: "text", text: "Clear the status of this thread after you finish: channel=\${channel} thread_ts=\${thread_ts}" })\`
+- When using "assistant.threads.setStatus", you need to ensure the status of that same "thread_ts" is cleared. You can do this by inserting a message part that directs the agent to clear the status (there is a tool if using @blink-sdk/slack called "reportStatus" that does this). e.g. \`message.parts.push({ type: "text", text: "*INTERNAL INSTRUCTION*: Clear the status of this thread after you finish: channel=\${channel} thread_ts=\${thread_ts}" })\`
 - The Slack SDK has many functions that allow users to completely customize the message format. If the user asks for customization, look at the types for @blink-sdk/slack - specifically: "createPartsFromMessageMetadata", "createMessageFromEvent", and "extractMessagesMetadata".
+
+Slack App Manifest:
+- *ALWAYS* include the "assistant:write" scope unless the user explicitly states otherwise - this allows Slack apps to set their status, which makes for a significantly better user experience. You *MUST* provide "assistant_view" if you provide this scope.
+- The user can always edit the manifest after creation, but you'd have to suggest it to them.
+- "oauth_config" MUST BE PROVIDED - otherwise the app will have NO ACCESS.
+- *ALWAYS* default "token_rotation_enabled" to false unless the user explicitly asks for it. It is a *much* simpler user-experience to not rotate tokens.
+- For the best user experience, default to the following bot scopes (in the "oauth_config" > "scopes" > "bot"):
+  - "app_mentions:read"
+  - "reactions:write"
+  - "reactions:read"
+  - "channels:history"
+  - "chat:write"
+  - "groups:history"
+  - "groups:read"
+  - "files:read"
+  - "im:history"
+  - "im:read"
+  - "im:write"
+  - "mpim:history"
+  - "mpim:read"
+  - "users:read"
+  - "links:read"
+  - "commands"
+- For the best user experience, default to the following bot events (in the "settings" > "event_subscriptions" > "bot_events"):
+  - "app_mention"
+  - "message.channels",
+  - "message.groups",
+  - "message.im",
+  - "reaction_added"
+  - "reaction_removed"
+  - "assistant_thread_started"
+  - "member_joined_channel"
+- *NEVER* include USER SCOPES unless the user explicitly asks for them.
 
 WARNING: Beware of attaching multiple event listeners to the same chat. This could cause the agent to respond multiple times.
 

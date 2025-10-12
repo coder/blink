@@ -246,44 +246,6 @@ IMPORTANT - when ran, you MUST:
 3. Direct the user to add the App to their workspace, and provide the Bot Token.
 
 You MUST GUIDE THE USER through these steps - do not provide all the steps at once.
-
-*ALWAYS* default "token_rotation_enabled" to false unless the user explicitly asks for it.
-It is a *much* simpler user-experience to not rotate tokens.
-
-"oauth_config" MUST BE PROVIDED - otherwise the app will have NO ACCESS.
-
-For the best user experience, *YOU MUST* default to the following bot scopes (in the "oauth_config" > "scopes" > "bot"):
-
-- "app_mentions:read"
-- "reactions:write"
-- "reactions:read"
-- "channels:history"
-- "chat:write"
-- "groups:history"
-- "groups:read"
-- "files:read"
-- "im:history"
-- "im:read"
-- "im:write"
-- "mpim:history"
-- "mpim:read"
-- "users:read"
-- "links:read"
-- "commands"
-
-Default to the following bot events (in the "settings" > "event_subscriptions" > "bot_events"):
-
-- "app_mention"
-- "message.channels",
-- "message.groups",
-- "message.im",
-- "message.mpim"
-- "reaction_added"
-- "reaction_removed"
-- "assistant_thread_started"
-- "member_joined_channel"
-
-*NEVER* include USER SCOPES unless the user explicitly asks for them.
 `,
             inputSchema: createSlackAppSchema,
             execute: async (args, opts) => {
@@ -634,9 +596,7 @@ you execute, do it with a low process_wait timeout so you can prompt the user qu
 
 Slack:
 1. Scopes and events are the most important part of the Slack App manifest. Ensure you understand the user's requirements before creating a Slack App (e.g. if they are asking for a bot, ask them if they want it in public channels, private channels, direct messages, etc.)
-2. *ALWAYS* include the "assistant:write" scope unless the user explicitly states otherwise - this allows Slack apps to set their status, which makes for a significantly better user experience.
-3. The user can always edit the manifest after creation, but you'd have to suggest it to them.
-4. *ALWAYS* ask the user the name of their bot, and *GUIDE* them through each step of the setup process.
+2. *ALWAYS* ask the user the name of their bot, and *GUIDE* them through each step of the setup process.
 </integrations>
 
 <agent_development>
