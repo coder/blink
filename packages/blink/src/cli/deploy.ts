@@ -15,6 +15,7 @@ import { findNearestEntry } from "../build/util";
 import { resolveConfig, type BuildResult } from "../build";
 import { version } from "../../package.json";
 import ignore from "ignore";
+import { inspect } from "node:util";
 
 export default async function deploy(
   directory?: string,
@@ -376,7 +377,7 @@ export default async function deploy(
     }
   } catch (err) {
     // If polling fails, still point the user to inspect page
-    s.stop("Failed to poll for deployment status.");
+    s.stop("Failed to poll for deployment status: "+ inspect(err));
     console.log("Read logs for details:", inspectUrl);
     return;
   }

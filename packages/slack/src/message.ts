@@ -263,6 +263,7 @@ Be sure to use the <@id> format for mentions.`,
 
 Timestamp Formatted: ${metadata.createdAt.toLocaleString()}
 Timestamp Raw: ${message.ts ?? "N/A"}
+Thread Timestamp: ${message.thread_ts ?? "N/A"}
 Channel ID: ${message.channel ?? "N/A"}
 ${metadata.user ? `From User: ${metadata.user.name} (<@${metadata.user.id ?? "N/A"}>) (${metadata.user.real_name ?? metadata.user.profile?.display_name ?? "N/A"})` : ""}
 `,
