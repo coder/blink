@@ -377,7 +377,7 @@ export default async function deploy(
     }
   } catch (err) {
     // If polling fails, still point the user to inspect page
-    s.stop("Failed to poll for deployment status: "+ inspect(err));
+    s.stop("Failed to poll for deployment status: " + inspect(err));
     console.log("Read logs for details:", inspectUrl);
     return;
   }

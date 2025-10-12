@@ -290,20 +290,20 @@ export interface MessageMetadata {
    */
   mentions: Array<
     | {
-      type: "channel";
-      id: string;
-      channel: NonNullable<ConversationsInfoResponse["channel"]>;
-    }
+        type: "channel";
+        id: string;
+        channel: NonNullable<ConversationsInfoResponse["channel"]>;
+      }
     | {
-      type: "team";
-      id: string;
-      team: NonNullable<TeamInfoResponse["team"]>;
-    }
+        type: "team";
+        id: string;
+        team: NonNullable<TeamInfoResponse["team"]>;
+      }
     | {
-      type: "user";
-      id: string;
-      user: NonNullable<UsersInfoResponse["user"]>;
-    }
+        type: "user";
+        id: string;
+        user: NonNullable<UsersInfoResponse["user"]>;
+      }
   >;
 
   /**
@@ -313,24 +313,24 @@ export interface MessageMetadata {
     file: NonNullable<GenericMessageEvent["files"]>[number];
     // Content will only be fetched if the file is in the supportedFileTypes.
     result:
-    | {
-      type: "downloaded";
-      content: Buffer;
-    }
-    | {
-      type: "not_supported";
-    }
-    | {
-      type: "too_large";
-      size: number;
-    }
-    | {
-      type: "error";
-      error: Error;
-    }
-    | {
-      type: "no_url";
-    };
+      | {
+          type: "downloaded";
+          content: Buffer;
+        }
+      | {
+          type: "not_supported";
+        }
+      | {
+          type: "too_large";
+          size: number;
+        }
+      | {
+          type: "error";
+          error: Error;
+        }
+      | {
+          type: "no_url";
+        };
   }>;
 
   /**
@@ -415,9 +415,9 @@ export const extractMessagesMetadata = async <
     file: NonNullable<GenericMessageEvent["files"]>[number];
     messageIndex: number;
     reason?:
-    | { type: "no_url" }
-    | { type: "too_large"; size: number }
-    | { type: "not_supported" };
+      | { type: "no_url" }
+      | { type: "too_large"; size: number }
+      | { type: "not_supported" };
   }> = [];
 
   // First pass: collect all IDs and files from all messages

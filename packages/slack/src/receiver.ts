@@ -8,6 +8,7 @@ import {
   verifySlackRequest,
 } from "@slack/bolt";
 import { ConsoleLogger, type Logger, LogLevel } from "@slack/logger";
+import { waitUntil } from "blink";
 import {
   ERROR_MESSAGES,
   getErrorMessage,
@@ -258,11 +259,11 @@ export class Receiver {
       request: req,
     });
 
-    // TODO: Add `waitUntil` here.
-    app.processEvent(event).catch((error) => {
-      console.log("error", error);
-      this.handleError(error);
-    });
+    waitUntil(
+      app.processEvent(event).catch((error) => {
+        return this.handleError(error);
+      })
+    );
 
     try {
       return await responsePromise;

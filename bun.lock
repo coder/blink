@@ -15,7 +15,7 @@
     },
     "packages/blink": {
       "name": "blink",
-      "version": "1.0.3",
+      "version": "1.1.6",
       "bin": {
         "blink": "./dist/cli/index.js",
       },
@@ -166,12 +166,13 @@
     },
     "packages/slack": {
       "name": "@blink-sdk/slack",
-      "version": "1.0.0",
+      "version": "1.0.9",
       "peerDependencies": {
         "@slack/bolt": ">= ^4.5.0",
         "@slack/logger": ">= ^4.0.0",
         "@slack/web-api": ">= ^7.0.0",
         "ai": ">= 5",
+        "blink": ">= 1.1.0",
         "zod": ">= 4",
       },
     },

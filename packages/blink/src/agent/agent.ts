@@ -579,14 +579,10 @@ const waitUntilSymbol = Symbol.for("@blink/waitUntil");
  * This is useful for responding quickly in webhooks, but
  * allow processing to continue in the background.
  */
-export function waitUntil<T>(fn: () => Promise<T>): void {
+export function waitUntil<T>(promise: Promise<T>): void {
   // @ts-expect-error
   const waitUntil = globalThis[waitUntilSymbol];
   if (waitUntil) {
-    waitUntil(fn);
-  } else {
-    fn().catch((err) => {
-      console.warn("Error in waitUntil:", err);
-    });
+    waitUntil(promise);
   }
 }
