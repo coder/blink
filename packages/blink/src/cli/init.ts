@@ -8,7 +8,7 @@ import {
   select,
 } from "@clack/prompts";
 import { spawn } from "child_process";
-import { mkdir, readdir, writeFile } from "fs/promises";
+import { readdir, writeFile } from "fs/promises";
 import { basename, join } from "path";
 
 export default async function init(directory?: string): Promise<void> {
@@ -19,26 +19,12 @@ export default async function init(directory?: string): Promise<void> {
   intro("Initializing a new Blink Agent");
 
   if ((await readdir(directory)).length > 0) {
-    const useBlinkDir = await confirm({
-      message:
-        'Directory is not empty. Create agent in ".blink" instead? Blink looks for the nearest ".blink" directory for agents.',
+    const confirmed = await confirm({
+      message: "Directory is not empty. Initialize anyway?",
     });
-    if (isCancel(useBlinkDir)) {
+    if (confirmed === false || isCancel(confirmed)) {
       cancel("Initialization cancelled.");
       process.exit(1);
-    }
-    if (useBlinkDir) {
-      directory = join(directory, ".blink");
-      await mkdir(directory, { recursive: true });
-      log.info(`Creating project in ${directory}`);
-    } else {
-      const confirmed = await confirm({
-        message: "Initialize in non-empty directory anyway?",
-      });
-      if (confirmed === false || isCancel(confirmed)) {
-        cancel("Initialization cancelled.");
-        process.exit(1);
-      }
     }
   }
 
