@@ -362,6 +362,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
 
   const devhook = useDevhook({
     id: devhookID,
+    directory,
     disabled: !capabilities?.request,
     onRequest: async (request) => {
       if (!agent) {
