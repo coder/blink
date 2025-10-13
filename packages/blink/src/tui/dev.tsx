@@ -213,6 +213,25 @@ const Root = ({ directory }: { directory: string }) => {
     };
   }, [dev.options]);
 
+  // Check if last message has approval outputs (needs to be outside Static to update)
+  const lastMessageWithApproval = useMemo(() => {
+    if (dev.chat.messages.length === 0) {
+      return null;
+    }
+    const lastMsg = dev.chat.messages[dev.chat.messages.length - 1];
+    const hasApproval = lastMsg!.parts.some(
+      (part) =>
+        isToolOrDynamicToolUIPart(part) && isToolApprovalOutput(part.output)
+    );
+    return hasApproval ? lastMsg : null;
+  }, [dev.chat.messages]);
+
+  // Messages to show in Static (exclude last message if it has approval)
+  const staticMessages = useMemo(() => {
+    if (!lastMessageWithApproval) return dev.chat.messages;
+    return dev.chat.messages.slice(0, -1);
+  }, [dev.chat.messages, lastMessageWithApproval]);
+
   if (dev.chat.loading) {
     return null;
   }
@@ -228,7 +247,7 @@ const Root = ({ directory }: { directory: string }) => {
       <Box flexDirection="column">
         <Static
           key={`messages-${dev.chat.id}-${epoch}`}
-          items={[{} as StoredMessage, ...dev.chat.messages]}
+          items={[{} as StoredMessage, ...staticMessages]}
         >
           {(message: StoredMessage, index) =>
             index === 0 ? (
@@ -253,11 +272,11 @@ const Root = ({ directory }: { directory: string }) => {
                 message={message}
                 previousMessage={
                   // These indices are off by one because of the banner's first message.
-                  index > 1 ? dev.chat.messages.at(index - 2) : undefined
+                  index > 1 ? staticMessages.at(index - 2) : undefined
                 }
                 nextMessage={
-                  index < dev.chat.messages.length - 2
-                    ? dev.chat.messages.at(index + 2)
+                  index < staticMessages.length - 2
+                    ? staticMessages.at(index + 2)
                     : undefined
                 }
                 maxWidth={size.columns - 2}
@@ -265,6 +284,20 @@ const Root = ({ directory }: { directory: string }) => {
             )
           }
         </Static>
+
+        {lastMessageWithApproval ? (
+          <Message
+            key={lastMessageWithApproval.id}
+            message={lastMessageWithApproval}
+            previousMessage={
+              staticMessages.length > 0
+                ? staticMessages[staticMessages.length - 1]
+                : undefined
+            }
+            nextMessage={undefined}
+            maxWidth={size.columns - 2}
+          />
+        ) : null}
 
         {dev.chat.streamingMessage ? (
           <Message
@@ -288,7 +321,13 @@ const Root = ({ directory }: { directory: string }) => {
       <Box flexDirection="column" marginTop={1}>
         {dev.approval ? (
           <ApprovalInput
-            onConfirm={dev.approval.approve}
+            onConfirm={async (approved, autoApprove) => {
+              if (approved) {
+                await dev.approval?.approve(autoApprove);
+              } else {
+                await dev.approval?.reject();
+              }
+            }}
             onCancel={() => {}}
             autoApproveEnabled={dev.approval.autoApproveEnabled}
           />
@@ -497,7 +536,16 @@ const ApprovalInput = ({
       return;
     }
 
-    if (key.leftArrow || key.rightArrow || key.tab) {
+    if (key.leftArrow) {
+      setSelected((prev) => {
+        if (prev === "yes") return "no";
+        if (prev === "no") return "auto";
+        return "yes";
+      });
+      return;
+    }
+
+    if (key.rightArrow || key.tab) {
       setSelected((prev) => {
         if (prev === "yes") return "auto";
         if (prev === "auto") return "no";
@@ -807,6 +855,25 @@ const ToolCall = ({
             {typeof output === "string" ? (
               <Box marginLeft={2}>
                 <Text>{output}</Text>
+              </Box>
+            ) : isToolApprovalOutput(part.output) ? (
+              <Box marginLeft={2}>
+                <Text
+                  color={
+                    part.output.outcome === "approved"
+                      ? "green"
+                      : part.output.outcome === "rejected"
+                        ? "red"
+                        : "yellow"
+                  }
+                  bold
+                >
+                  {part.output.outcome === "approved"
+                    ? "✓ Approved"
+                    : part.output.outcome === "rejected"
+                      ? "✗ Rejected"
+                      : "⧗ Pending approval"}
+                </Text>
               </Box>
             ) : (
               <Box flexDirection="column">
