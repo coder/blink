@@ -1,8 +1,7 @@
 import Client from "@blink.so/api";
 import { useEffect, useRef, useState } from "react";
-import { lock } from "proper-lockfile";
+import { lock, getLockInfo } from "../local/lockfile";
 import { join } from "node:path";
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
 import chalk from "chalk";
 
 export interface UseDevhookOptions {
@@ -34,22 +33,17 @@ export default function useDevhook(options: UseDevhookOptions) {
     let currentListener: any;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let isConnecting = false;
-    let releaseLock: (() => Promise<void>) | undefined;
+    let releaseLock: (() => void) | undefined;
 
-    const lockPath = join(options.directory, "data", "devhook.lock");
-    const pidPath = join(options.directory, "data", "devhook.pid");
+    const lockPath = join(options.directory, "data", "devhook");
 
     // Acquire lock before connecting
     (async () => {
       try {
         releaseLock = await lock(lockPath, {
-          stale: 10000,
+          stale: true,
           retries: 0,
-          realpath: false,
         });
-
-        // Write our PID to a file so other processes can identify us
-        writeFileSync(pidPath, process.pid.toString(), "utf-8");
       } catch (err: unknown) {
         if (
           err &&
@@ -60,12 +54,12 @@ export default function useDevhook(options: UseDevhookOptions) {
           // Try to read the PID of the process holding the lock
           let pidMessage = "";
           try {
-            if (existsSync(pidPath)) {
-              const pid = readFileSync(pidPath, "utf-8").trim();
-              pidMessage = ` (PID: ${pid})`;
+            const lockInfo = getLockInfo(lockPath);
+            if (lockInfo.locked && lockInfo.pid) {
+              pidMessage = ` (PID: ${lockInfo.pid})`;
             }
           } catch {
-            // Ignore errors reading PID file
+            // Ignore errors reading lock info
           }
 
           console.error(
@@ -169,16 +163,10 @@ export default function useDevhook(options: UseDevhookOptions) {
         currentListener = undefined;
       }
       if (releaseLock) {
-        releaseLock().catch((err) => {
-          console.warn("Failed to release devhook lock:", err);
-        });
-        // Clean up PID file only if we successfully acquired the lock
         try {
-          if (existsSync(pidPath)) {
-            unlinkSync(pidPath);
-          }
-        } catch (_err) {
-          // Ignore errors cleaning up PID file
+          releaseLock();
+        } catch (err) {
+          console.warn("Failed to release devhook lock:", err);
         }
       }
     };
@@ -186,6 +174,7 @@ export default function useDevhook(options: UseDevhookOptions) {
 
   return {
     id: id.current,
+    url: `https://${id.current}.blink.host`,
     status,
   };
 }

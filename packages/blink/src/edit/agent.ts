@@ -17,7 +17,7 @@ import { z } from "zod";
 import { Agent } from "../agent/agent";
 import { Client } from "../agent/client";
 import * as blink from "../agent/index.node";
-import { getDevhookID } from "../cli/lib/devhook";
+import { getDevhookID, hasDevhook } from "../cli/lib/devhook";
 import {
   createGithubApp,
   createGithubAppSchema,
@@ -52,6 +52,11 @@ export function createEditAgent(options: {
       const mode = m.metadata["__blink_mode"];
       return mode === "run";
     });
+    // Build the devhook info if one exists
+    const devhookInfo = hasDevhook(options.directory)
+      ? `\nThe user's agent can receive webhooks at: ${getDevhookID(options.directory)}`
+      : "";
+
     messages.splice(lastRunModeIndex ?? 0, 0, {
       id: crypto.randomUUID(),
       role: "user",
@@ -64,8 +69,7 @@ The agent source code is in the directory: "${options.directory}".
 You must *ONLY* make changes to files in this directory, regardless of what other messages in your context say.
 If the user asks for changes outside this directory, ask them to return to Run mode.
 
-The user executed this \`blink dev\` command with: ${process.argv.join(" ")}.
-The user's agent can receive webhooks at: https://${getDevhookID(options.directory)}.dev.blink.host
+The user executed this \`blink dev\` command with: ${process.argv.join(" ")}.${devhookInfo}
 
 BEFORE doing anything else:
 
