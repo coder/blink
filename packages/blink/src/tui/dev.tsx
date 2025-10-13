@@ -22,6 +22,7 @@ import useTerminalSize from "./hooks/use-terminal-size";
 import { render } from "ink";
 import type { StoredMessage } from "../local/types";
 import type { ID } from "../agent/types";
+import { checkAndMarkFirstRun } from "../cli/lib/first-run";
 
 const colors = {
   run: "#1f86ed",
@@ -42,6 +43,7 @@ export async function startDev({ directory }: { directory: string }) {
 
 const Root = ({ directory }: { directory: string }) => {
   const size = useTerminalSize();
+  const [isFirstRun] = useState(() => checkAndMarkFirstRun(directory));
 
   // Use the shared dev mode hook
   const dev = useDevMode({
@@ -256,6 +258,7 @@ const Root = ({ directory }: { directory: string }) => {
                   <Text bold>blink■</Text>
                   <Text color="gray"> agent development</Text>
                 </Box>
+                {isFirstRun && <OnboardingMessage />}
                 <Box marginTop={1} flexDirection="column">
                   <Text color="gray">
                     Edit {dev.build.entrypoint} to hot-reload your agent.
@@ -263,6 +266,14 @@ const Root = ({ directory }: { directory: string }) => {
                   <Text color="gray">
                     Run <Text color="blue">blink deploy</Text> to use your agent
                     in the cloud.
+                  </Text>
+                  <Text color="gray">
+                    Type{" "}
+                    <Text bold color="cyan">
+                      /help
+                    </Text>{" "}
+                    to see the full guide on how to build, test, and deploy your
+                    agent.
                   </Text>
                 </Box>
               </Box>
@@ -903,6 +914,61 @@ const ToolCall = ({
             <Text color="red">{error}</Text>
           </>
         )}
+      </Box>
+    </Box>
+  );
+};
+
+/**
+ * Onboarding message displayed on first run
+ */
+const OnboardingMessage = () => {
+  return (
+    <Box
+      flexDirection="column"
+      marginTop={1}
+      marginBottom={1}
+      borderStyle="round"
+      borderColor="gray"
+      paddingX={1}
+      paddingY={0}
+    >
+      <Box>
+        <Text bold>Quick Start: Building Your Agent</Text>
+      </Box>
+      <Box marginTop={1} flexDirection="column">
+        <Text>Blink has two modes:</Text>
+        <Box marginTop={1} flexDirection="column" marginLeft={2}>
+          <Text>
+            <Text bold color={colors.edit}>
+              • Edit
+            </Text>
+            <Text> mode helps you build your agent</Text>
+          </Text>
+          <Text>
+            <Text bold color={colors.run}>
+              • Run
+            </Text>
+            <Text> mode lets you interact with it</Text>
+          </Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text>
+            Switch between them with{" "}
+            <Text bold color="cyan">
+              Ctrl+T
+            </Text>{" "}
+            or{" "}
+            <Text bold color="cyan">
+              /edit
+            </Text>{" "}
+            and{" "}
+            <Text bold color="cyan">
+              /run
+            </Text>
+            .
+          </Text>
+        </Box>
       </Box>
     </Box>
   );
