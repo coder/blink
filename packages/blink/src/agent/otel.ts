@@ -1,17 +1,20 @@
 import { trace } from "@opentelemetry/api";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPTraceExporter as OTLPHttpTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { NodeSDK } from "@opentelemetry/sdk-node";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   BatchSpanProcessor,
   type ReadableSpan,
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import type { MiddlewareHandler } from "hono";
-import util from "util";
+import util from "node:util";
 import { APIServerURLEnvironmentVariable } from "./constants";
 
-let otelSDK: NodeSDK | undefined;
+let otelProvider: NodeTracerProvider | undefined;
 let consolePatched = false;
 
 function isPlainRecord(val: unknown): val is Record<string | number, unknown> {
@@ -110,14 +113,17 @@ class FilteringSpanProcessor implements SpanProcessor {
   }
 }
 
-// Build the provider (global)
-export function initOtel(): NodeSDK {
-  if (otelSDK) {
-    return otelSDK;
+export function initOtel(): NodeTracerProvider {
+  if (otelProvider) {
+    return otelProvider;
   }
   patchGlobalConsole();
+
   const apiUrl = process.env[APIServerURLEnvironmentVariable];
-  otelSDK = new NodeSDK({
+  const provider = new NodeTracerProvider({
+    resource: resourceFromAttributes({
+      [ATTR_SERVICE_NAME]: "blink.agent",
+    }),
     spanProcessors: apiUrl
       ? [
           new FilteringSpanProcessor(
@@ -129,7 +135,7 @@ export function initOtel(): NodeSDK {
               })
             ),
             (span) => {
-              // getNodeAutoInstrumentations creates an HTTP instrumentation that logs spans
+              // UndiciInstrumentation creates an HTTP instrumentation that logs spans
               // for all outgoing HTTP requests, including the ones emitted by the trace exporter itself.
               // This creates an endless loop - we export a span, we emit a span for that export,
               // we export the second span, then we emit a span for that export, etc.
@@ -144,20 +150,23 @@ export function initOtel(): NodeSDK {
           ),
         ]
       : [],
+  });
+
+  provider.register();
+
+  registerInstrumentations({
     instrumentations: [
-      getNodeAutoInstrumentations({
-        "@opentelemetry/instrumentation-undici": {
-          // our runtime wrappers make some internal requests to the agent
-          // that are detached from any other spans. we ignore such requests
-          // to avoid noise.
-          requireParentforSpans: true,
-        },
+      new UndiciInstrumentation({
+        // our runtime wrappers make some internal requests to the agent
+        // that are detached from any other spans. we ignore such requests
+        // to avoid noise.
+        requireParentforSpans: true,
       }),
     ],
   });
-  otelSDK.start();
 
-  return otelSDK;
+  otelProvider = provider;
+  return provider;
 }
 
 export const otelMiddleware: MiddlewareHandler = async (c, next) => {
@@ -189,14 +198,10 @@ export const otelMiddleware: MiddlewareHandler = async (c, next) => {
 
 export const flushOtel = async () => {
   try {
-    if (!otelSDK) {
+    if (!otelProvider) {
       return;
     }
-    const provider = otelSDK["_tracerProvider"];
-    if (!(provider && provider.forceFlush)) {
-      return;
-    }
-    await provider.forceFlush();
+    await otelProvider.forceFlush();
   } catch (err) {
     console.warn("Error flushing OpenTelemetry", err);
   }
