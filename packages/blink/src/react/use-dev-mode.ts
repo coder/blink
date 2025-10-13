@@ -193,13 +193,13 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     options.onEnvLoaded?.(keys);
   }, [env, options.onEnvLoaded]);
 
-  // Server
-  const currentAgentRef = useRef<Client | undefined>(undefined);
+  // Server - always use run agent for webhook/API handling
+  const runAgentRef = useRef<Client | undefined>(undefined);
   const server = useMemo(() => {
     return createLocalServer({
       port: 0,
       dataDirectory: join(directory, "data"),
-      getAgent: () => currentAgentRef.current,
+      getAgent: () => runAgentRef.current,
     });
   }, [directory]);
 
@@ -231,30 +231,26 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     "00000000-0000-0000-0000-000000000000"
   );
 
-  // Update current agent ref
+  // Update run agent ref for server/webhook handling
+  useEffect(() => {
+    runAgentRef.current = agent;
+  }, [agent]);
+
+  // Update edit agent with user agent URL and handle cleanup
   useEffect(() => {
     if (agent) {
       setUserAgentUrl(agent.baseUrl);
     }
 
-    if (mode === "run") {
-      if (agent) {
-        currentAgentRef.current = agent;
-      } else {
-        currentAgentRef.current = undefined;
-        const manager = server.getChatManager(chatId);
-        manager?.stopStreaming();
-      }
-    } else if (mode === "edit") {
-      if (editAgent) {
-        currentAgentRef.current = editAgent;
-      } else {
-        currentAgentRef.current = undefined;
-        const manager = server.getChatManager(chatId);
-        manager?.stopStreaming();
-      }
+    // Stop streaming when agents become unavailable
+    if (mode === "run" && !agent) {
+      const manager = server.getChatManager(chatId);
+      manager?.stopStreaming();
+    } else if (mode === "edit" && !editAgent) {
+      const manager = server.getChatManager(chatId);
+      manager?.stopStreaming();
     }
-  }, [agent, editAgent, mode, chatId, server]);
+  }, [agent, editAgent, mode, chatId, server, setUserAgentUrl]);
 
   // Keep track of selected options in a ref so we can access it in serializeMessage
   const selectedOptionsRef = useRef<UIOptions | undefined>(undefined);
