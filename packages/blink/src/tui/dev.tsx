@@ -129,7 +129,7 @@ const Root = ({ directory }: { directory: string }) => {
       await dev.chat.resetChat();
       resetTerminal();
     }
-    if (key.ctrl && input === "e") {
+    if (key.ctrl && input === "t") {
       dev.toggleMode();
     }
     if (key.ctrl && input === "n") {
@@ -143,7 +143,7 @@ const Root = ({ directory }: { directory: string }) => {
   const keymaps = useMemo(() => {
     return {
       "⏎": "send",
-      "Ctrl+E": "toggle mode",
+      "Ctrl+T": "toggle mode",
       "Ctrl+N": "new chat",
       "Ctrl+C": "quit",
     };
@@ -931,12 +931,12 @@ function getHelpText(entrypoint: string): string[] {
     chalk.bold("The Development Loop:"),
     "  1. Start in " +
       chalk.hex(colors.edit)("Edit mode") +
-      " (Ctrl+E or /edit) and describe what your agent should do",
+      " (Ctrl+T or /edit) and describe what your agent should do",
     '     Example: "Add a tool that can search the web"',
     "",
     "  2. Switch to " +
       chalk.blue("Run mode") +
-      " (Ctrl+E or /run) to use your agent",
+      " (Ctrl+T or /run) to use your agent",
     "     Try it out and see if it does what you expect",
     "",
     "  3. Toggle back to " +
