@@ -94,7 +94,7 @@ agent.on("chat", async ({ messages }) => {
     model: blink.model("anthropic/claude-sonnet-4.5"),
     system: \`You are a basic agent the user will customize.
 
-Suggest the user enters edit mode with Ctrl+E or /edit to customize the agent.
+Suggest the user enters edit mode with Ctrl+T or /edit to customize the agent.
 Demonstrate your capabilities with the IP tool.\`,
     messages: convertToModelMessages(messages),
     tools: {

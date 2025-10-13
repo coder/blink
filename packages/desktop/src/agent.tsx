@@ -203,8 +203,8 @@ function AgentWindow() {
   // Keybindings (same as TUI)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+E - Toggle mode
-      if (e.ctrlKey && e.key === "e") {
+      // Ctrl+T - Toggle mode
+      if (e.ctrlKey && e.key === "t") {
         e.preventDefault();
         devMode.toggleMode();
       }
@@ -410,7 +410,7 @@ function AgentWindow() {
                 devMode.mode === "edit" ? colors.edit : colors.run,
             }}
             onClick={devMode.toggleMode}
-            title="Toggle mode (Ctrl+E)"
+            title="Toggle mode (Ctrl+T)"
           >
             {devMode.mode === "edit" ? "✎" : "▶"} {devMode.mode}
           </Button>
@@ -751,7 +751,7 @@ function AgentWindow() {
 
           {/* Footer with keybinds hint */}
           <div className="flex flex-wrap items-center gap-4 px-5 pb-5 text-[11px] text-muted-foreground/60">
-            <span>Ctrl+E toggle mode</span>
+            <span>Ctrl+T toggle mode</span>
             <span>Ctrl+N new chat</span>
             <span>Ctrl+R reset</span>
             <span>Esc stop</span>

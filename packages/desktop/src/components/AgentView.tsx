@@ -333,8 +333,8 @@ export default function AgentView({
   // Keybindings (same as TUI)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+E - Toggle mode
-      if (e.ctrlKey && e.key === "e") {
+      // Ctrl+T - Toggle mode
+      if (e.ctrlKey && e.key === "t") {
         e.preventDefault();
         devMode.toggleMode();
         // Focus the input field after toggling
@@ -1279,7 +1279,7 @@ export default function AgentView({
                 {devMode.mode === "edit" ? "Edit mode" : "Run mode"}
               </span>
             </Tooltip>
-            <span>Ctrl+E: switch mode</span>
+            <span>Ctrl+T: switch mode</span>
             <span>Ctrl+R: reset</span>
             <span>
               Esc: interrupt
