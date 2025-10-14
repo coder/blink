@@ -289,7 +289,7 @@ export default async function deploy(
     // Prompt to migrate devhook to production
     const devhookID = getDevhookID(directory);
     if (devhookID) {
-      const productionUrl = `https://${devhookID}.blink.so`;
+      const productionUrl = `https://${devhookID}.blink.host`;
       console.log("\n" + chalk.cyan("Webhook Tunnel"));
       console.log(chalk.dim(`  Current: ${productionUrl} → local dev`));
       console.log(chalk.dim(`  After: ${productionUrl} → production`));
