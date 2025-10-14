@@ -48,14 +48,14 @@ export default async function init(directory?: string): Promise<void> {
   const templateChoice = await select({
     options: [
       {
-        label: "Scratch",
-        value: "scratch",
-        hint: "Basic agent with example tool",
-      },
-      {
         label: "Slack Bot",
         value: "slack-bot",
         hint: "Pre-configured Slack bot",
+      },
+      {
+        label: "Scratch",
+        value: "scratch",
+        hint: "Basic agent with example tool",
       },
     ],
     message: "Which template do you want to use?",
@@ -140,6 +140,8 @@ export default async function init(directory?: string): Promise<void> {
   // Log a newline which makes it look a bit nicer.
   console.log("");
 
+  let exitProcessManually = false;
+
   // Set up Slack app if using slack-bot template
   if (template === "slack-bot") {
     const shouldCreateSlackApp = await confirm({
@@ -155,6 +157,9 @@ export default async function init(directory?: string): Promise<void> {
         name,
         packageManager,
       });
+      // the devhook takes a while to clean up, so we exit the process
+      // manually
+      exitProcessManually = true;
     }
 
     console.log("");
@@ -171,4 +176,8 @@ export default async function init(directory?: string): Promise<void> {
 
 ${runDevCommand ?? "blink dev"}`);
   outro("Edit agent.ts to hot-reload your agent.");
+
+  if (exitProcessManually) {
+    process.exit(0);
+  }
 }

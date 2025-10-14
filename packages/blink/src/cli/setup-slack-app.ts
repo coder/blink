@@ -195,6 +195,7 @@ export async function setupSlackApp(
   let botToken = "";
   let dmReceived = false;
   let dmChannel = "";
+  let dmTimestamp = "";
   let signatureFailureDetected = false;
   let lastFailedChannel: string | undefined;
 
@@ -261,6 +262,7 @@ export async function setupSlackApp(
       ) {
         dmReceived = true;
         dmChannel = payload.event.channel;
+        dmTimestamp = payload.event.ts;
       }
 
       return new Response("OK");
@@ -350,15 +352,27 @@ export async function setupSlackApp(
   const slackAppUrl = createSlackApp(manifest);
 
   log.info(
-    `Opening browser to create Slack app...\n\n${chalk.gray(slackAppUrl)}`
+    `Please visit this URL to create your Slack app and return here after finishing:\n\n${chalk.gray(slackAppUrl)}\n`
   );
 
-  try {
-    await open(slackAppUrl);
-  } catch (error) {
-    log.warn(
-      `Could not automatically open browser. Please visit the URL manually.`
-    );
+  const shouldOpen = await confirm({
+    message: "Open this URL in your browser automatically?",
+    initialValue: true,
+  });
+
+  if (isCancel(shouldOpen)) {
+    log.warn("Skipping Slack app setup");
+    return;
+  }
+
+  if (shouldOpen) {
+    try {
+      await open(slackAppUrl);
+    } catch (error) {
+      log.warn(
+        `Could not automatically open browser. Please visit the URL manually.`
+      );
+    }
   }
 
   // Ask for app ID
@@ -379,7 +393,7 @@ export async function setupSlackApp(
 
   // Ask for signing secret with direct link
   signingSecret = (await password({
-    message: `Paste your Signing Secret from https://api.slack.com/apps/${appId}/general:`,
+    message: `Paste your Signing Secret from the same page:`,
     validate: (value) => {
       if (!value || value.trim().length === 0) {
         return "Signing secret is required";
@@ -396,7 +410,7 @@ export async function setupSlackApp(
   let tokenValid = false;
   while (!tokenValid) {
     botToken = (await password({
-      message: `Paste your Bot Token from https://api.slack.com/apps/${appId}/install-on-team:`,
+      message: `Install your app and paste your Bot Token from ${chalk.cyan(`https://api.slack.com/apps/${appId}/install-on-team`)}:`,
       validate: (value) => {
         if (!value || value.trim().length === 0) {
           return "Bot token is required";
@@ -479,7 +493,7 @@ export async function setupSlackApp(
 
       // Prompt user to re-enter the signing secret
       const newSigningSecret = await password({
-        message: `The signing secret appears to be incorrect. Please paste the correct Signing Secret from https://api.slack.com/apps/${appId}/general:`,
+        message: `The signing secret appears to be incorrect. Please paste the correct Signing Secret from ${chalk.cyan(`https://api.slack.com/apps/${appId}/general`)}:`,
         validate: (value) => {
           if (!value || value.trim().length === 0) {
             return "Signing secret is required";
@@ -517,6 +531,7 @@ export async function setupSlackApp(
       },
       body: JSON.stringify({
         channel: dmChannel,
+        thread_ts: dmTimestamp,
         text: `Congrats, your app is now installed and ready to use! Run \`${runDevCommand}\` to use your agent.`,
       }),
     });
@@ -537,4 +552,8 @@ export default async function setupSlackAppCommand(
   intro("Setting up Slack app");
 
   await setupSlackApp(directory);
+
+  // the devhook takes a while to clean up, so we exit the process
+  // manually
+  process.exit(0);
 }
