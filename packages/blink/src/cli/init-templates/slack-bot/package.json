@@ -1,0 +1,20 @@
+{
+  "name": "{{name}}",
+  "main": "agent.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "blink dev",
+    "deploy": "blink deploy"
+  },
+  "devDependencies": {
+    "zod": "latest",
+    "ai": "latest",
+    "blink": "latest",
+    "esbuild": "latest",
+    "@types/node": "latest",
+    "typescript": "latest",
+    "@slack/bolt": "latest",
+    "@blink-sdk/slack": "latest"
+  }
+}

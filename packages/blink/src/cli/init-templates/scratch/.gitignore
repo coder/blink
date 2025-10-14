@@ -1,0 +1,12 @@
+# dependencies
+node_modules
+
+# config and build
+data
+
+# dotenv environment variables file
+.env
+.env.*
+
+# Finder (MacOS) folder config
+.DS_Store
