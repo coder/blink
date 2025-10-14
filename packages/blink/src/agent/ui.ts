@@ -64,7 +64,7 @@ export type WithUIOptions<
 > = MESSAGE & {
   readonly role: "user";
   readonly metadata: MESSAGE["metadata"] & {
-    readonly options: OPTIONS;
+    readonly options?: OPTIONS;
   };
 };
 
