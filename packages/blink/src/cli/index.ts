@@ -24,6 +24,7 @@ import { randomUUID } from "crypto";
 import { version } from "../../package.json";
 import build from "./build";
 import deploy from "./deploy";
+import setupSlackApp from "./setup-slack-app";
 
 // This polyfill is because older versions of NodeJS don't have a global crypto object.
 if (!globalThis.crypto) {
@@ -74,6 +75,15 @@ program
   .command("build [directory]")
   .description("Build your agent for production.")
   .action(build);
+
+const setupCommand = program
+  .command("setup")
+  .description("Set up integrations for your agent.");
+
+setupCommand
+  .command("slack-app [directory]")
+  .description("Set up Slack app integration")
+  .action(setupSlackApp);
 
 program
   .command("telemetry [boolean]")

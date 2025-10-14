@@ -10,7 +10,7 @@ const app = new App({
   receiver,
 });
 
-// Triggered when the bot is @mentioned
+// Handle messages in channels (only when @mentioned)
 app.event("app_mention", async ({ event }) => {
   const chat = await agent.chat.upsert([
     "slack",
@@ -29,6 +29,31 @@ app.event("app_mention", async ({ event }) => {
   });
 });
 
+// Handle direct messages (always respond)
+app.event("message", async ({ event }) => {
+  // Ignore bot messages and message changes
+  if (event.subtype || event.bot_id) {
+    return;
+  }
+  // Only handle DMs (channel type is 'im')
+  const channelInfo = await app.client.conversations.info({
+    channel: event.channel,
+  });
+  if (!channelInfo.channel?.is_im) {
+    return;
+  }
+  const chat = await agent.chat.upsert(["slack", event.channel]);
+  const { message } = await slack.createMessageFromEvent({
+    client: app.client,
+    event,
+  });
+  await agent.chat.sendMessages(chat.id, [message]);
+  await app.client.assistant.threads.setStatus({
+    channel_id: event.channel,
+    status: "is typing...",
+    thread_ts: event.thread_ts ?? event.ts,
+  });
+});
 const agent = new blink.Agent();
 
 agent.on("request", async (request) => {

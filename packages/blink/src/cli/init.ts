@@ -10,7 +10,8 @@ import {
 import { spawn } from "child_process";
 import { readdir, writeFile } from "fs/promises";
 import { basename, join } from "path";
-import { templates, type TemplateId } from "./init-templates/index.js";
+import { templates, type TemplateId } from "./init-templates";
+import { setupSlackApp } from "./setup-slack-app";
 
 function getFilesForTemplate(
   template: TemplateId,
@@ -138,6 +139,26 @@ export default async function init(directory?: string): Promise<void> {
   });
   // Log a newline which makes it look a bit nicer.
   console.log("");
+
+  // Set up Slack app if using slack-bot template
+  if (template === "slack-bot") {
+    const shouldCreateSlackApp = await confirm({
+      message: "Would you like to set up your Slack app now?",
+      initialValue: true,
+    });
+
+    if (isCancel(shouldCreateSlackApp) || !shouldCreateSlackApp) {
+      log.info("You can set up your Slack app later by running:");
+      log.info("  blink setup slack-app");
+    } else {
+      await setupSlackApp(directory, {
+        name,
+        packageManager,
+      });
+    }
+
+    console.log("");
+  }
 
   const runDevCommand = {
     bun: "bun run dev",
