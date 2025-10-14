@@ -7,6 +7,7 @@ export interface UseEditAgentOptions {
   readonly directory: string;
   readonly apiServerUrl?: string;
   readonly token?: string;
+  readonly getDevhookUrl: () => string;
 }
 
 export default function useEditAgent(options: UseEditAgentOptions) {
@@ -27,6 +28,7 @@ export default function useEditAgent(options: UseEditAgentOptions) {
       editAgentRef.current = createEditAgent({
         directory: options.directory,
         token: options.token,
+        getDevhookUrl: options.getDevhookUrl,
       });
 
       // Get a random port
@@ -76,7 +78,12 @@ export default function useEditAgent(options: UseEditAgentOptions) {
       isCleanup = true;
       controller.abort();
     };
-  }, [options.directory, options.apiServerUrl, options.token]);
+  }, [
+    options.directory,
+    options.apiServerUrl,
+    options.token,
+    options.getDevhookUrl,
+  ]);
 
   return useMemo(() => {
     return {

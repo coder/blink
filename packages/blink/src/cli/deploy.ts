@@ -16,6 +16,7 @@ import { resolveConfig, type BuildResult } from "../build";
 import { version } from "../../package.json";
 import ignore from "ignore";
 import { inspect } from "node:util";
+import { getDevhookID, resetDevhookID } from "./lib/devhook";
 
 export default async function deploy(
   directory?: string,
@@ -62,12 +63,10 @@ export default async function deploy(
     deployConfig = JSON.parse(deployConfigContent);
   }
 
+  // Select organization
   let organizationName!: string;
-  // Attempt to get the organization that is associated with the agent.
-  // If the user only has a single organization, we will use that.
   if (deployConfig?.organizationId) {
     try {
-      // Just ensure the user has access to the organization.
       const org = await client.organizations.get(deployConfig.organizationId);
       organizationName = org.name;
     } catch (err) {
@@ -78,33 +77,32 @@ export default async function deploy(
   if (!deployConfig?.organizationId) {
     const organizations = await client.organizations.list();
     if (organizations.length === 1) {
-      const organization = organizations[0]!;
-      deployConfig.organizationId = organization.id;
-      organizationName = organization.name;
+      deployConfig.organizationId = organizations[0]!.id;
+      organizationName = organizations[0]!.name;
     } else {
-      // Prompt the user to select an organization.
-      const organization = await select({
+      const selectedId = await select({
         message: "Which organization should contain this agent?",
-        options: organizations.map((organization) => ({
-          value: organization.id,
-          label: organization.name,
+        options: organizations.map((org) => ({
+          value: org.id,
+          label: org.name,
         })),
       });
-      if (isCancel(organization)) {
+      if (isCancel(selectedId)) {
         return;
       }
-      deployConfig.organizationId = organization;
+      deployConfig.organizationId = selectedId as string;
       organizationName = organizations.find(
-        (org) => org.id === organization
-      )!.name!;
+        (org) => org.id === selectedId
+      )!.name;
+
+      // Add a newline for visual separation.
+      console.log();
     }
   }
 
-  if (!deployConfig.organizationId) {
-    throw new Error("Developer error: No organization ID found.");
-  }
-
   let agentName: string | undefined;
+  let isNewAgent = false;
+  let migratedDevhook = false;
 
   if (deployConfig?.agentId) {
     // Ensure the user has access to the agent.
@@ -126,40 +124,33 @@ export default async function deploy(
       deployConfig.agentId = agent.id;
       agentName = agent.name;
     } catch (err) {
-      // Agent does not exist. We'll need to create it as
-      // part of this deploy.
-      const agent = await client.agents.create({
-        name: packageJSONData.name,
-        organization_id: deployConfig.organizationId,
-      });
-      deployConfig.agentId = agent.id;
-      agentName = agent.name;
+      // Agent does not exist. We'll create it with the first deployment.
+      isNewAgent = true;
+      agentName = packageJSONData.name;
     }
   }
 
-  if (!deployConfig.agentId) {
-    throw new Error("Developer error: No agent ID found.");
+  // Show initial status
+  if (isNewAgent) {
+    console.log(
+      chalk.bold("blink■") +
+        " creating agent " +
+        organizationName +
+        "/" +
+        agentName
+    );
+  } else {
+    console.log(
+      chalk.bold("blink■") +
+        " deploying agent " +
+        organizationName +
+        "/" +
+        agentName
+    );
   }
 
-  // At this point, we should write the deploy config to the data directory.
-  // Make the directory if it doesn't exist.
-  await mkdir(dirname(deployConfigPath), {
-    recursive: true,
-  });
-  await writeFile(
-    deployConfigPath,
-    JSON.stringify(
-      {
-        _: "This file can be source controlled. It contains no secrets.",
-        ...deployConfig,
-      },
-      null,
-      2
-    ),
-    "utf-8"
-  );
-
-  // Upload the agent to the Blink Cloud.
+  // Build the agent
+  const buildStartTime = Date.now();
   const config = resolveConfig(rootDirectory);
   const result = await new Promise<BuildResult>((resolve, reject) => {
     config
@@ -181,32 +172,25 @@ export default async function deploy(
   if ("error" in result) {
     throw new Error(result.error.message);
   }
+  const buildDuration = Date.now() - buildStartTime;
+  console.log(chalk.gray(`Built ${chalk.dim(`(${buildDuration}ms)`)}`));
 
-  // Files to upload is a record of absolute path to upload path.
-  // e.g. "/home/kyle/agent/agent.js" -> "agent.js"
-  const filesToUpload: Record<string, string> = {};
-
+  // Collect files to upload
   const outputFiles = await readdir(result.outdir);
-  for (const file of outputFiles) {
-    filesToUpload[join(result.outdir, file)] = file;
-  }
+  const filesToUpload = Object.fromEntries(
+    outputFiles.map((file) => [join(result.outdir, file), file])
+  );
 
-  // Check if a README.md exists in the root directory.
-  // If it does, we upload it as well.
   const readmePath = join(directory, "README.md");
   if (await exists(readmePath)) {
     filesToUpload[readmePath] = "README.md";
   }
 
-  // Collect source files
-  const sourceFilesToUpload: Record<string, string> = {};
   const sourceFiles = await collectSourceFiles(rootDirectory);
-  for (const filePath of sourceFiles) {
-    const relativePath = relative(rootDirectory, filePath);
-    sourceFilesToUpload[filePath] = relativePath;
-  }
+  const sourceFilesToUpload = Object.fromEntries(
+    sourceFiles.map((filePath) => [filePath, relative(rootDirectory, filePath)])
+  );
 
-  // Combine all files to upload in one batch
   const outputEntries = Object.entries(filesToUpload);
   const sourceEntries = Object.entries(sourceFilesToUpload);
   const allEntries = [...outputEntries, ...sourceEntries];
@@ -244,9 +228,9 @@ export default async function deploy(
   );
 
   writeInline(
-    `${chalk.dim(`[${uploadedCount}/${totalFiles}]`)} Uploaded files (${formatBytes(
-      totalUploadedBytes
-    )}).`
+    chalk.gray(
+      `Uploaded ${totalFiles} ${totalFiles === 1 ? "file" : "files"} ${chalk.dim(`(${formatBytes(totalUploadedBytes)})`)}`
+    )
   );
   process.stdout.write("\n");
 
@@ -257,55 +241,127 @@ export default async function deploy(
   const uploadedFiles = allUploadedFiles.slice(0, outputEntries.length);
   const uploadedSourceFiles = allUploadedFiles.slice(outputEntries.length);
 
-  // Update environment variables.
-  // If there are env vars in .env.local that are not in .env.production,
-  // we should fetch env vars from the cloud - and then let the user
-  // confirm that their secrets are set.
-  const localEnvFile = join(directory, ".env.local");
-  let localEnvVarsSet: string[] = [];
-  if (await exists(localEnvFile)) {
-    const localEnv = parse(await readFile(localEnvFile, "utf-8"));
-    localEnvVarsSet = Object.keys(localEnv);
+  // Load environment variables
+  let prodEnv = await readEnvFile(join(directory, ".env.production"));
+
+  // For new agents, prompt to copy missing env vars from .env.local
+  if (isNewAgent) {
+    const localEnvFile = join(directory, ".env.local");
+    const prodEnvFile = join(directory, ".env.production");
+    const localEnv = await readEnvFile(localEnvFile);
+    const missingEnvVars = Object.keys(localEnv).filter(
+      (key) => !Object.keys(prodEnv).includes(key)
+    );
+
+    if (missingEnvVars.length > 0) {
+      console.log("\n" + chalk.cyan("Environment Variables"));
+      console.log(
+        chalk.dim(
+          `  Missing ${missingEnvVars.length} var${missingEnvVars.length === 1 ? "" : "s"} in .env.production: ${missingEnvVars.join(", ")}`
+        )
+      );
+
+      const confirmed = await confirm({
+        message: "Copy missing vars from .env.local to .env.production?",
+        initialValue: true,
+      });
+      if (isCancel(confirmed)) {
+        return;
+      }
+      // Add a newline for visual separation.
+      console.log();
+      if (confirmed) {
+        for (const key of missingEnvVars) {
+          prodEnv[key] = localEnv[key]!;
+        }
+        await writeFile(
+          prodEnvFile,
+          `# Environment variables for production deployment\n${Object.entries(
+            prodEnv
+          )
+            .map(([key, value]) => `${key}=${value}`)
+            .join("\n")}`,
+          "utf-8"
+        );
+      }
+    }
+
+    // Prompt to migrate devhook to production
+    const devhookID = getDevhookID(directory);
+    if (devhookID) {
+      const productionUrl = `https://${devhookID}.blink.so`;
+      console.log("\n" + chalk.cyan("Webhook Tunnel"));
+      console.log(chalk.dim(`  Current: ${productionUrl} → local dev`));
+      console.log(chalk.dim(`  After: ${productionUrl} → production`));
+      console.log(
+        chalk.dim("  Migrating will keep your webhooks working in production")
+      );
+
+      const confirmed = await confirm({
+        message: "Migrate tunnel to production?",
+      });
+      if (isCancel(confirmed)) {
+        return;
+      }
+      // Add a newline for visual separation.
+      console.log();
+      if (confirmed) {
+        migratedDevhook = true;
+      }
+    }
   }
 
-  let cloudEnvVarsSet: string[] = [];
-  const cloudEnvVars = await client.agents.env.list({
-    agent_id: deployConfig.agentId,
-  });
-  cloudEnvVarsSet = cloudEnvVars.map((env) => env.key);
+  const envEntries = Object.entries(prodEnv);
 
-  const prodEnvFile = join(directory, ".env.production");
-  if (await exists(prodEnvFile)) {
-    // Upsert all of these env vars into the cloud.
-    const prodEnv = parse(await readFile(prodEnvFile, "utf-8"));
-    const envEntries = Object.entries(prodEnv);
-    const totalEnvVars = envEntries.length;
+  // Create agent or update env vars
+  if (isNewAgent) {
+    const devhookID = getDevhookID(directory);
+    const agent = await client.agents.create({
+      name: packageJSONData.name,
+      organization_id: deployConfig.organizationId,
+      request_id: migratedDevhook ? devhookID : undefined,
+      entrypoint: basename(result.entry),
+      output_files: uploadedFiles,
+      source_files: uploadedSourceFiles,
+      env: envEntries.map(([key, value]) => ({
+        key,
+        value,
+        target: ["production", "preview"] as ("production" | "preview")[],
+        secret: true,
+      })),
+    });
+    deployConfig.agentId = agent.id;
+    agentName = agent.name;
+    const agentUrl = `https://blink.so/${organizationName}/${agentName}`;
+    console.log(chalk.gray(`Agent created ${chalk.dim(agentUrl)}`));
+  } else if (envEntries.length > 0) {
+    // Update environment variables for existing agents
     let updatedCount = 0;
     for (const [key, value] of envEntries) {
-      const created = await client.agents.env.create({
-        agent_id: deployConfig.agentId,
-        key: key,
-        value: value,
+      await client.agents.env.create({
+        agent_id: deployConfig.agentId!,
+        key,
+        value,
         target: ["production", "preview"],
         secret: true,
         upsert: true,
       });
-      cloudEnvVarsSet.push(created.key);
-      updatedCount += 1;
       writeInline(
-        `${chalk.dim(`[${updatedCount}/${totalEnvVars}]`)} Updating environment variable: ${key} ${chalk.dim("(.env.production)")}`
+        `${chalk.dim(`[${++updatedCount}/${envEntries.length}]`)} Updating environment variable: ${key} ${chalk.dim("(.env.production)")}`
       );
     }
     writeInline(
-      `${chalk.dim(`[${updatedCount}/${totalEnvVars}]`)} Updated environment variables! ${chalk.dim("(.env.production)")}`
+      chalk.gray(
+        `Updated ${envEntries.length} environment ${envEntries.length === 1 ? "variable" : "variables"} ${chalk.dim("(.env.production)")}`
+      )
     );
     process.stdout.write("\n");
   }
 
-  // If there are local env vars that are not in cloud env vars,
-  // we should warn the user that they might have missed something.
-  const missingEnvVars = localEnvVarsSet.filter(
-    (v) => !cloudEnvVarsSet.includes(v)
+  // Warn if local env vars are missing from production
+  const localEnv = await readEnvFile(join(directory, ".env.local"));
+  const missingEnvVars = Object.keys(localEnv).filter(
+    (key) => !Object.keys(prodEnv).includes(key)
   );
   if (missingEnvVars.length > 0) {
     console.log(
@@ -322,64 +378,79 @@ export default async function deploy(
     }
   }
 
-  // Create deployment
-  const deployment = await client.agents.deployments.create({
-    agent_id: deployConfig.agentId,
-    target: "production",
-    entrypoint: basename(result.entry),
-    output_files: uploadedFiles,
-    source_files: uploadedSourceFiles,
-    message: options?.message,
-  });
+  // Create or fetch deployment
+  const deployment = isNewAgent
+    ? (
+        await client.agents.deployments.list({
+          agent_id: deployConfig.agentId!,
+        })
+      ).items[0]!
+    : await client.agents.deployments.create({
+        agent_id: deployConfig.agentId!,
+        target: "production",
+        entrypoint: basename(result.entry),
+        output_files: uploadedFiles,
+        source_files: uploadedSourceFiles,
+        message: options?.message,
+      });
 
   const inspectUrl = `https://blink.so/${organizationName}/${agentName}/deployments/${deployment.number}`;
-  console.log(`Deployed:`, inspectUrl);
 
+  // Show deployment URL immediately
+  console.log(chalk.gray(`View Deployment ${chalk.dim(inspectUrl)}`));
+
+  // Write deploy config on success
+  await writeDeployConfig(deployConfigPath, deployConfig);
+
+  // Poll for deployment completion
   const s = spinner();
   s.start("Waiting for deployment to be live...");
 
-  // Poll until the deployment completes or fails
   try {
-    const pollIntervalMs = 500;
     // eslint-disable-next-line no-constant-condition
     while (true) {
       const current = await client.agents.deployments.get({
-        agent_id: deployConfig.agentId,
+        agent_id: deployConfig.agentId!,
         deployment_id: deployment.id,
       });
-      if (current.status === "success") {
-        let msg = "Deployment successful.";
-        if (current.target === "production") {
-          msg += " All chats will use this deployment!";
-        }
-        s.stop(msg);
 
-        // Check if the agent has request capability and output the request URL
-        const agentDetails = await client.agents.get(deployConfig.agentId);
-        if (agentDetails.request_url) {
+      if (current.status === "success") {
+        s.stop();
+
+        if (isNewAgent) {
+          console.log("Your agent is live.");
+          console.log(chalk.dim(inspectUrl));
+        } else {
+          console.log("Deployed. All new chats will use this version.");
+          console.log(chalk.dim(inspectUrl));
+        }
+
+        if (migratedDevhook) {
+          resetDevhookID(directory);
           console.log(
-            `\nSend webhooks from anywhere: ${agentDetails.request_url}`
+            chalk.yellow("Note:") +
+              " To continue developing locally with webhooks, you'll need to reconfigure external services (Slack, GitHub, etc.)"
           );
         }
-
         break;
       }
+
       if (current.status === "failed") {
-        let msg = "Deployment failed.";
-        if (current.error_message) {
-          msg += ` ${current.error_message}`;
-        }
-        s.stop(msg);
-        console.log("Read logs for details:", inspectUrl);
+        s.stop(
+          "Failed" + (current.error_message ? `: ${current.error_message}` : "")
+        );
+        console.log();
+        console.log("Logs: " + chalk.dim(inspectUrl));
         return;
       }
-      await new Promise((r) => setTimeout(r, pollIntervalMs));
+
+      await new Promise((r) => setTimeout(r, 500));
     }
   } catch (err) {
-    // If polling fails, still point the user to inspect page
-    s.stop("Failed to poll for deployment status: " + inspect(err));
-    console.log("Read logs for details:", inspectUrl);
-    return;
+    s.stop("Failed to poll deployment status");
+    console.log();
+    console.log("Error: " + inspect(err));
+    console.log("Logs: " + chalk.dim(inspectUrl));
   }
 }
 
@@ -388,6 +459,7 @@ export interface DeployConfig {
   agentId?: string;
 }
 
+// Helpers
 const exists = async (path: string) => {
   try {
     await stat(path);
@@ -396,6 +468,26 @@ const exists = async (path: string) => {
     return false;
   }
 };
+
+async function readEnvFile(path: string): Promise<Record<string, string>> {
+  return (await exists(path)) ? parse(await readFile(path, "utf-8")) : {};
+}
+
+async function writeDeployConfig(path: string, config: DeployConfig) {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(
+    path,
+    JSON.stringify(
+      {
+        _: "This file can be source controlled. It contains no secrets.",
+        ...config,
+      },
+      null,
+      2
+    ),
+    "utf-8"
+  );
+}
 
 async function mapWithConcurrency<T, R>(
   items: T[],

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { lock, getLockInfo } from "../local/lockfile";
 import { join } from "node:path";
 import chalk from "chalk";
+import { getDevhookID } from "../cli/lib/devhook";
 
 export interface UseDevhookOptions {
   // ID can optionally be provided to identify the devhook.
@@ -18,13 +19,14 @@ export default function useDevhook(options: UseDevhookOptions) {
   useEffect(() => {
     onRequestRef.current = options.onRequest;
   }, [options.onRequest]);
-  const id = useRef<string>(options.id ?? crypto.randomUUID());
+
   const [status, setStatus] = useState<"connected" | "disconnected" | "error">(
     "disconnected"
   );
 
   useEffect(() => {
-    if (options.disabled) {
+    // Don't connect if disabled or no devhook ID exists
+    if (options.disabled || !options.id) {
       setStatus("disconnected");
       return;
     }
@@ -111,7 +113,7 @@ export default function useDevhook(options: UseDevhookOptions) {
           baseURL: "https://blink.so",
         });
         currentListener = client.devhook.listen({
-          id: id.current,
+          id: options.id!,
           onRequest: async (request) => {
             return onRequestRef.current(request);
           },
@@ -173,8 +175,8 @@ export default function useDevhook(options: UseDevhookOptions) {
   }, [options.disabled, options.directory]);
 
   return {
-    id: id.current,
-    url: `https://${id.current}.blink.host`,
+    id: options.id,
+    url: options.id ? `https://${options.id}.blink.host` : undefined,
     status,
   };
 }

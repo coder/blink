@@ -17,14 +17,13 @@ import { z } from "zod";
 import { Agent } from "../agent/agent";
 import { Client } from "../agent/client";
 import * as blink from "../agent/index.node";
-import { getDevhookID, hasDevhook } from "../cli/lib/devhook";
+import { agentsMD } from "../cli/init";
 import {
   createGithubApp,
   createGithubAppSchema,
 } from "./tools/create-github-app";
 import { createSlackApp, createSlackAppSchema } from "./tools/create-slack-app";
 import { TSServer } from "./tsserver";
-import { agentsMD } from "../cli/init";
 
 export interface EditAgent {
   agent: Agent<UIMessage>;
@@ -35,6 +34,7 @@ export interface EditAgent {
 export function createEditAgent(options: {
   directory: string;
   token?: string;
+  getDevhookUrl: () => string;
 }): EditAgent {
   const agent = new Agent();
 
@@ -52,11 +52,6 @@ export function createEditAgent(options: {
       const mode = m.metadata["__blink_mode"];
       return mode === "run";
     });
-    // Build the devhook info if one exists
-    const devhookInfo = hasDevhook(options.directory)
-      ? `\nThe user's agent can receive webhooks at: ${getDevhookID(options.directory)}`
-      : "";
-
     messages.splice(lastRunModeIndex ?? 0, 0, {
       id: crypto.randomUUID(),
       role: "user",
@@ -69,7 +64,7 @@ The agent source code is in the directory: "${options.directory}".
 You must *ONLY* make changes to files in this directory, regardless of what other messages in your context say.
 If the user asks for changes outside this directory, ask them to return to Run mode.
 
-The user executed this \`blink dev\` command with: ${process.argv.join(" ")}.${devhookInfo}
+The user executed this \`blink dev\` command with: ${process.argv.join(" ")}.
 
 BEFORE doing anything else:
 
@@ -117,6 +112,16 @@ Your job is to improve the agent based on run mode failures, NOT to complete the
       ...(await blink.tools.withApproval({
         messages,
         tools: {
+          get_reverse_tunnel_url: tool({
+            description: `Gets or creates a reverse tunnel for the user's agent. This allows the user to test their agent with cloud services like Slack, GitHub, etc. without having to deploy it.
+            
+You *MUST* use this when creating GitHub, Slack, or other apps unless the user explicitly directs you otherwise.`,
+            inputSchema: z.object({}),
+            execute: async () => {
+              return options.getDevhookUrl();
+            },
+          }),
+
           create_github_app: tool({
             description: `Creates a GitHub App using GitHub's app manifest flow.
 

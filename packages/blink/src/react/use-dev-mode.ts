@@ -4,7 +4,7 @@ import { isToolApprovalOutput } from "../agent/tools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { join } from "path";
 import type { Client, CapabilitiesResponse } from "../agent/client";
-import { createDevhookID, getDevhookID } from "../cli/lib/devhook";
+import { getDevhookID, createDevhookID } from "../cli/lib/devhook";
 import { createLocalServer, type LocalServer } from "../local/server";
 import { isStoredMessageMetadata } from "../local/types";
 import type { BuildLog } from "../build";
@@ -224,6 +224,11 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     directory,
     apiServerUrl: server.url,
     token: auth.token,
+    getDevhookUrl: useCallback(() => {
+      const id = getDevhookID(directory) ?? createDevhookID(directory);
+      setDevhookID(id);
+      return `https://${id}.blink.host`;
+    }, [directory]),
   });
 
   // Chat state
@@ -352,15 +357,9 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
   }, [chatId, chatIds]);
 
   // Devhook
-  // Only create a devhook ID if the agent has a request handler
-  const devhookID = useMemo(() => {
-    if (!capabilities?.request) {
-      // Check if one was previously created (in case capability changed)
-      return getDevhookID(directory);
-    }
-    // Create the devhook ID since we have a request handler
-    return createDevhookID(directory);
-  }, [directory, capabilities?.request]);
+  const [devhookID, setDevhookID] = useState<string | undefined>(() =>
+    getDevhookID(directory)
+  );
 
   const devhook = useDevhook({
     id: devhookID,
@@ -405,7 +404,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
 
   // Notify when devhook connects
   useEffect(() => {
-    if (devhook.status !== "connected") {
+    if (devhook.status !== "connected" || !devhook.url) {
       return;
     }
     options.onDevhookConnected?.(devhook.url);

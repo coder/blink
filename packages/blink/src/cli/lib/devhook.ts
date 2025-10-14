@@ -1,4 +1,10 @@
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from "fs";
+import {
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+} from "fs";
 import { dirname, join } from "path";
 
 /**
@@ -22,7 +28,7 @@ export function hasDevhook(directory: string): boolean {
 export function getDevhookID(directory: string): string | undefined {
   const storagePath = getDevhookPath(directory);
   if (existsSync(storagePath)) {
-    return readFileSync(storagePath, "utf-8");
+    return readFileSync(storagePath, "utf-8").trim();
   }
   return undefined;
 }
@@ -44,4 +50,14 @@ export function createDevhookID(directory: string): string {
   const id = crypto.randomUUID();
   writeFileSync(storagePath, id);
   return id;
+}
+
+/**
+ * Resets the devhook ID for this directory.
+ */
+export function resetDevhookID(directory: string) {
+  const storagePath = getDevhookPath(directory);
+  if (existsSync(storagePath)) {
+    unlinkSync(storagePath);
+  }
 }
