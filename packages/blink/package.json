@@ -1,7 +1,7 @@
 {
   "name": "blink",
   "version": "1.1.16",
-  "description": "Blink is a JavaScript runtime for building and deploying AI agents.",
+  "description": "Blink is a tool for building and deploying AI agents.",
   "type": "module",
   "bin": {
     "blink": "./dist/cli/index.js"
