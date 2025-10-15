@@ -36,25 +36,18 @@ blink init
 Start development mode:
 
 > [!NOTE]
-> You'll need to provide your own API keys to use language models. Put them in `.env.local` and the dev server will automatically load them.
+> You'll need to provide your own LLM API keys. Add them during `blink init` or add them later to `.env.local` and the dev server will automatically load them.
 
 ```sh
 blink dev
 ```
 
-You can now edit `src/agent.ts` and the dev server will hot-reload your agent.
+You can now edit `agent.ts` in your editor or by using [Edit Mode] (https://docs.blink.so/get-started/building-with-blink) in your terminal and the dev server will hot-reload your agent.
 
-Bundle your agent as a Node package to share it with others:
-
-```sh
-blink build
-npm publish
-```
-
-Optionally, deploy your agent to [blink.so](https://blink.so):
+Deploy your agent to [Blink Cloud](https://blink.so):
 
 > [!NOTE]
-> [blink.so](https://blink.so) is not required to use Blink.
+> [Blink Cloud](https://blink.so) is not required to use Blink.
 > We [guarantee](#why-blink) that Blink agents will always be local-first.
 
 ```sh
