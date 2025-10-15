@@ -249,9 +249,7 @@ export default async function deploy(
     const localEnvFile = join(directory, ".env.local");
     const prodEnvFile = join(directory, ".env.production");
     const localEnv = await readEnvFile(localEnvFile);
-    const missingEnvVars = Object.keys(localEnv).filter(
-      (key) => !Object.keys(prodEnv).includes(key)
-    );
+    const missingEnvVars = Object.keys(localEnv).filter((key) => !prodEnv[key]);
 
     if (missingEnvVars.length > 0) {
       console.log("\n" + chalk.cyan("Environment Variables"));

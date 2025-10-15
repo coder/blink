@@ -4,7 +4,7 @@ import { isToolApprovalOutput } from "../agent/tools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { join } from "path";
 import type { Client, CapabilitiesResponse } from "../agent/client";
-import { getDevhookID, createDevhookID } from "../cli/lib/devhook";
+import { getDevhookID, createDevhookID, hasDevhook } from "../cli/lib/devhook";
 import { createLocalServer, type LocalServer } from "../local/server";
 import { isStoredMessageMetadata } from "../local/types";
 import type { BuildLog } from "../build";
@@ -358,7 +358,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
 
   // Devhook
   const [devhookID, setDevhookID] = useState<string | undefined>(() =>
-    getDevhookID(directory)
+    hasDevhook(directory) ? getDevhookID(directory) : createDevhookID(directory)
   );
 
   const devhook = useDevhook({
