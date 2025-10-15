@@ -246,6 +246,10 @@ const Root = ({ directory }: { directory: string }) => {
         </Box>
       ) : null}
 
+      {dev.mode === "edit" && dev.editModeMissingApiKey ? (
+        <MissingApiKeyMessage />
+      ) : null}
+
       <Box flexDirection="column">
         <Static
           key={`messages-${dev.chat.id}-${epoch}`}
@@ -968,6 +972,48 @@ const OnboardingMessage = () => {
             </Text>
             .
           </Text>
+        </Box>
+      </Box>
+    </Box>
+  );
+};
+
+/**
+ * Missing API key message displayed in edit mode when no API key is available
+ */
+const MissingApiKeyMessage = () => {
+  return (
+    <Box
+      flexDirection="column"
+      marginTop={1}
+      marginBottom={1}
+      borderStyle="round"
+      borderColor="yellow"
+      paddingX={1}
+      paddingY={0}
+    >
+      <Box>
+        <Text bold color="yellow">
+          ⚠ Edit Mode Requires API Key
+        </Text>
+      </Box>
+      <Box marginTop={1} flexDirection="column">
+        <Text>
+          Add one of these to your <Text bold>.env.local</Text> file:
+        </Text>
+        <Box marginTop={1} flexDirection="column" marginLeft={2}>
+          <Text>
+            ANTHROPIC_API_KEY=<Text color="gray">your-key</Text>
+          </Text>
+          <Text>
+            OPENAI_API_KEY=<Text color="gray">your-key</Text>
+          </Text>
+          <Text>
+            AI_GATEWAY_API_KEY=<Text color="gray">your-key</Text>
+          </Text>
+        </Box>
+        <Box marginTop={1}>
+          <Text>The file will auto-reload when you add a key.</Text>
         </Box>
       </Box>
     </Box>

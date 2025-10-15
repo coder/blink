@@ -1,5 +1,6 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createGatewayProvider } from "@ai-sdk/gateway";
 import * as compute from "@blink-sdk/compute";
 import * as search from "@blink-sdk/web-search";
 import {
@@ -8,6 +9,7 @@ import {
   streamText,
   tool,
   type UIMessage,
+  type LanguageModel,
 } from "ai";
 import { spawn } from "child_process";
 import { readFile, writeFile } from "fs/promises";
@@ -33,7 +35,7 @@ export interface EditAgent {
 
 export function createEditAgent(options: {
   directory: string;
-  token?: string;
+  env: Record<string, string>;
   getDevhookUrl: () => string;
 }): EditAgent {
   const agent = new Agent();
@@ -628,7 +630,7 @@ Slack:
     });
 
     return streamText({
-      model: getEditModeModel(options.token),
+      model: getEditModeModelOrThrow(options.env),
       messages: converted,
       maxOutputTokens: 64_000,
       tools,
@@ -659,23 +661,43 @@ Slack:
   };
 }
 
-function getEditModeModel(token?: string) {
+/**
+ * Returns a model for edit mode, or undefined if no API key is available.
+ */
+export function getEditModeModel(
+  env: Record<string, string>
+): LanguageModel | undefined {
   // Priority 1: Use Anthropic if API key is set
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (env.ANTHROPIC_API_KEY) {
     return createAnthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY!,
+      apiKey: env.ANTHROPIC_API_KEY,
     }).chat("claude-sonnet-4-5");
   }
 
   // Priority 2: Use OpenAI if API key is set
-  if (process.env.OPENAI_API_KEY) {
+  if (env.OPENAI_API_KEY) {
     return createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY!,
+      apiKey: env.OPENAI_API_KEY,
     }).responses("gpt-5");
   }
 
-  // Priority 3: Fall back to blink.model
-  return blink.model("anthropic/claude-sonnet-4.5", {
-    token,
-  });
+  // Priority 3: Use AI Gateway if API key is set
+  if (env.AI_GATEWAY_API_KEY) {
+    return createGatewayProvider({
+      apiKey: env.AI_GATEWAY_API_KEY,
+    })("anthropic/claude-sonnet-4-5");
+  }
+
+  return undefined;
+}
+
+/**
+ * Returns a model for edit mode, throwing if no API key is available.
+ */
+function getEditModeModelOrThrow(env: Record<string, string>) {
+  const model = getEditModeModel(env);
+  if (!model) {
+    throw new Error("No API key available for edit mode");
+  }
+  return model;
 }

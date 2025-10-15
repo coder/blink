@@ -410,7 +410,7 @@ export async function setupSlackApp(
   let tokenValid = false;
   while (!tokenValid) {
     botToken = (await password({
-      message: `Install your app and paste your Bot Token from ${chalk.cyan(`https://api.slack.com/apps/${appId}/install-on-team`)}:`,
+      message: `Install your app and paste your Bot Token from ${chalk.cyan(`https://api.slack.com/apps/${appId}/install-on-team`)}`,
       validate: (value) => {
         if (!value || value.trim().length === 0) {
           return "Bot token is required";
@@ -493,7 +493,7 @@ export async function setupSlackApp(
 
       // Prompt user to re-enter the signing secret
       const newSigningSecret = await password({
-        message: `The signing secret appears to be incorrect. Please paste the correct Signing Secret from ${chalk.cyan(`https://api.slack.com/apps/${appId}/general`)}:`,
+        message: `The signing secret appears to be incorrect. Please paste the correct Signing Secret from ${chalk.cyan(`https://api.slack.com/apps/${appId}/general`)}`,
         validate: (value) => {
           if (!value || value.trim().length === 0) {
             return "Signing secret is required";

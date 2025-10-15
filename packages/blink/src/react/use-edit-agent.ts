@@ -1,18 +1,23 @@
 import { createServer } from "http";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Client } from "../agent/client";
-import { createEditAgent, type EditAgent } from "../edit/agent";
+import {
+  createEditAgent,
+  getEditModeModel,
+  type EditAgent,
+} from "../edit/agent";
 
 export interface UseEditAgentOptions {
   readonly directory: string;
   readonly apiServerUrl?: string;
-  readonly token?: string;
+  readonly env: Record<string, string>;
   readonly getDevhookUrl: () => string;
 }
 
 export default function useEditAgent(options: UseEditAgentOptions) {
   const [client, setClient] = useState<Client | undefined>(undefined);
   const [error, setError] = useState<Error | undefined>(undefined);
+  const [missingApiKey, setMissingApiKey] = useState(false);
   const editAgentRef = useRef<EditAgent | undefined>(undefined);
 
   useEffect(() => {
@@ -23,11 +28,18 @@ export default function useEditAgent(options: UseEditAgentOptions) {
     setError(undefined);
     setClient(undefined);
 
+    if (!getEditModeModel(options.env)) {
+      setMissingApiKey(true);
+      return; // Don't create agent
+    }
+
+    setMissingApiKey(false);
+
     (async () => {
       // Create the edit agent
       editAgentRef.current = createEditAgent({
         directory: options.directory,
-        token: options.token,
+        env: options.env,
         getDevhookUrl: options.getDevhookUrl,
       });
 
@@ -81,7 +93,7 @@ export default function useEditAgent(options: UseEditAgentOptions) {
   }, [
     options.directory,
     options.apiServerUrl,
-    options.token,
+    options.env,
     options.getDevhookUrl,
   ]);
 
@@ -89,11 +101,12 @@ export default function useEditAgent(options: UseEditAgentOptions) {
     return {
       client,
       error,
+      missingApiKey,
       setUserAgentUrl: (url: string) => {
         editAgentRef.current?.setUserAgentUrl(url);
       },
     };
-  }, [client, error]);
+  }, [client, error, missingApiKey]);
 }
 
 async function getRandomPort(): Promise<number> {

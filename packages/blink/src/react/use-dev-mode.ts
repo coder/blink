@@ -111,6 +111,9 @@ export interface UseDevMode {
 
   // Whether to show the waiting for response placeholder...
   readonly showWaitingPlaceholder: boolean;
+
+  // Whether edit mode is missing an API key
+  readonly editModeMissingApiKey: boolean;
 }
 
 /**
@@ -219,11 +222,12 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
   const {
     client: editAgent,
     error: editAgentError,
+    missingApiKey: editModeMissingApiKey,
     setUserAgentUrl,
   } = useEditAgent({
     directory,
     apiServerUrl: server.url,
-    token: auth.token,
+    env,
     getDevhookUrl: useCallback(() => {
       const id = getDevhookID(directory) ?? createDevhookID(directory);
       setDevhookID(id);
@@ -684,5 +688,6 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     auth,
     server,
     showWaitingPlaceholder,
+    editModeMissingApiKey,
   };
 }

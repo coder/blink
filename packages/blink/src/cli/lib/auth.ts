@@ -204,6 +204,7 @@ export async function login(): Promise<string> {
 
     const user = await client.users.me();
     s.stop(`Congratulations, you are now signed in as ${user.email}!`);
+    console.log("");
 
     // Save the token
     setAuthToken(receivedToken as string);

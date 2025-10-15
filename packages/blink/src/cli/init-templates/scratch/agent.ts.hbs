@@ -1,12 +1,26 @@
 import { convertToModelMessages, streamText, tool } from "ai";
 import * as blink from "blink";
 import { z } from "zod";
+{{#if (eq aiProvider "anthropic")}}
+import { anthropic } from "@ai-sdk/anthropic";
+{{else if (eq aiProvider "openai")}}
+import { openai } from "@ai-sdk/openai";
+{{/if}}
 
-const agent = blink.agent();
+const agent = new blink.Agent();
 
 agent.on("chat", async ({ messages }) => {
   return streamText({
-    model: blink.model("anthropic/claude-sonnet-4.5"),
+{{#if (eq aiProvider "anthropic")}}
+    model: anthropic("claude-sonnet-4-5"),
+{{else if (eq aiProvider "openai")}}
+    model: openai("gpt-5-chat-latest"),
+{{else if (eq aiProvider "vercel")}}
+    model: "anthropic/claude-sonnet-4.5",
+{{else}}
+    // Unknown provider: {{aiProvider}}. Defaulting to Vercel AI Gateway syntax.
+    model: "anthropic/claude-sonnet-4.5",
+{{/if}}
     system: `You are a basic agent the user will customize.
 
 Suggest the user enters edit mode with Ctrl+T or /edit to customize the agent.

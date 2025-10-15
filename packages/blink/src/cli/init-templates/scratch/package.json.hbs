@@ -1,5 +1,5 @@
 {
-  "name": "{{name}}",
+  "name": "{{packageName}}",
   "main": "agent.ts",
   "type": "module",
   "private": true,
@@ -10,6 +10,11 @@
   "devDependencies": {
     "zod": "latest",
     "ai": "latest",
+{{#if (eq aiProvider "anthropic")}}
+    "@ai-sdk/anthropic": "latest",
+{{else if (eq aiProvider "openai")}}
+    "@ai-sdk/openai": "latest",
+{{/if}}
     "blink": "latest",
     "esbuild": "latest",
     "@types/node": "latest",

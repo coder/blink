@@ -6,23 +6,44 @@ import {
   log,
   outro,
   select,
+  text,
 } from "@clack/prompts";
 import { spawn } from "child_process";
-import { readdir, writeFile } from "fs/promises";
+import { readdir, readFile, writeFile } from "fs/promises";
 import { basename, join } from "path";
+import Handlebars from "handlebars";
 import { templates, type TemplateId } from "./init-templates";
 import { setupSlackApp } from "./setup-slack-app";
 
 function getFilesForTemplate(
   template: TemplateId,
-  name: string
+  variables: {
+    packageName: string;
+    aiProvider: string;
+  }
 ): Record<string, string> {
   const templateFiles = templates[template];
   const files: Record<string, string> = {};
 
-  // Copy all files and replace {{name}} placeholder
+  // Register eq helper for Handlebars
+  Handlebars.registerHelper("eq", (a, b) => a === b);
+
+  // Copy all files and render .hbs templates
   for (const [filename, content] of Object.entries(templateFiles)) {
-    files[filename] = content.replace(/\{\{name\}\}/g, name);
+    let outputFilename = filename;
+    let outputContent: string = content;
+
+    // Check if this is a Handlebars template
+    if (filename.endsWith(".hbs")) {
+      // Remove .hbs extension from output filename
+      outputFilename = filename.slice(0, -4);
+
+      // Compile and render the template
+      const compiledTemplate = Handlebars.compile(content);
+      outputContent = compiledTemplate(variables);
+    }
+
+    files[outputFilename] = outputContent;
   }
 
   return files;
@@ -65,6 +86,46 @@ export default async function init(directory?: string): Promise<void> {
     process.exit(1);
   }
   const template = templateChoice satisfies TemplateId;
+
+  const aiProviders = {
+    openai: { envVar: "OPENAI_API_KEY", label: "OpenAI" },
+    anthropic: { envVar: "ANTHROPIC_API_KEY", label: "Anthropic" },
+    vercel: { envVar: "AI_GATEWAY_API_KEY", label: "Vercel AI Gateway" },
+  } as const;
+
+  const aiProviderChoice = await select({
+    options: [
+      {
+        label: aiProviders.openai.label,
+        value: "openai",
+      },
+      {
+        label: aiProviders.anthropic.label,
+        value: "anthropic",
+      },
+      {
+        label: aiProviders.vercel.label,
+        value: "vercel",
+      },
+    ],
+    message: "Which AI provider do you want to use?",
+  });
+  if (isCancel(aiProviderChoice)) {
+    cancel("Initialization cancelled.");
+    process.exit(1);
+  }
+  // check that the choice is one of the keys of aiProviders on a type level
+  const _check = aiProviderChoice satisfies keyof typeof aiProviders;
+  const envVarName = aiProviders[aiProviderChoice].envVar;
+  const apiKey = await text({
+    message: `Enter your ${aiProviders[aiProviderChoice].label} API key:`,
+    placeholder: "Leave empty if you'd like to supply the key yourself later",
+  });
+
+  if (isCancel(apiKey)) {
+    cancel("Initialization cancelled.");
+    process.exit(1);
+  }
 
   const name = basename(directory).replace(/[^a-zA-Z0-9]/g, "-");
 
@@ -110,13 +171,38 @@ export default async function init(directory?: string): Promise<void> {
 
   log.info(`Using ${packageManager} as the package manager.`);
 
-  const files = getFilesForTemplate(template, name);
+  const files = getFilesForTemplate(template, {
+    packageName: name,
+    aiProvider: aiProviderChoice,
+  });
 
   await Promise.all(
     Object.entries(files).map(async ([path, content]) => {
       await writeFile(join(directory, path), content);
     })
   );
+
+  // Append API key to .env.local if provided
+  if (apiKey && apiKey.trim() !== "") {
+    const envFilePath = join(directory, ".env.local");
+    let existingContent = "";
+
+    // Read existing content if file exists
+    try {
+      existingContent = await readFile(envFilePath, "utf-8");
+    } catch (error) {
+      // File doesn't exist yet, that's fine
+    }
+
+    // Ensure existing content ends with newline if it has content
+    if (existingContent.length > 0 && !existingContent.endsWith("\n")) {
+      existingContent += "\n";
+    }
+
+    const newContent = existingContent + `${envVarName}=${apiKey}\n`;
+    await writeFile(envFilePath, newContent);
+    log.success(`API key saved to .env.local`);
+  }
 
   // Log a newline which makes it look a bit nicer.
   console.log("");
