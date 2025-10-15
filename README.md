@@ -17,6 +17,10 @@ Blink is a tool for building and sharing AI agents.
 
 ## Getting Started
 
+<a href="https://docs.blink.so/">
+<img style="max-width:600px" src="./scripts/blink-cli.gif">
+</a>
+
 Install the `blink` package with your favorite package manager:
 
 ```sh
