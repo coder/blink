@@ -25,6 +25,7 @@ import { version } from "../../package.json";
 import build from "./build";
 import deploy from "./deploy";
 import setupSlackApp from "./setup-slack-app";
+import * as clack from "@clack/prompts";
 
 // This polyfill is because older versions of NodeJS don't have a global crypto object.
 if (!globalThis.crypto) {
@@ -122,14 +123,23 @@ program
   .action(asyncEntry(() => import("./chat")));
 
 program
-  .command("login", {
-    // This is hidden intentionally.
-    // The Blink CLI should be primarily open-source,
-    // and deploying to cloud should be the *only* proprietary
-    // feature in this CLI.
-    hidden: true,
-  })
+  .command("login")
   .description("Log in to the Blink Cloud.")
   .action(asyncEntry(() => import("./login")));
+
+// Configure error output
+program.configureOutput({
+  writeErr: (str) => {
+    // Strip ANSI codes from commander's default error messages
+    const cleanStr = str.replace(/\x1b\[[0-9;]*m/g, "");
+    clack.log.error(cleanStr.trim());
+  },
+});
+
+// Global error handler for uncaught errors in command actions
+process.on("unhandledRejection", (error: any) => {
+  clack.log.error(error?.message || String(error));
+  process.exit(1);
+});
 
 program.parse(process.argv);
