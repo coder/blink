@@ -429,6 +429,17 @@ export default async function deploy(
             chalk.yellow("Note:") +
               " To continue developing locally with webhooks, you'll need to reconfigure external services (Slack, GitHub, etc.)"
           );
+
+          if (
+            // heuristic to check if the user is using Slack
+            Object.keys(localEnv).some((key) =>
+              key.toLowerCase().includes("slack")
+            )
+          ) {
+            console.log(
+              `Run ${chalk.cyan("blink setup slack-app")} to create a new Slack app for development.`
+            );
+          }
         }
         break;
       }
