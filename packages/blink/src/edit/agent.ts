@@ -17,7 +17,7 @@ import { z } from "zod";
 import { Agent } from "../agent/agent";
 import { Client } from "../agent/client";
 import * as blink from "../agent/index.node";
-import { agentsMD } from "../cli/init";
+import { templates } from "../cli/init-templates";
 import {
   createGithubApp,
   createGithubAppSchema,
@@ -615,7 +615,7 @@ Slack:
 `,
     });
 
-    let agentsMDContent = agentsMD;
+    let agentsMDContent: string = templates.scratch["AGENTS.md"];
     try {
       agentsMDContent = await readFile(
         join(options.directory, "AGENTS.md"),
