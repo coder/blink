@@ -11,6 +11,7 @@ import XDGAppPaths from "xdg-app-paths";
 import chalk from "chalk";
 import { spinner } from "@clack/prompts";
 import open from "open";
+import { openUrl } from "./util";
 
 /**
  * Gets the auth token for the Blink CLI.
@@ -129,29 +130,6 @@ function setupEnterKeyListener(onEnter: () => void): StdinCleanup {
 }
 
 /**
- * Opens the browser at the given URL and handles errors.
- */
-async function openBrowser(url: string): Promise<void> {
-  try {
-    const subprocess = await open(url);
-    // Catch spawn errors without waiting for the browser to close
-    subprocess.once("error", (_err: Error) => {
-      console.log(
-        chalk.yellow(
-          `Could not open the browser. Please visit the URL manually: ${url}`
-        )
-      );
-    });
-  } catch (_err) {
-    console.log(
-      chalk.yellow(
-        `Could not open the browser. Please visit the URL manually: ${url}`
-      )
-    );
-  }
-}
-
-/**
  * Login makes the CLI output the URL to authenticate with Blink.
  * It returns a valid auth token.
  */
@@ -184,7 +162,7 @@ export async function login(): Promise<string> {
 
       // Wait for authUrl to be initialized before opening
       await authUrlInitializedPromise;
-      await openBrowser(authUrl!);
+      await openUrl(authUrl!);
     }
   });
 

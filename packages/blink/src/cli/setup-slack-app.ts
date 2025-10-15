@@ -17,6 +17,7 @@ import Client from "@blink.so/api";
 import crypto from "crypto";
 import chalk from "chalk";
 import util from "node:util";
+import { openUrl } from "./lib/util";
 
 export async function verifySlackCredentials(
   botToken: string
@@ -366,13 +367,10 @@ export async function setupSlackApp(
   }
 
   if (shouldOpen) {
-    try {
-      await open(slackAppUrl);
-    } catch (error) {
-      log.warn(
-        `Could not automatically open browser. Please visit the URL manually.`
-      );
-    }
+    await openUrl(
+      slackAppUrl,
+      "Could not open the browser. Please visit the URL manually."
+    );
   }
 
   // Ask for app ID

@@ -25,6 +25,7 @@ import {
 } from "./tools/create-github-app";
 import { createSlackApp, createSlackAppSchema } from "./tools/create-slack-app";
 import { TSServer } from "./tsserver";
+import { openUrl } from "../cli/lib/util";
 
 export interface EditAgent {
   agent: Agent<UIMessage>;
@@ -234,12 +235,7 @@ GITHUB_PRIVATE_KEY="${btoa(data.pem)}"
               );
 
               // Open the URL in the browser
-              const opened = await open(url);
-              opened.once("error", (err) => {
-                console.log(
-                  `Could not open the browser. Please visit the URL manually: ${url}`
-                );
-              });
+              const opened = await openUrl(url);
 
               return `Opening GitHub App creation URL in browser: ${url}`;
             },
@@ -260,12 +256,7 @@ You MUST GUIDE THE USER through these steps - do not provide all the steps at on
               const url = createSlackApp(args);
 
               // Open the URL in the browser
-              const opened = await open(url);
-              opened.once("error", (err) => {
-                console.log(
-                  `Could not open the browser. Please visit the URL manually: ${url}`
-                );
-              });
+              await openUrl(url);
 
               return `Opened Slack App creation URL in browser: ${url}`;
             },

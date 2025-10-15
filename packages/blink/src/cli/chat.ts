@@ -1,6 +1,7 @@
 import open from "open";
 import { WebSocket } from "ws";
 import { WorkspaceConnect } from "./connect";
+import { openUrl } from "./lib/util";
 
 export default async function chat() {
   const id = crypto.randomUUID();
@@ -21,7 +22,7 @@ export default async function chat() {
   });
   const url = `https://blink.so/legacy-auth?id=${id}&type=workspace`;
   console.log(`Opening the following URL in your browser: ${url}`);
-  await open(url);
+  await openUrl(url);
 
   const token = await tokenPromise;
 
