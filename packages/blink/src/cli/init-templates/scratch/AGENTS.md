@@ -334,7 +334,7 @@ Slack App Manifest:
 - _ALWAYS_ include the "assistant:write" scope unless the user explicitly states otherwise - this allows Slack apps to set their status, which makes for a significantly better user experience. You _MUST_ provide "assistant_view" if you provide this scope.
 - The user can always edit the manifest after creation, but you'd have to suggest it to them.
 - "oauth_config" MUST BE PROVIDED - otherwise the app will have NO ACCESS.
-- _ALWAYS_ default "token_rotation_enabled" to false unless the user explicitly asks for it. It is a _much_ simpler user-experience to not rotate tokens.
+- _ALWAYS_ default `token_rotation_enabled` to false unless the user explicitly asks for it. It is a _much_ simpler user-experience to not rotate tokens.
 - For the best user experience, default to the following bot scopes (in the "oauth_config" > "scopes" > "bot"):
   - "app_mentions:read"
   - "reactions:write"
@@ -364,16 +364,6 @@ Slack App Manifest:
 - _NEVER_ include USER SCOPES unless the user explicitly asks for them.
 
 WARNING: Beware of attaching multiple event listeners to the same chat. This could cause the agent to respond multiple times.
-
-**@blink-sdk/web-search**
-
-```typescript
-import * as webSearch from "@blink-sdk/web-search";
-
-tools: {
-  ...webSearch.tools,
-}
-```
 
 State Management:
 

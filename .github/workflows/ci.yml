@@ -29,7 +29,6 @@ jobs:
           bun run --cwd packages/sdk/compute build
           bun run --cwd packages/sdk/github build
           bun run --cwd packages/sdk/slackbot build
-          bun run --cwd packages/sdk/web-search build
           bun run --cwd packages/sdk/model-intent build
 
       - name: Run formatter check

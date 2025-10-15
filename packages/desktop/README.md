@@ -30,10 +30,6 @@ bun run build
 cd ../sdk/compute
 bun run build
 
-# Build web search SDK
-cd ../sdk/web-search
-bun run build
-
 # Build core Blink SDK
 cd ../../blink
 bun run build

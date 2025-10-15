@@ -2,7 +2,6 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGatewayProvider } from "@ai-sdk/gateway";
 import * as compute from "@blink-sdk/compute";
-import * as search from "@blink-sdk/web-search";
 import {
   convertToModelMessages,
   readUIMessageStream,
@@ -108,8 +107,6 @@ Your job is to improve the agent based on run mode failures, NOT to complete the
     const tools = {
       ...computeTools,
       ...additionalTools,
-
-      ...search.tools,
 
       ...(await blink.tools.withApproval({
         messages,
