@@ -31,7 +31,7 @@
   "files": [
     "dist"
   ],
-  "homepage": "https://github.com/coder/blink/tree/main/packages/sdk/slack",
+  "homepage": "https://github.com/coder/blink/tree/main/packages/slack",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

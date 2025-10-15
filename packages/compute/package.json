@@ -17,7 +17,7 @@
     "type": "git",
     "url": "git+https://github.com/coder/blink.git"
   },
-  "homepage": "https://github.com/coder/blink/tree/main/packages/sdk/compute",
+  "homepage": "https://github.com/coder/blink/tree/main/packages/compute",
   "bugs": {
     "url": "https://github.com/coder/blink/issues"
   },

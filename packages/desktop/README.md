@@ -27,7 +27,7 @@ cd packages/compute-protocol
 bun run build
 
 # Build compute SDK
-cd ../sdk/compute
+cd ../compute
 bun run build
 
 # Build core Blink SDK

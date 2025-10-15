@@ -1,10 +1,9 @@
 {
-  "name": "@blink-sdk/github",
-  "version": "0.0.22",
-  "description": "Blink SDK for GitHub tools.",
+  "name": "@blink-sdk/model-intent",
+  "version": "0.0.4",
   "keywords": [
     "blink",
-    "github",
+    "model-intent",
     "bot",
     "agent"
   ],
@@ -17,34 +16,26 @@
     "type": "git",
     "url": "git+https://github.com/coder/blink.git"
   },
-  "homepage": "https://github.com/coder/blink/tree/main/packages/sdk/github",
+  "homepage": "https://github.com/coder/blink/tree/main/packages/model-intent",
   "bugs": {
     "url": "https://github.com/coder/blink/issues"
   },
+  "type": "module",
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "tsdown"
   },
-  "devDependencies": {
-    "@octokit/auth-app": "^8.1.0",
-    "@octokit/webhooks": "^14.1.3",
-    "diff": "^8.0.2",
-    "file-type": "^21.0.0"
-  },
-  "peerDependencies": {
-    "@octokit/core": "^7.0.4",
-    "zod": ">=4",
-    "ai": ">=5",
-    "blink": ">= 0.1.46"
-  },
-  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
+  },
+  "peerDependencies": {
+    "zod": ">=4",
+    "ai": ">=5"
   }
 }

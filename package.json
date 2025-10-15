@@ -8,8 +8,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "workspaces": [
-    "packages/*",
-    "packages/sdk/*"
+    "packages/*"
   ],
   "devDependencies": {
     "@types/bun": "latest",
