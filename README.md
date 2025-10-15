@@ -17,15 +17,17 @@ Blink is a tool for building and sharing AI agents.
 
 ## Getting Started
 
+Creating your first agent or Slackbot is quick with the Blink CLI. You can build, test, and start chatting with your agent in Slack in just a few minutes, right from your terminal.
+
 https://github.com/user-attachments/assets/6bb73e58-b4ae-4543-b2c0-0e1195113ba6
 
-Install the `blink` package with your favorite package manager:
+### Install the `blink` package with your favorite package manager:
 
 ```sh
 bun i -g blink
 ```
 
-Create an agent:
+### Create an agent:
 
 ```sh
 mkdir my-agent
@@ -33,10 +35,10 @@ cd my-agent
 blink init
 ```
 
-Start development mode:
-
 > [!NOTE]
 > You'll need to provide your own LLM API keys. Add them during `blink init` or add them later to `.env.local` and the dev server will automatically load them.
+
+### Start development mode:
 
 ```sh
 blink dev
@@ -44,15 +46,14 @@ blink dev
 
 You can now edit `agent.ts` in your editor or by using [Edit Mode](https://docs.blink.so/get-started/building-with-blink) in your terminal and the dev server will hot-reload your agent.
 
-Deploy your agent to [Blink Cloud](https://blink.so):
-
-> [!NOTE]
-> [Blink Cloud](https://blink.so) is not required to use Blink.
-> We [guarantee](#why-blink) that Blink agents will always be local-first.
+### Deploy your agent to [Blink Cloud](https://blink.so):
 
 ```sh
 blink deploy
 ```
+> [!NOTE]
+> [Blink Cloud](https://blink.so) is not required to use Blink.
+> We [guarantee](#why-blink) that Blink agents will always be local-first.
 
 ## Building Your First Agent
 
