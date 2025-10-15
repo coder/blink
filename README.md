@@ -42,7 +42,7 @@ Start development mode:
 blink dev
 ```
 
-You can now edit `agent.ts` in your editor or by using [Edit Mode] (https://docs.blink.so/get-started/building-with-blink) in your terminal and the dev server will hot-reload your agent.
+You can now edit `agent.ts` in your editor or by using [Edit Mode](https://docs.blink.so/get-started/building-with-blink) in your terminal and the dev server will hot-reload your agent.
 
 Deploy your agent to [Blink Cloud](https://blink.so):
 
