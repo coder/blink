@@ -14,6 +14,7 @@
     "@types/bun": "latest",
     "@typescript/native-preview": "^7.0.0-dev.20250907.1",
     "prettier": "^3.6.2",
+    "tsdown": "0.14.2",
     "tsx": "^4.20.5"
   },
   "peerDependencies": {
