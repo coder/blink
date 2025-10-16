@@ -3,7 +3,7 @@ import type { UIMessage } from "ai";
 import * as http from "http";
 import { createServerAdapter } from "@whatwg-node/server";
 import { api as controlApi } from "../control";
-import { Agent, model, waitUntil, api } from "./agent";
+import { Agent, waitUntil, api } from "./agent";
 import type {
   AgentChat,
   AgentStore,
@@ -436,11 +436,6 @@ describe("API Shim - Basic Exports", () => {
     expect(typeof Agent).toBe("function");
   });
 
-  test("exports model function", () => {
-    expect(model).toBeDefined();
-    expect(typeof model).toBe("function");
-  });
-
   test("exports waitUntil function", () => {
     expect(waitUntil).toBeDefined();
     expect(typeof waitUntil).toBe("function");
@@ -456,7 +451,6 @@ describe("API Shim - Basic Exports", () => {
 
     expect(blink.Agent).toBeDefined();
     expect(blink.agent).toBeDefined();
-    expect(blink.model).toBeDefined();
     expect(blink.waitUntil).toBeDefined();
     expect(blink.api).toBeDefined();
   });
@@ -555,15 +549,5 @@ describe("API Shim - Agent Functionality", () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("custom response");
     expect(requestHandler).toHaveBeenCalledTimes(1);
-  });
-
-  test("model() creates provider when authenticated", () => {
-    process.env.BLINK_TOKEN = "test-token";
-
-    const provider = model("anthropic/claude-sonnet-4");
-    expect(provider).toBeDefined();
-    expect(provider.modelId).toBe("anthropic/claude-sonnet-4");
-
-    delete process.env.BLINK_TOKEN;
   });
 });

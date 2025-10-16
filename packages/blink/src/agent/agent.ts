@@ -545,7 +545,7 @@ const sseHeaders = {
  *
  * @param model the model name. browse models at: https://vercel.com/ai-gateway/models.
  */
-export const model = (model: string, options?: { token?: string }) => {
+const model = (model: string, options?: { token?: string }) => {
   // This bypass is *ONLY* for temporary testing
   // until we fix the onboarding flow.
   const token =

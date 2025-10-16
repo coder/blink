@@ -71,7 +71,7 @@ const agent = new blink.Agent();
 
 agent.on("chat", async ({ messages, chat, abortSignal }) => {
   return streamText({
-    model: blink.model("anthropic/claude-sonnet-4.5"),
+    model: "anthropic/claude-sonnet-4.5",
     system: "You are a helpful assistant.",
     messages: convertToModelMessages(messages, {
       ignoreIncompleteToolCalls: true,
@@ -215,17 +215,6 @@ Tool Prefixing to avoid collisions:
 
 LLM Models:
 
-**Option 1: Blink Gateway** (Quick Start)
-
-```typescript
-model: blink.model("anthropic/claude-sonnet-4.5");
-model: blink.model("openai/gpt-5");
-```
-
-Requires: `blink login` or `BLINK_TOKEN` env var
-
-**Option 2: Direct Provider** (Production Recommended)
-
 ```typescript
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
@@ -240,7 +229,7 @@ model: openai("gpt-5", { apiKey: process.env.OPENAI_API_KEY });
 
 1. If `ANTHROPIC_API_KEY` is set: uses `claude-sonnet-4.5` via `@ai-sdk/anthropic`
 2. If `OPENAI_API_KEY` is set: uses `gpt-5` via `@ai-sdk/openai`
-3. Otherwise: falls back to `blink.model("anthropic/claude-sonnet-4.5")`
+3. If `AI_GATEWAY_API_KEY` is set: uses `anthropic/claude-sonnet-4-5` via the Vercel AI Gateway
 
 Available SDKs:
 
@@ -310,7 +299,7 @@ agent.on("request", async (request) => {
 agent.on("chat", async ({ messages }) => {
   const tools = slack.createTools({ client: app.client });
   return streamText({
-    model: blink.model("anthropic/claude-sonnet-4.5"),
+    model: "anthropic/claude-sonnet-4.5",
     system: "You chatting with users in Slack.",
     messages: convertToModelMessages(messages, {
       ignoreIncompleteToolCalls: true,
