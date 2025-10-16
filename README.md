@@ -114,7 +114,7 @@ agent.on("request", async (request, context) => {
 agent.serve();
 ```
 
-Locally, all chats are stored in `./data/chats/<key>.json` relative to where your agent is running.
+Locally, all chats are stored in `./.blink/chats/<key>.json` relative to where your agent is running.
 
 In the cloud, chats keys are namespaced per-agent.
 
@@ -174,7 +174,7 @@ agent.on("chat", async ({ messages }) => {
 agent.serve();
 ```
 
-Locally, all storage is in `./data/storage.json` relative to where your agent is running.
+Locally, all storage is in `./.blink/storage.json` relative to where your agent is running.
 
 In the cloud, storage is namespaced per-agent.
 

@@ -11,7 +11,7 @@ import { dirname, join } from "path";
  * Gets the path to the devhook ID file.
  */
 export function getDevhookPath(directory: string): string {
-  return join(directory, "data", "devhook.txt");
+  return join(directory, ".blink", "devhook.txt");
 }
 
 /**

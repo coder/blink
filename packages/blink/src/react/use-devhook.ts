@@ -37,7 +37,7 @@ export default function useDevhook(options: UseDevhookOptions) {
     let isConnecting = false;
     let releaseLock: (() => void) | undefined;
 
-    const lockPath = join(options.directory, "data", "devhook");
+    const lockPath = join(options.directory, ".blink", "devhook");
 
     // Acquire lock before connecting
     (async () => {
