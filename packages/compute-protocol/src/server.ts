@@ -520,7 +520,7 @@ export class Server {
       case "read_file": {
         const file = await fs.readFile(request.payload.path);
         const fileType = await fileTypeFromBuffer(file);
-        const readAsText = !fileType || fileType?.mime === "text/plain";
+        const readAsText = !fileType;
         if (!readAsText) {
           this.sendResponse<"read_file">(stream, {
             id: request.id,

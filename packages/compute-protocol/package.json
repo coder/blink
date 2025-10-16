@@ -50,11 +50,15 @@
     }
   },
   "devDependencies": {
+    "@blink-sdk/events": "workspace:*",
+    "@blink-sdk/multiplexer": "workspace:*",
+    "@lydell/node-pty": "^1.1.0",
     "@types/tar-stream": "^3.1.4",
     "@types/ws": "^8.18.1",
     "@xterm/addon-serialize": "^0.13.0",
     "@xterm/headless": "^5.5.0",
     "dotenv": "^17.2.3",
+    "file-type": "^19.0.0",
     "tar-stream": "^3.1.7",
     "ws": "^8.18.3",
     "zod": "^4.1.11"
