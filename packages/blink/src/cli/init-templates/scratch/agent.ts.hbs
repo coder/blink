@@ -14,7 +14,12 @@ agent.on("chat", async ({ messages }) => {
 {{#if (eq aiProvider "anthropic")}}
     model: anthropic("claude-sonnet-4-5"),
 {{else if (eq aiProvider "openai")}}
-    model: openai("gpt-5-chat-latest"),
+    model: openai("gpt-5-codex"),
+    providerOptions: {
+      openai: {
+        reasoningSummary: "detailed",
+      },
+    },
 {{else if (eq aiProvider "vercel")}}
     model: "anthropic/claude-sonnet-4.5",
 {{else}}
