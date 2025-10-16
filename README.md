@@ -9,21 +9,40 @@
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://discord.gg/coder)
 ![NPM Version](https://img.shields.io/npm/v/blink)
 
-Blink is a tool for building and sharing AI agents.
+## Blink Overview
 
-- Leverages the familiar [AI SDK](https://github.com/vercel/ai) at it's core.
-- Built-in tools for making Slack, GitHub, and Discord bots.
-- Every agent is simply a Node HTTP server - no cloud required.
+Blink is an MIT-licensed agent development engine that provides a complete foundation for building, deploying, and scaling AI agents as code. We believe language models are the core of the experience, and Blink gives you the freedom to use them to their full potential.
+
+Bring your own LLM keys to build and run Blink agents locally. Deployment to Blink Cloud will never be required. You can develop, test, and run agents entirely on your own machine without even creating a Blink Cloud account.
+
+- **Blink agents are Node.js servers** written in TypeScript that handle chat messages, webhooks, and API requests over HTTP.
+- **Blink comes with comprehensive SDKs** that give you the ability to deploy agents to Slack and GitHub with ease
+- **The platform handles all the infrastructure** complexity with serverless deployment, logging, and scaling, so you can focus on building
+- **Full portability between local development and production** with identical behavior across environments
+- **Use the popular Vercel AI SDK** with support for multiple LLM providers and streaming responses
 
 ## Getting Started
 
-Install the `blink` package with your favorite package manager:
+Creating your first agent or Slackbot is quick with the Blink CLI. You can build, test, and start chatting with your agent in Slack in just a few minutes, right from your terminal.
+
+https://github.com/user-attachments/assets/6bb73e58-b4ae-4543-b2c0-0e1195113ba6
+
+### Use your favorite package manager to globally install `blink`:
 
 ```sh
 bun i -g blink
 ```
+```sh
+npm i -g blink
+```
+```sh
+pnpm add -g blink
+```
+```sh
+yarn global add blink
+```
 
-Create an agent:
+### Create an agent:
 
 ```sh
 mkdir my-agent
@@ -31,47 +50,47 @@ cd my-agent
 blink init
 ```
 
-Start development mode:
-
 > [!NOTE]
-> You'll need to provide your own API keys to use language models. Put them in `.env.local` and the dev server will automatically load them.
+> You'll need to provide your own LLM API keys. Add them during `blink init` or add them later to `.env.local` and the dev server will automatically load them.
+
+### Start development mode:
 
 ```sh
 blink dev
 ```
 
-You can now edit `src/agent.ts` and the dev server will hot-reload your agent.
+You can now edit `agent.ts` in your editor or by using [Edit Mode](https://docs.blink.so/get-started/building-with-blink) in your terminal and the dev server will hot-reload your agent.
 
-Bundle your agent as a Node package to share it with others:
-
-```sh
-blink build
-npm publish
-```
-
-Optionally, deploy your agent to [blink.so](https://blink.so):
-
-> [!NOTE]
-> [blink.so](https://blink.so) is not required to use Blink.
-> We [guarantee](#why-blink) that Blink agents will always be local-first.
+### Deploy your agent to [Blink Cloud](https://blink.so):
 
 ```sh
 blink deploy
 ```
+> [!IMPORTANT]
+> [Blink Cloud](https://blink.so) is not required to build Blink agents.
+> We guarantee that Blink agents will always be local-first.
 
-## Building Your First Agent
+## Building with Edit and Run Modes
 
-Here are some examples of agents commonly built with Blink:
+After running `bun i -g blink` to globally install Blink, run `blink init` to scaffold your new agent.
 
-- [Coding Agent](./examples/coding-agent) with tools and context specific to your codebase.
-- [Customer Support Agent](./examples/customer-support-agent) directed to understand your product and documentation.
-- [Slack Bot](./examples/slack-bot) with information relevant to your company.
-- [GitHub Bot](./examples/github-bot) with custom tools to interact with your repositories.
-- [Everything Agent](./examples/everything-agent) that does all of the above to show the full power of Blink.
+https://github.com/user-attachments/assets/683e4554-55fd-4240-916d-a496da7e63d2
 
-## Developing an Agent
+Giving your new agents tools and personality is as easy as switching to [Edit Mode](https://docs.blink.so/get-started/building-with-blink) `(CTRL+T)` and describing what you want your agent to do.
 
-Blink has built-in APIs for managing [chats](#chats), [storage](#storage), and [tools](#tools).
+Edit Mode is specifically trained to build your agent and understand the full context of both Edit Mode and Run Mode chats. This is a key capability that makes Edit Mode the essential building and debugging partner.
+
+> [!NOTE]
+> Run Mode can only read its own context to preserve a real-world user experience while testing in your terminal.
+
+https://github.com/user-attachments/assets/4abd47ad-4b59-41d5-abda-27ed902ae69b
+
+
+## How Blink Agents Work
+
+Building agents in Run Mode lifts most of the burden of coding new agents. However, here's a breakdown of how Blink agents work under the hood.
+
+Blink has built-in APIs for managing chats, storage, and tools.
 
 ### Chats
 
@@ -354,16 +373,7 @@ By default, Blink uses [esbuild](https://esbuild.github.io/) to bundle your agen
 
 The `build` function can be customized to use a different bundler if you wish.
 
-## Why Blink?
 
-Blink is a tool for building AI agents, not a framework. It's simple at it's core. Every agent is an HTTP server that follows a [basic protocol](#).
+## Blink Documentation
 
-You provide the tools, and Blink handles the rest. We believe that the language models are the most important part of the equation, and we allow you to leverage the full power of them.
-
-Blink will never require the cloud to run agents. Blink is MIT licensed - you don't have to trust us.
-
-## Cloud
-
-`blink deploy` runs your agent in the cloud at [blink.so](https://blink.so).
-
-This allows you to share your agent with others, and to access it from anywhere.
+For a closer look at Blink, visit [docs.blink.so](https://docs.blink.so/).
