@@ -201,7 +201,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
   const server = useMemo(() => {
     return createLocalServer({
       port: 0,
-      dataDirectory: join(directory, "data"),
+      dataDirectory: join(directory, ".blink"),
       getAgent: () => runAgentRef.current,
     });
   }, [directory]);

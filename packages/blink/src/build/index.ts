@@ -14,7 +14,7 @@ export interface Config {
 
   /**
    * outdir is the directory to write the build output to.
-   * Defaults to `data/build` in the current working directory.
+   * Defaults to `.blink/build` in the current working directory.
    */
   outdir?: string;
 
@@ -111,7 +111,7 @@ Try creating "agent.ts" or specify "entry" in a blink.config.ts file.`);
     }
   }
   if (!config.outdir) {
-    config.outdir = path.resolve(directory, "data/build");
+    config.outdir = path.resolve(directory, ".blink/build");
   }
   if (!config.build) {
     // By default, we bundle with esbuild.

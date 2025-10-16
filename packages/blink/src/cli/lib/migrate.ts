@@ -4,88 +4,63 @@ import { join } from "path";
 import chalk from "chalk";
 
 /**
- * Automatically migrates .blink/ to data/ if it exists.
+ * Automatically migrates data/ to .blink/ if it exists.
  * This helps users transition from the old directory structure.
  */
-export async function migrateBlinkToData(directory: string): Promise<void> {
-  const oldPath = join(directory, ".blink");
-  const newPath = join(directory, "data");
+export async function migrateDataToBlink(directory: string): Promise<void> {
+  const oldPath = join(directory, "data");
+  const newPath = join(directory, ".blink");
 
-  // Check if .blink exists and data doesn't
+  // Check if data exists and .blink doesn't
   if (!existsSync(oldPath) || existsSync(newPath)) {
     return;
   }
 
-  // Check if .blink/data/ exists (old nested structure)
-  const oldNestedDataPath = join(oldPath, "data");
-  const hasNestedData = existsSync(oldNestedDataPath);
+  // Check if data contains any data files (chats, storage, config, devhook, .first-run)
+  const hasData =
+    existsSync(join(oldPath, "chats")) ||
+    existsSync(join(oldPath, "storage.json")) ||
+    existsSync(join(oldPath, "config.json")) ||
+    existsSync(join(oldPath, "devhook.txt")) ||
+    existsSync(join(oldPath, "devhook")) ||
+    existsSync(join(oldPath, ".first-run"));
 
-  if (hasNestedData) {
-    // Old structure: .blink/data/chats → data/chats
-    console.log(chalk.yellow("Migrating .blink/data/ to data/..."));
-    await rename(oldNestedDataPath, newPath);
-
-    // Move any remaining files from .blink/ into data/
-    const remainingFiles = readdirSync(oldPath);
-    for (const file of remainingFiles) {
-      const srcPath = join(oldPath, file);
-      const destPath = join(newPath, file);
-      if (!existsSync(destPath)) {
-        await rename(srcPath, destPath);
-      }
-    }
-
-    // Remove empty .blink directory
-    await rm(oldPath, { recursive: true, force: true });
-  } else {
-    // Check if .blink contains any data files directly (build, chats, storage, config, devhook)
-    const hasData =
-      existsSync(join(oldPath, "build")) ||
-      existsSync(join(oldPath, "chats")) ||
-      existsSync(join(oldPath, "storage.json")) ||
-      existsSync(join(oldPath, "config.json")) ||
-      existsSync(join(oldPath, "devhook.txt"));
-
-    if (!hasData) {
-      return;
-    }
-
-    // Simple rename: .blink/ → data/
-    console.log(chalk.yellow("Migrating .blink/ to data/..."));
-    await rename(oldPath, newPath);
+  if (!hasData) {
+    return;
   }
+
+  // Simple rename: data/ → .blink/
+  console.log(chalk.yellow("Migrating data/ to .blink/..."));
+  await rename(oldPath, newPath);
 
   // Update .gitignore if it exists
   const gitignorePath = join(directory, ".gitignore");
   if (existsSync(gitignorePath)) {
     const content = readFileSync(gitignorePath, "utf-8");
 
-    // Only add if 'data' isn't already in gitignore
-    if (!content.includes("data")) {
+    // Only update if 'data' is in gitignore and '.blink' is not
+    if (content.includes("data") && !content.includes(".blink")) {
       const lines = content.split("\n");
 
-      // Find where .blink is mentioned
-      const blinkIndex = lines.findIndex((line) =>
-        line.trim().match(/^\.blink\s*$/)
+      // Find where data is mentioned
+      const dataIndex = lines.findIndex((line) =>
+        line.trim().match(/^data\s*$/)
       );
 
-      if (blinkIndex !== -1) {
-        // Replace .blink with data and add comment
-        lines[blinkIndex] = "data";
+      if (dataIndex !== -1) {
+        // Replace data with .blink and add comment
+        lines[dataIndex] = ".blink";
         // Add comment before if there isn't already one
-        if (
-          blinkIndex === 0 ||
-          !lines[blinkIndex - 1]?.trim().startsWith("#")
-        ) {
-          lines.splice(blinkIndex, 0, "# .blink has migrated to data/");
+        if (dataIndex === 0 || !lines[dataIndex - 1]?.trim().startsWith("#")) {
+          lines.splice(dataIndex, 0, "# data has migrated to .blink/");
         }
       } else {
-        // .blink not found, just append data at the end
+        // data not found, just append .blink at the end
         if (!content.endsWith("\n")) {
           lines.push("");
         }
-        lines.push("# .blink has migrated to data/");
-        lines.push("data");
+        lines.push("# data has migrated to .blink/");
+        lines.push(".blink");
       }
 
       writeFileSync(gitignorePath, lines.join("\n"));

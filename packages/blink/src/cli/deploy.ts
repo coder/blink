@@ -5,7 +5,7 @@ import Client, {
 import { stat, readFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import { loginIfNeeded } from "./lib/auth";
-import { migrateBlinkToData } from "./lib/migrate";
+import { migrateDataToBlink } from "./lib/migrate";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile, readdir } from "fs/promises";
 import { select, confirm, isCancel, spinner } from "@clack/prompts";
@@ -26,8 +26,8 @@ export default async function deploy(
     directory = process.cwd();
   }
 
-  // Auto-migrate .blink to data if it exists
-  await migrateBlinkToData(directory);
+  // Auto-migrate data to .blink if it exists
+  await migrateDataToBlink(directory);
 
   const token = await loginIfNeeded();
   const client = new Client({
@@ -54,8 +54,8 @@ export default async function deploy(
   // Find the nearest config file if it exists.
   const rootDirectory = dirname(packageJSON);
 
-  // Check for a data directory. This stores the agent's deploy config.
-  const deployConfigPath = join(rootDirectory, "data", "config.json");
+  // Check for a .blink directory. This stores the agent's deploy config.
+  const deployConfigPath = join(rootDirectory, ".blink", "config.json");
 
   let deployConfig: DeployConfig = {};
   if (existsSync(deployConfigPath)) {
@@ -549,7 +549,7 @@ async function collectSourceFiles(rootDir: string): Promise<string[]> {
   const defaultIgnorePatterns = [
     ".git",
     "node_modules",
-    "data",
+    ".blink",
     ".env",
     ".env.*",
   ];

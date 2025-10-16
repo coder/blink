@@ -5,7 +5,7 @@ import { resolveConfig } from "../build/index";
 import { findNearestEntry } from "../build/util";
 import { startDev } from "../tui/dev";
 import { getAuthToken } from "./lib/auth";
-import { migrateBlinkToData } from "./lib/migrate";
+import { migrateDataToBlink } from "./lib/migrate";
 
 export default async function dev(directory?: string): Promise<void> {
   if (!directory) {
@@ -19,7 +19,7 @@ export default async function dev(directory?: string): Promise<void> {
       // No agent found in current directory, search upward for .blink
       let dotBlinkPath = await findNearestEntry(cwd, ".blink");
 
-      // This is legacy behavior to migrate old Blink directories to the new data/ directory.
+      // This is legacy behavior to migrate old Blink directories to the new .blink/ directory.
       if (dotBlinkPath && existsSync(join(dotBlinkPath, "build"))) {
         dotBlinkPath = undefined;
       }
@@ -32,9 +32,8 @@ export default async function dev(directory?: string): Promise<void> {
       }
     }
   }
-
-  // Auto-migrate .blink to data if it exists
-  await migrateBlinkToData(directory);
+  // Auto-migrate data/ to .blink/ if it exists
+  await migrateDataToBlink(directory);
 
   const exitWithDump = (error: Error) => {
     writeFileSync("error.dump", inspect(error, { depth: null }));

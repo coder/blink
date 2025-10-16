@@ -4,7 +4,7 @@ import { spawnAgent } from "../local/spawn-agent";
 import { parse } from "dotenv";
 import { readFile } from "node:fs/promises";
 import { getAuthToken } from "./lib/auth";
-import { migrateBlinkToData } from "./lib/migrate";
+import { migrateDataToBlink } from "./lib/migrate";
 import { resolveConfig } from "../build";
 import { findNearestEntry } from "../build/util";
 import { existsSync } from "node:fs";
@@ -25,7 +25,7 @@ export default async function run(
       // No agent found in current directory, search upward for .blink
       let dotBlinkPath = await findNearestEntry(cwd, ".blink");
 
-      // This is legacy behavior to migrate old Blink directories to the new data/ directory.
+      // This is legacy behavior to migrate old Blink directories to the new .blink/ directory.
       if (dotBlinkPath && existsSync(join(dotBlinkPath, "build"))) {
         dotBlinkPath = undefined;
       }
@@ -39,8 +39,8 @@ export default async function run(
     }
   }
 
-  // Auto-migrate .blink to data if it exists
-  await migrateBlinkToData(opts.directory);
+  // Auto-migrate data/ to .blink/ if it exists
+  await migrateDataToBlink(opts.directory);
 
   const config = resolveConfig(opts.directory);
 
@@ -62,7 +62,7 @@ export default async function run(
   });
   console.log("Agent spawned");
 
-  const chatsDir = resolve(opts?.directory ?? process.cwd(), "data", "chats");
+  const chatsDir = resolve(opts?.directory ?? process.cwd(), ".blink", "chats");
 
   const manager = new ChatManager({
     chatId: opts?.chat,

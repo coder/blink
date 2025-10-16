@@ -9,7 +9,7 @@ import { dirname, join } from "path";
  * @returns true if this is the first time, false otherwise
  */
 export function checkAndMarkFirstRun(directory: string): boolean {
-  const storagePath = join(directory, "data", ".first-run");
+  const storagePath = join(directory, ".blink", ".first-run");
   mkdirSync(dirname(storagePath), { recursive: true });
 
   if (existsSync(storagePath)) {
