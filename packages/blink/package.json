@@ -87,7 +87,7 @@
     "@clack/prompts": "^0.11.0",
     "@hono/node-server": "^1.19.3",
     "@hugodutka/gemini-cli": "npm:@kylecarbs/gemini-cli@0.6.0-nightly-20250912-6",
-    "@lydell/node-pty": "^2.2.0",
+    "@lydell/node-pty": "^1.1.0",
     "@opentelemetry/auto-instrumentations-node": "^0.64.6",
     "@types/marked-terminal": "^6.1.1",
     "@whatwg-node/server": "^0.10.12",
