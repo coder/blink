@@ -1,96 +1,87 @@
 <a href="https://blink.so#gh-dark-mode-only">
-<img src="./scripts/logo-white.svg" style="height: 50px;">
+<img src="./scripts/logo-white.svg" style="height: 40px;">
 </a>
 <a href="https://blink.so#gh-light-mode-only">
-<img src="./scripts/logo-black.svg" style="height: 50px;">
+<img src="./scripts/logo-black.svg" style="height: 40px;">
 </a>
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://discord.gg/coder)
 ![NPM Version](https://img.shields.io/npm/v/blink)
 
-## Blink Overview
+Blink is a way to build and deploy chat agents with the AI SDK.
 
-Blink is an MIT-licensed agent development engine that provides a complete foundation for building, deploying, and scaling AI agents as code. We believe language models are the core of the experience, and Blink gives you the freedom to use them to their full potential.
+```ts
+import { Agent } from "blink";
+import { sendMessages } from "ai";
 
-Bring your own LLM keys to build and run Blink agents locally. Deployment to Blink Cloud will never be required. You can develop, test, and run agents entirely on your own machine without even creating a Blink Cloud account.
+const agent = new Agent();
 
-- **Blink agents are Node.js servers** written in TypeScript that handle chat messages, webhooks, and API requests over HTTP.
-- **Blink comes with comprehensive SDKs** that give you the ability to deploy agents to Slack and GitHub with ease
-- **The platform handles all the infrastructure** complexity with serverless deployment, logging, and scaling, so you can focus on building
-- **Full portability between local development and production** with identical behavior across environments
-- **Use the popular Vercel AI SDK** with support for multiple LLM providers and streaming responses
+agent.on("chat", ({ messages }) => {
+  return sendMessages({
+    model: "anthropic/claude-sonnet-4.5",
+    messages: convertToModelMessages(messages),
+  });
+});
 
-## Getting Started
-
-Creating your first agent or Slackbot is quick with the Blink CLI. You can build, test, and start chatting with your agent in Slack in just a few minutes, right from your terminal.
-
-https://github.com/user-attachments/assets/6bb73e58-b4ae-4543-b2c0-0e1195113ba6
-
-### Use your favorite package manager to globally install `blink`:
-
-```sh
-bun i -g blink
+agent.serve();
 ```
+
+To chat with the agent, run `blink dev` to enter a terminal interface.
+
+- Leverages the familiar [AI SDK](https://github.com/vercel/ai) at it's core.
+- SDKs for making Slack and GitHub bots.
+- Run your agent locally without ever deploying to the cloud.
+
+## Get Started
+
+Install Blink:
+
 ```sh
 npm i -g blink
 ```
-```sh
-pnpm add -g blink
-```
-```sh
-yarn global add blink
-```
 
-### Create an agent:
+Create your first agent:
 
 ```sh
-mkdir my-agent
-cd my-agent
+# creates the agent source code in your current directory
 blink init
-```
 
-> [!NOTE]
-> You'll need to provide your own LLM API keys. Add them during `blink init` or add them later to `.env.local` and the dev server will automatically load them.
-
-### Start development mode:
-
-```sh
+# starts a hot-reloading terminal interface to chat with your agent
 blink dev
 ```
 
-You can now edit `agent.ts` in your editor or by using [Edit Mode](https://docs.blink.so/get-started/building-with-blink) in your terminal and the dev server will hot-reload your agent.
+Create a Slack bot in under a minute:
 
-### Deploy your agent to [Blink Cloud](https://blink.so):
+https://github.com/user-attachments/assets/6bb73e58-b4ae-4543-b2c0-0e1195113ba6
+
+> [!NOTE]
+> You provide LLM API keys. `blink init` guides you through this, or add them to `.env.local` later.
+
+## Deploy
+
+If you wish to deploy your agent to the [cloud](https://blink.so), run:
 
 ```sh
 blink deploy
 ```
+
 > [!IMPORTANT]
-> [Blink Cloud](https://blink.so) is not required to build Blink agents.
+> [Cloud](https://blink.so) is not required to build Blink agents.
 > We guarantee that Blink agents will always be local-first.
 
-## Building with Edit and Run Modes
+## User Guide
 
-After running `bun i -g blink` to globally install Blink, run `blink init` to scaffold your new agent.
+### Developing an Agent
 
-https://github.com/user-attachments/assets/683e4554-55fd-4240-916d-a496da7e63d2
+Blink has two modes: run and edit (toggle with `ctrl+t`, or `/run` and `/edit`). Run mode is blue, edit mode is orange. Run mode allows you to chat with your agent. Edit mode allows you to take context from run mode, and edit the agent.
 
-Giving your new agents tools and personality is as easy as switching to [Edit Mode](https://docs.blink.so/get-started/building-with-blink) `(CTRL+T)` and describing what you want your agent to do.
-
-Edit Mode is specifically trained to build your agent and understand the full context of both Edit Mode and Run Mode chats. This is a key capability that makes Edit Mode the essential building and debugging partner.
+Chat in run mode, switch to edit mode and provide feedback, then go back to run mode and continue chatting. Agents hot-reload as you develop, so changes are reflected instantly.
 
 > [!NOTE]
-> Run Mode can only read its own context to preserve a real-world user experience while testing in your terminal.
+> Run mode cannot see edit mode messages.
 
 https://github.com/user-attachments/assets/4abd47ad-4b59-41d5-abda-27ed902ae69b
-
-
-## How Blink Agents Work
-
-Building agents in Run Mode lifts most of the burden of coding new agents. However, here's a breakdown of how Blink agents work under the hood.
-
-Blink has built-in APIs for managing chats, storage, and tools.
 
 ### Chats
 
@@ -372,7 +363,6 @@ export default defineConfig({
 By default, Blink uses [esbuild](https://esbuild.github.io/) to bundle your agent.
 
 The `build` function can be customized to use a different bundler if you wish.
-
 
 ## Blink Documentation
 
