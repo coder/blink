@@ -170,6 +170,9 @@ export function initOtel(): NodeTracerProvider {
 }
 
 export const otelMiddleware: MiddlewareHandler = async (c, next) => {
+  if (!process.versions?.node) {
+    return await next();
+  }
   initOtel();
   const pathname = new URL(c.req.raw.url).pathname;
   if (pathname.startsWith("/_agent/flush-otel")) {

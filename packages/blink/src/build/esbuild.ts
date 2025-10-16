@@ -37,14 +37,15 @@ export function buildWithEsbuild(
       sourcemap: false,
       mainFields: ["module", "main"],
       conditions: ["import", "module"],
+      ...options,
       plugins: [
+        ...(options?.plugins ?? []),
         {
           name: "blink-esm-require-to-import",
           setup(build) {
             build.onEnd((result) => {
               if (
-                build.initialOptions.format !== "esm" ||
-                build.initialOptions.platform !== "node"
+                build.initialOptions.format !== "esm"
               ) {
                 return;
               }
@@ -161,7 +162,6 @@ export function buildWithEsbuild(
         },
         aiTelemetryPlugin(),
       ],
-      ...options,
     });
 
     await ctx.watch();

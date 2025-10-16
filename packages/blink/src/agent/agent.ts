@@ -1,5 +1,4 @@
 import { createGatewayProvider } from "@ai-sdk/gateway";
-import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { createServerAdapter } from "@whatwg-node/server";
 import type { InferUIMessageChunk, JSONValue, UIMessage } from "ai";
 import { Hono } from "hono";
@@ -9,17 +8,16 @@ import * as http from "http";
 import type { api as apiServer } from "../control";
 import { CustomChatResponseError } from "./internal/errors";
 import type { Promisable } from "./internal/types";
-import { flushOtel, otelMiddleware } from "./otel";
-import {
-  type AgentChat,
-  type AgentStore,
-  type Chat,
-  type ChatHandler,
-  type ChatResponse,
-  type ID,
-  type NewMessage,
-  type SendOptions,
-  type UpsertedChat,
+import type {
+  AgentChat,
+  AgentStore,
+  Chat,
+  ChatHandler,
+  ChatResponse,
+  ID,
+  NewMessage,
+  SendOptions,
+  UpsertedChat,
 } from "./types";
 import type { UIHandler, UIOptions } from "./ui";
 
@@ -367,7 +365,6 @@ export const api = new Hono<{
     listeners: Listeners<any>;
   };
 }>()
-  .use(otelMiddleware)
   .post(
     "/_agent/chat",
     validator("json", (body) => {
@@ -499,7 +496,6 @@ export const api = new Hono<{
     return c.json({ error: "No UI listener returned a response" }, 404);
   })
   .post("/_agent/flush-otel", async (c) => {
-    await flushOtel();
     return c.body(null, 204);
   })
   .all("*", async (c) => {
@@ -514,11 +510,11 @@ export const api = new Hono<{
   })
   .onError((err, c) => {
     console.error("Agent error:", err);
-    const activeSpan = trace.getActiveSpan();
-    if (activeSpan) {
-      activeSpan.recordException(err);
-      activeSpan.setStatus({ code: SpanStatusCode.ERROR });
-    }
+    // const activeSpan = trace.getActiveSpan();
+    // if (activeSpan) {
+    //   activeSpan.recordException(err);
+    //   activeSpan.setStatus({ code: SpanStatusCode.ERROR });
+    // }
     return c.json({ error: "Internal server error" }, 500);
   });
 

@@ -48,7 +48,7 @@ const ensureLydellPtyNodeFiles = async () => {
 };
 await ensureLydellPtyNodeFiles();
 
-const external = ["esbuild", "ai", "zod", "node-pty", "@lydell/node-pty"];
+const external = ["esbuild", "ai", "zod", "node-pty", "@lydell/node-pty", "@whatwg-node/server", "@whatwg-node/fetch", "@whatwg-node/node-fetch", "@whatwg-node/*"];
 
 export default defineConfig([
   {

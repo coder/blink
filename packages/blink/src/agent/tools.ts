@@ -1,7 +1,6 @@
 /**
  * @fileoverview This file contains helpers for working with tools.
  */
-import { isAsyncIterable } from "@whatwg-node/server";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -293,5 +292,14 @@ export function isToolApprovalOutput(
     output !== null &&
     "type" in output &&
     output.type === "tool-approval"
+  );
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "next" in value &&
+    typeof value.next === "function"
   );
 }
