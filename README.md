@@ -131,7 +131,7 @@ const agent = blink.agent();
 
 agent.on("chat", async ({ messages }) => {
   return streamText({
-    model: blink.model("anthropic/claude-sonnet-4"),
+    model: "anthropic/claude-sonnet-4",
     system: "You are a helpful assistant.",
     messages: convertToModelMessages(messages),
 
@@ -195,7 +195,7 @@ const agent = blink.agent();
 
 agent.on("chat", async ({ messages }) => {
   return streamText({
-    model: blink.model("anthropic/claude-sonnet-4"),
+    model: "anthropic/claude-sonnet-4",
     system: "You are a helpful assistant.",
     messages: convertToModelMessages(messages),
 
@@ -245,7 +245,7 @@ const agent = blink.agent();
 
 agent.on("chat", async ({ messages }) => {
   return streamText({
-    model: blink.model("anthropic/claude-sonnet-4"),
+    model: "anthropic/claude-sonnet-4",
     system: "You are a helpful assistant.",
     messages: convertToModelMessages(messages),
 
@@ -282,7 +282,7 @@ const agent = blink.agent();
 
 agent.on("chat", async ({ messages }) => {
   return streamText({
-    model: blink.model("anthropic/claude-sonnet-4"),
+    model: "anthropic/claude-sonnet-4",
     system: "You are a helpful assistant.",
     messages: convertToModelMessages(messages),
 
