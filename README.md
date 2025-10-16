@@ -68,7 +68,7 @@ blink deploy
 ```
 > [!IMPORTANT]
 > [Blink Cloud](https://blink.so) is not required to build Blink agents.
-> We [guarantee](#why-blink) that Blink agents will always be local-first.
+> We guarantee that Blink agents will always be local-first.
 
 ## Building with Edit and Run Modes
 
@@ -90,7 +90,7 @@ https://github.com/user-attachments/assets/4abd47ad-4b59-41d5-abda-27ed902ae69b
 
 Building agents in Run Mode lifts most of the burden of coding new agents. However, here's a breakdown of how Blink agents work under the hood.
 
-Blink has built-in APIs for managing [chats](#chats), [storage](#storage), and [tools](#tools).
+Blink has built-in APIs for managing chats, storage, and tools.
 
 ### Chats
 
