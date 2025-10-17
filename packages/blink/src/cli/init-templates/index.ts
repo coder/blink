@@ -4,9 +4,9 @@
 export const templates = {
   scratch: {
     ".env.local":
-      "\n# Store local environment variables here.\n# They will be used by blink dev for development.\n# EXTERNAL_SERVICE_API_KEY=\n",
+      "\n# Store local environment variables here.\n# They will be used by blink dev for development.\n# ANTHROPIC_API_KEY=\n# OPEN_AI_KEY=\n# AI_GATEWAY_API_KEY=\n",
     ".env.production":
-      "# Store production environment variables here.\n# They will be upserted as secrets on blink deploy.\n# EXTERNAL_SERVICE_API_KEY=\n",
+      "# Store production environment variables here.\n# They will be upserted as secrets on blink deploy.\n# ANTHROPIC_API_KEY=\n# OPEN_AI_KEY=\n# AI_GATEWAY_API_KEY=\n",
     ".gitignore":
       "# dependencies\nnode_modules\n\n# config and build\n.blink\n\n# dotenv environment variables file\n.env\n.env.*\n\n# Finder (MacOS) folder config\n.DS_Store\n",
     "AGENTS.md":
@@ -22,7 +22,7 @@ export const templates = {
     ".env.local":
       "\n# Store local environment variables here.\n# They will be used by blink dev for development.\nSLACK_BOT_TOKEN=xoxb-your-token-here\nSLACK_SIGNING_SECRET=your-signing-secret-here\n",
     ".env.production":
-      "# Store production environment variables here.\n# They will be upserted as secrets on blink deploy.\n# EXTERNAL_SERVICE_API_KEY=\n",
+      "# Store production environment variables here.\n# They will be upserted as secrets on blink deploy.\n# ANTHROPIC_API_KEY=\n# OPEN_AI_KEY=\n# AI_GATEWAY_API_KEY=\n",
     ".gitignore":
       "# dependencies\nnode_modules\n\n# config and build\n.blink\n\n# dotenv environment variables file\n.env\n.env.*\n\n# Finder (MacOS) folder config\n.DS_Store\n",
     "AGENTS.md":
