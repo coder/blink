@@ -1,9 +1,8 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { createXai } from "@ai-sdk/xai";
-import { streamText, type UIMessageChunk } from "ai";
+import { streamText, type UIMessageChunk, type LanguageModel } from "ai";
 import { EventSourceParserStream } from "eventsource-parser/stream";
 import { StreamResponseFormatHeader } from "../index.browser";
 
@@ -49,7 +48,7 @@ export function convertResponseToUIMessageStream(
   }
 
   const createStream = (
-    model: LanguageModelV2
+    model: LanguageModel
   ): ReadableStream<UIMessageChunk> => {
     return streamText({
       model,

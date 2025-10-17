@@ -41,6 +41,7 @@
     "ai": ">= 5"
   },
   "devDependencies": {
+    "blink": "workspace:*",
     "diff": "^8.0.2"
   }
 }

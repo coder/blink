@@ -4,5 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/multiplexer.ts"
+  },
+  "devDependencies": {
+    "@blink-sdk/events": "workspace:*"
   }
 }
