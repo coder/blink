@@ -15,7 +15,7 @@ import Handlebars from "handlebars";
 import { templates, type TemplateId } from "./init-templates";
 import { setupSlackApp } from "./setup-slack-app";
 
-function getFilesForTemplate(
+export function getFilesForTemplate(
   template: TemplateId,
   variables: {
     packageName: string;
