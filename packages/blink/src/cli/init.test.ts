@@ -1,5 +1,8 @@
 import { describe, it, expect } from "bun:test";
 import { getFilesForTemplate } from "./init";
+import { render, BLINK_COMMAND, makeTmpDir, KEY_CODES } from "./lib/terminal";
+import { join } from "path";
+import { readFile } from "fs/promises";
 
 const getFile = (files: Record<string, string>, filename: string): string => {
   const fileContent = files[filename];
@@ -210,5 +213,45 @@ describe("getFilesForTemplate", () => {
       const agentTs = getFile(files, "agent.ts");
       expect(agentTs).toContain('model: "anthropic/claude-sonnet-4.5"');
     });
+  });
+});
+
+describe("init command", () => {
+  it("scratch template, happy path", async () => {
+    await using tempDir = await makeTmpDir();
+    using term = render(`${BLINK_COMMAND} init`, { cwd: tempDir.path });
+    await term.waitUntil((screen) => screen.includes("Scratch"));
+    // by default, the first option should be selected. Scratch is second in the list.
+    expect(term.getScreen()).not.toContain("Basic agent with example tool");
+    term.write(KEY_CODES.DOWN);
+    await term.waitUntil((screen) =>
+      screen.includes("Basic agent with example tool")
+    );
+    term.write(KEY_CODES.ENTER);
+    await term.waitUntil((screen) =>
+      screen.includes("Which AI provider do you want to use?")
+    );
+    term.write(KEY_CODES.ENTER);
+    await term.waitUntil((screen) =>
+      screen.includes("Enter your OpenAI API key:")
+    );
+    term.write("sk-test-123");
+    term.write(KEY_CODES.ENTER);
+    await term.waitUntil((screen) =>
+      screen.includes("What package manager do you want to use?")
+    );
+    const screen = term.getScreen();
+    expect(screen).toContain("Bun");
+    expect(screen).toContain("NPM");
+    expect(screen).toContain("PNPM");
+    expect(screen).toContain("Yarn");
+    term.write(KEY_CODES.ENTER);
+    await term.waitUntil((screen) =>
+      screen.includes("API key saved to .env.local")
+    );
+    await term.waitUntil((screen) => screen.includes("To get started, run:"));
+    const envFilePath = join(tempDir.path, ".env.local");
+    const envFileContent = await readFile(envFilePath, "utf-8");
+    expect(envFileContent.split("\n")).toContain("OPENAI_API_KEY=sk-test-123");
   });
 });
