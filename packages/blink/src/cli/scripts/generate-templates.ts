@@ -1,37 +1,11 @@
+import { generateTemplates } from "../lib/templates";
 import { readdir, readFile, writeFile } from "fs/promises";
 import stringify from "json-stable-stringify";
 import { join } from "path";
 
-async function generateTemplates() {
+const main = async () => {
+  const templates = await generateTemplates();
   const templatesDir = join(import.meta.dirname, "..", "init-templates");
-
-  // Read all template directories
-  const entries = await readdir(templatesDir, { withFileTypes: true });
-  const templateDirs = entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
-
-  const templates: Record<string, Record<string, string>> = {};
-
-  // Read each template directory
-  for (const templateId of templateDirs) {
-    const templatePath = join(templatesDir, templateId);
-    const files = await readdir(templatePath);
-
-    templates[templateId] = {};
-
-    for (const file of files) {
-      const filePath = join(templatePath, file);
-      const content = await readFile(filePath, "utf-8");
-
-      // Strip "_noignore" prefix from filename if present
-      const outputFilename = file.startsWith("_noignore")
-        ? file.substring("_noignore".length)
-        : file;
-
-      templates[templateId][outputFilename] = content;
-    }
-  }
 
   // Generate the index.ts file
   const outputPath = join(templatesDir, "index.ts");
@@ -45,9 +19,9 @@ export type TemplateId = keyof typeof templates;
 
   await writeFile(outputPath, output);
   console.log(`Generated ${outputPath}`);
-}
+};
 
-generateTemplates().catch((error) => {
+main().catch((error) => {
   console.error("Error generating templates:", error);
   process.exit(1);
 });

@@ -15,11 +15,12 @@ import Handlebars from "handlebars";
 import { templates, type TemplateId } from "./init-templates";
 import { setupSlackApp } from "./setup-slack-app";
 
-function getFilesForTemplate(
+export function getFilesForTemplate(
   template: TemplateId,
   variables: {
     packageName: string;
     aiProvider: string;
+    envLocal: Array<[string, string]>;
   }
 ): Record<string, string> {
   const templateFiles = templates[template];
@@ -27,6 +28,26 @@ function getFilesForTemplate(
 
   // Register eq helper for Handlebars
   Handlebars.registerHelper("eq", (a, b) => a === b);
+
+  // Register helper to check if a key exists in envLocal array
+  Handlebars.registerHelper(
+    "hasEnvVar",
+    (envLocal: Array<[string, string]>, key: string) => {
+      return envLocal.some((tuple) => tuple[0] === key);
+    }
+  );
+
+  // Register helper to check if any of multiple keys exist in envLocal array
+  Handlebars.registerHelper(
+    "hasAnyEnvVar",
+    (envLocal: Array<[string, string]>, ...keys) => {
+      // Remove the last argument which is the Handlebars options object
+      const keysToCheck = keys.slice(0, -1);
+      return keysToCheck.some((key) =>
+        envLocal.some((tuple) => tuple[0] === key)
+      );
+    }
+  );
 
   // Copy all files and render .hbs templates
   for (const [filename, content] of Object.entries(templateFiles)) {
@@ -171,9 +192,16 @@ export default async function init(directory?: string): Promise<void> {
 
   log.info(`Using ${packageManager} as the package manager.`);
 
+  // Build envLocal array with API key if provided
+  const envLocal: Array<[string, string]> = [];
+  if (apiKey && apiKey.trim() !== "") {
+    envLocal.push([envVarName, apiKey]);
+  }
+
   const files = getFilesForTemplate(template, {
     packageName: name,
     aiProvider: aiProviderChoice,
+    envLocal,
   });
 
   await Promise.all(
@@ -182,25 +210,7 @@ export default async function init(directory?: string): Promise<void> {
     })
   );
 
-  // Append API key to .env.local if provided
   if (apiKey && apiKey.trim() !== "") {
-    const envFilePath = join(directory, ".env.local");
-    let existingContent = "";
-
-    // Read existing content if file exists
-    try {
-      existingContent = await readFile(envFilePath, "utf-8");
-    } catch (error) {
-      // File doesn't exist yet, that's fine
-    }
-
-    // Ensure existing content ends with newline if it has content
-    if (existingContent.length > 0 && !existingContent.endsWith("\n")) {
-      existingContent += "\n";
-    }
-
-    const newContent = existingContent + `${envVarName}=${apiKey}\n`;
-    await writeFile(envFilePath, newContent);
     log.success(`API key saved to .env.local`);
   }
 
