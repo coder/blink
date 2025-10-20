@@ -1,10 +1,12 @@
 import {
   spawn,
   spawnSync,
-  ChildProcessWithoutNullStreams,
+  type ChildProcessWithoutNullStreams,
 } from "node:child_process";
 import { Terminal } from "@xterm/headless";
 import { join } from "path";
+import { mkdtemp, rm } from "fs/promises";
+import { tmpdir } from "os";
 
 export interface RenderOptions {
   cols?: number;
@@ -218,3 +220,26 @@ export function render(
 ): TerminalInstance {
   return new TerminalInstanceImpl(command, options);
 }
+
+export async function makeTmpDir(): Promise<
+  AsyncDisposable & { path: string }
+> {
+  const dirPath = await mkdtemp(join(tmpdir(), "blink-tmp-"));
+  return {
+    path: dirPath,
+    [Symbol.asyncDispose](): Promise<void> {
+      return rm(dirPath, { recursive: true });
+    },
+  };
+}
+
+export const KEY_CODES = {
+  ENTER: "\r",
+  TAB: "\t",
+  BACKSPACE: "\x08",
+  DELETE: "\x7f",
+  UP: "\x1b[A",
+  DOWN: "\x1b[B",
+  LEFT: "\x1b[D",
+  RIGHT: "\x1b[C",
+} as const;
