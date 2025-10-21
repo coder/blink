@@ -222,7 +222,8 @@ import { openai } from "@ai-sdk/openai";
 model: anthropic("claude-sonnet-4.5", {
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
-model: openai("gpt-5", { apiKey: process.env.OPENAI_API_KEY });
+// Use chat API for OpenAI models - it's more reliable than the responses API
+model: openai.chat("gpt-5", { apiKey: process.env.OPENAI_API_KEY });
 ```
 
 **Note about Edit Mode:** Edit mode (this agent) automatically selects models in this priority:
