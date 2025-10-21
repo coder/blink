@@ -666,7 +666,8 @@ export function getEditModeModel(
   if (env.OPENAI_API_KEY) {
     return createOpenAI({
       apiKey: env.OPENAI_API_KEY,
-    }).responses("gpt-5");
+      // avoid the responses API due to https://github.com/coder/blink/issues/34#issuecomment-3426704264
+    }).chat("gpt-5");
   }
 
   // Priority 3: Use AI Gateway if API key is set
