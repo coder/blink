@@ -199,7 +199,7 @@ describe("getFilesForTemplate", () => {
 
       const agentTs = getFile(files, "agent.ts");
       expect(agentTs).toContain('import { openai } from "@ai-sdk/openai"');
-      expect(agentTs).toContain('model: openai("gpt-5-codex")');
+      expect(agentTs).toContain('model: openai.chat("gpt-5")');
       expect(agentTs).not.toContain("import { anthropic }");
     });
 
