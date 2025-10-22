@@ -25,7 +25,6 @@ export interface ChatState {
   readonly messages: StoredMessage[];
   readonly status: ChatStatus;
   readonly streamingMessage?: StoredMessage;
-  readonly error?: string;
   readonly loading: boolean;
   readonly queuedMessages: StoredMessage[];
 }
@@ -43,6 +42,10 @@ export interface ChatManagerOptions {
    * Return true to include the message, false to exclude it.
    */
   readonly filterMessages?: (message: StoredMessage) => boolean;
+  /**
+   * Optional callback invoked when an error occurs during chat operations.
+   */
+  readonly onError?: (error: string) => void;
 }
 
 type StateListener = (state: ChatState) => void;
@@ -57,6 +60,7 @@ export class ChatManager {
   private chatStore: Store<StoredChat>;
   private serializeMessage?: (message: UIMessage) => StoredMessage | undefined;
   private filterMessages?: (message: StoredMessage) => boolean;
+  private onError?: (error: string) => void;
 
   private chat: StoredChat;
   private loading = false;
@@ -82,6 +86,7 @@ export class ChatManager {
     this.chatStore = createDiskStore<StoredChat>(options.chatsDirectory, "id");
     this.serializeMessage = options.serializeMessage;
     this.filterMessages = options.filterMessages;
+    this.onError = options.onError;
 
     // Start disk watcher
     this.watcher = createDiskStoreWatcher<StoredChat>(options.chatsDirectory, {
@@ -122,21 +127,14 @@ export class ChatManager {
 
       const diskValue = event.value;
 
-      let newStatus = event.value?.error ? "error" : "idle";
-      if (event.locked) {
-        newStatus = "streaming";
-      }
+      let newStatus: ChatStatus = event.locked ? "streaming" : "idle";
       const shouldEmit =
         this.chat.updated_at !== diskValue?.updated_at ||
         this.status !== newStatus;
 
-      // Clear persisted errors - they're stale from disk
-      this.chat = {
-        ...diskValue,
-        error: undefined,
-      };
+      this.chat = diskValue;
       this.streamingMessage = undefined;
-      this.status = newStatus as ChatStatus;
+      this.status = newStatus;
 
       if (shouldEmit) {
         this.notifyListeners();
@@ -154,14 +152,11 @@ export class ChatManager {
         if (!chat) {
           return;
         }
-        // Clear any persisted errors on load - they're stale
-        this.chat = {
-          ...chat,
-          error: undefined,
-        };
+        this.chat = chat;
       })
       .catch((err) => {
-        this.chat.error = err instanceof Error ? err.message : String(err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        this.onError?.(errorMessage);
       })
       .finally(() => {
         this.loading = false;
@@ -190,7 +185,6 @@ export class ChatManager {
       updated_at: this.chat?.updated_at,
       status: this.status,
       streamingMessage: this.streamingMessage,
-      error: this.chat?.error,
       loading: this.loading,
       queuedMessages: this.queue,
     };
@@ -298,22 +292,6 @@ export class ChatManager {
    * Send a message to the agent
    */
   async sendMessages(messages: StoredMessage[]): Promise<void> {
-    // Clear any previous errors when sending a new message (persist to disk)
-    if (this.chat.error) {
-      const locked = await this.chatStore.lock(this.chatId);
-      try {
-        const current = await locked.get();
-        this.chat = {
-          ...current,
-          error: undefined,
-          updated_at: new Date().toISOString(),
-        };
-        await locked.set(this.chat);
-      } finally {
-        await locked.release();
-      }
-    }
-
     this.status = "idle";
     this.notifyListeners();
 
@@ -331,8 +309,6 @@ export class ChatManager {
   }
 
   async start(): Promise<void> {
-    // Clear error when explicitly starting
-    this.chat.error = undefined;
     this.status = "idle";
     this.notifyListeners();
     // Do not await this - it will block the server.
@@ -347,19 +323,16 @@ export class ChatManager {
 
   private async processQueueOrRun(): Promise<void> {
     if (!this.agent) {
-      // Set error state instead of throwing
-      this.chat.error =
+      const errorMessage =
         "The agent is not available. Please wait for the build to succeed.";
-      this.status = "error";
+      this.onError?.(errorMessage);
       this.queue = []; // Clear the queue
-      this.notifyListeners();
       return;
     }
     if (this.isProcessingQueue) {
       return;
     }
     this.isProcessingQueue = true;
-    this.chat.error = undefined;
 
     let locked: LockedStoreEntry<StoredChat> | undefined;
     try {
@@ -501,15 +474,12 @@ export class ChatManager {
         }
       }
     } catch (err: any) {
-      this.chat.error = err instanceof Error ? err.message : String(err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      this.onError?.(errorMessage);
     } finally {
       this.isProcessingQueue = false;
       this.streamingMessage = undefined;
-      if (this.chat.error) {
-        this.status = "error";
-      } else {
-        this.status = "idle";
-      }
+      this.status = "idle";
 
       if (locked) {
         this.chat.updated_at = new Date().toISOString();

@@ -21,6 +21,10 @@ export interface UseChatOptions {
    * Return true to include the message, false to exclude it.
    */
   readonly filterMessages?: (message: StoredMessage) => boolean;
+  /**
+   * Optional callback invoked when an error occurs during chat operations.
+   */
+  readonly onError?: (error: string) => void;
 }
 
 export interface UseChat extends ChatState {
@@ -34,8 +38,14 @@ export interface UseChat extends ChatState {
 }
 
 export default function useChat(options: UseChatOptions): UseChat {
-  const { chatId, agent, chatsDirectory, serializeMessage, filterMessages } =
-    options;
+  const {
+    chatId,
+    agent,
+    chatsDirectory,
+    serializeMessage,
+    filterMessages,
+    onError,
+  } = options;
 
   // Use a ref to store the manager so it persists across renders
   const managerRef = useRef<ChatManager | null>(null);
@@ -60,6 +70,7 @@ export default function useChat(options: UseChatOptions): UseChat {
       chatsDirectory,
       serializeMessage,
       filterMessages,
+      onError,
     });
     const unsubscribe = manager.subscribe((newState) => {
       setState(newState);

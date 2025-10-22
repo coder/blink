@@ -84,7 +84,7 @@ const Root = ({ directory }: { directory: string }) => {
       );
     },
     onError: (error) => {
-      console.log(chalk.red(`⚙ ${error}`));
+      console.log(error);
     },
     onModeChange: (mode) => {
       switch (mode) {
@@ -240,12 +240,6 @@ const Root = ({ directory }: { directory: string }) => {
 
   return (
     <>
-      {dev.chat.error ? (
-        <Box marginTop={1}>
-          <Text color="red">{dev.chat.error}</Text>
-        </Box>
-      ) : null}
-
       {dev.mode === "edit" && dev.editModeMissingApiKey ? (
         <MissingApiKeyMessage />
       ) : null}
