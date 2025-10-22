@@ -67,6 +67,9 @@ export default async function run(
   const manager = new ChatManager({
     chatId: opts?.chat,
     chatsDirectory: chatsDir,
+    onError: (error) => {
+      console.error("Error:", error);
+    },
   });
   manager.setAgent(agent.client);
 
@@ -95,9 +98,6 @@ export default async function run(
 
     // Print final state
     const finalState = manager.getState();
-    if (finalState.error) {
-      console.error("Error:", finalState.error);
-    }
     console.log("Final state:", finalState.messages.pop());
   } finally {
     manager.dispose();
