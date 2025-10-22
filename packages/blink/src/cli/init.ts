@@ -8,12 +8,20 @@ import {
   select,
   text,
 } from "@clack/prompts";
-import { spawn } from "child_process";
+import { spawn, exec } from "child_process";
 import { readdir, readFile, writeFile } from "fs/promises";
 import { basename, join } from "path";
 import Handlebars from "handlebars";
 import { templates, type TemplateId } from "./init-templates";
 import { setupSlackApp } from "./setup-slack-app";
+
+async function isCommandAvailable(command: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    exec(`${command} --version`, { timeout: 5000 }, (error) => {
+      resolve(!error);
+    });
+  });
+}
 
 export function getFilesForTemplate(
   template: TemplateId,
@@ -70,6 +78,28 @@ export function getFilesForTemplate(
   return files;
 }
 
+const packageManagers = [
+  { label: "Bun", value: "bun" },
+  { label: "NPM", value: "npm" },
+  { label: "PNPM", value: "pnpm" },
+  { label: "Yarn", value: "yarn" },
+] as const;
+
+export async function getAvailablePackageManagers(): Promise<
+  (typeof packageManagers)[number][]
+> {
+  const availabilityChecks = await Promise.all(
+    packageManagers.map(async ({ value: pm }) => {
+      const available = await isCommandAvailable(pm);
+      return { pm, available };
+    })
+  );
+  return packageManagers.filter(
+    ({ value: pm }) =>
+      availabilityChecks.find(({ pm: pm2 }) => pm2 === pm)?.available
+  );
+}
+
 export default async function init(directory?: string): Promise<void> {
   if (!directory) {
     directory = process.cwd();
@@ -107,6 +137,9 @@ export default async function init(directory?: string): Promise<void> {
     process.exit(1);
   }
   const template = templateChoice satisfies TemplateId;
+
+  // spawn the promise in advance to avoid delaying the UI
+  const availablePackageManagersPromise = getAvailablePackageManagers();
 
   const aiProviders = {
     openai: { envVar: "OPENAI_API_KEY", label: "OpenAI" },
@@ -162,35 +195,27 @@ export default async function init(directory?: string): Promise<void> {
     packageManager = "npm";
   }
   if (!packageManager) {
-    // Ask the user what to use.
-    const pm = await select({
-      options: [
-        {
-          label: "Bun",
-          value: "bun",
-        },
-        {
-          label: "NPM",
-          value: "npm",
-        },
-        {
-          label: "PNPM",
-          value: "pnpm",
-        },
-        {
-          label: "Yarn",
-          value: "yarn",
-        },
-      ],
-      message: "What package manager do you want to use?",
-    });
-    if (isCancel(pm)) {
-      process.exit(0);
+    const availablePackageManagers = await availablePackageManagersPromise;
+
+    if (availablePackageManagers.length === 0) {
+      log.info("Please install dependencies by running:");
+      log.info("  npm install");
+    } else {
+      // Ask the user what to use from available options
+      const pm = await select({
+        options: availablePackageManagers,
+        message: "What package manager do you want to use?",
+      });
+      if (isCancel(pm)) {
+        process.exit(0);
+      }
+      packageManager = pm;
     }
-    packageManager = pm;
   }
 
-  log.info(`Using ${packageManager} as the package manager.`);
+  if (packageManager) {
+    log.info(`Using ${packageManager} as the package manager.`);
+  }
 
   // Build envLocal array with API key if provided
   const envLocal: Array<[string, string]> = [];
@@ -217,24 +242,26 @@ export default async function init(directory?: string): Promise<void> {
   // Log a newline which makes it look a bit nicer.
   console.log("");
 
-  const child = spawn(packageManager, ["install"], {
-    stdio: "inherit",
-    cwd: directory,
-  });
+  if (packageManager) {
+    const child = spawn(packageManager, ["install"], {
+      stdio: "inherit",
+      cwd: directory,
+    });
 
-  await new Promise((resolve, reject) => {
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve(undefined);
-      } else {
-      }
+    await new Promise((resolve, reject) => {
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve(undefined);
+        } else {
+        }
+      });
+      child.on("error", (error) => {
+        reject(error);
+      });
     });
-    child.on("error", (error) => {
-      reject(error);
-    });
-  });
-  // Log a newline which makes it look a bit nicer.
-  console.log("");
+    // Log a newline which makes it look a bit nicer.
+    console.log("");
+  }
 
   let exitProcessManually = false;
 
@@ -266,11 +293,11 @@ export default async function init(directory?: string): Promise<void> {
     npm: "npm run dev",
     pnpm: "pnpm run dev",
     yarn: "yarn dev",
-  }[packageManager];
+  }[packageManager ?? "npm"];
 
   log.success(`To get started, run:
 
-${runDevCommand ?? "blink dev"}`);
+${runDevCommand}`);
   outro("Edit agent.ts to hot-reload your agent.");
 
   if (exitProcessManually) {

@@ -1,8 +1,15 @@
-import { describe, it, expect } from "bun:test";
-import { getFilesForTemplate } from "./init";
-import { render, BLINK_COMMAND, makeTmpDir, KEY_CODES } from "./lib/terminal";
+import { describe, it, expect, mock } from "bun:test";
+import { getFilesForTemplate, getAvailablePackageManagers } from "./init";
+import {
+  render,
+  BLINK_COMMAND,
+  makeTmpDir,
+  KEY_CODES,
+  pathToCliEntrypoint,
+} from "./lib/terminal";
 import { join } from "path";
-import { readFile } from "fs/promises";
+import { readFile, writeFile, chmod, mkdir } from "fs/promises";
+import { execSync } from "child_process";
 
 const getFile = (files: Record<string, string>, filename: string): string => {
   const fileContent = files[filename];
@@ -241,10 +248,9 @@ describe("init command", () => {
       screen.includes("What package manager do you want to use?")
     );
     const screen = term.getScreen();
-    expect(screen).toContain("Bun");
-    expect(screen).toContain("NPM");
-    expect(screen).toContain("PNPM");
-    expect(screen).toContain("Yarn");
+    // At least one package manager should be available in the test environment
+    // We don't check for all of them since they may not be installed
+    expect(screen.includes("Bun")).toBe(true);
     term.write(KEY_CODES.ENTER);
     await term.waitUntil((screen) =>
       screen.includes("API key saved to .env.local")
@@ -253,5 +259,120 @@ describe("init command", () => {
     const envFilePath = join(tempDir.path, ".env.local");
     const envFileContent = await readFile(envFilePath, "utf-8");
     expect(envFileContent.split("\n")).toContain("OPENAI_API_KEY=sk-test-123");
+  });
+
+  describe("package manager detection", () => {
+    async function setupMockPackageManagers(
+      packageManagers: Array<"bun" | "npm" | "pnpm" | "yarn">
+    ): Promise<AsyncDisposable & { binDir: string; PATH: string }> {
+      const tmpDir = await makeTmpDir();
+      const binDir = join(tmpDir.path, "bin");
+      await mkdir(binDir);
+
+      const allPackageManagers = ["bun", "npm", "pnpm", "yarn"] as const;
+
+      // Create dummy executables for each package manager
+      for (const pm of allPackageManagers) {
+        const scriptPath = join(binDir, pm);
+        if (packageManagers.includes(pm)) {
+          // Create working mock for available package managers
+          await writeFile(scriptPath, `#!/bin/sh\nexit 0\n`, "utf-8");
+        } else {
+          // Create failing mock for unavailable package managers
+          await writeFile(scriptPath, `#!/bin/sh\nexit 1\n`, "utf-8");
+        }
+        await chmod(scriptPath, 0o755);
+      }
+
+      // Prepend our bin directory to PATH so our mocks are found first,
+      // but keep the rest of PATH so system commands like 'script' still work
+      const newPath = `${binDir}:${process.env.PATH || ""}`;
+
+      return {
+        binDir,
+        PATH: newPath,
+        [Symbol.asyncDispose]: () => tmpDir[Symbol.asyncDispose](),
+      };
+    }
+
+    const absoluteBunPath = execSync("which bun").toString().trim();
+
+    async function navigateToPackageManagerPrompt(
+      PATH: string
+    ): Promise<AsyncDisposable & { screen: string }> {
+      const tempDir = await makeTmpDir();
+      using term = render(`${absoluteBunPath} ${pathToCliEntrypoint} init`, {
+        cwd: tempDir.path,
+        env: { ...process.env, PATH },
+      });
+
+      // Navigate through prompts to package manager selection
+      await term.waitUntil((screen) => screen.includes("Scratch"));
+      term.write(KEY_CODES.DOWN);
+      await term.waitUntil((screen) =>
+        screen.includes("Basic agent with example tool")
+      );
+      term.write(KEY_CODES.ENTER);
+
+      await term.waitUntil((screen) =>
+        screen.includes("Which AI provider do you want to use?")
+      );
+      term.write(KEY_CODES.ENTER);
+
+      await term.waitUntil((screen) =>
+        screen.includes("Enter your OpenAI API key:")
+      );
+      term.write(KEY_CODES.ENTER); // Skip API key
+
+      // Wait for either package manager prompt or manual install message
+      await term.waitUntil(
+        (screen) =>
+          screen.includes("What package manager do you want to use?") ||
+          screen.includes("Please install dependencies by running:")
+      );
+
+      return {
+        screen: term.getScreen(),
+        [Symbol.asyncDispose]: () => tempDir[Symbol.asyncDispose](),
+      };
+    }
+
+    it("should show all package managers when all are available", async () => {
+      await using mockPms = await setupMockPackageManagers([
+        "bun",
+        "npm",
+        "pnpm",
+        "yarn",
+      ]);
+      await using result = await navigateToPackageManagerPrompt(mockPms.PATH);
+
+      // All package managers should be available
+      expect(result.screen).toContain("Bun");
+      expect(result.screen).toContain("NPM");
+      expect(result.screen).toContain("PNPM");
+      expect(result.screen).toContain("Yarn");
+    });
+
+    it("should show only bun and npm when only they are available", async () => {
+      await using mockPms = await setupMockPackageManagers(["bun", "npm"]);
+      await using result = await navigateToPackageManagerPrompt(mockPms.PATH);
+
+      // Only bun and npm should be available
+      expect(result.screen).toContain("Bun");
+      expect(result.screen).toContain("NPM");
+      expect(result.screen).not.toContain("PNPM");
+      expect(result.screen).not.toContain("Yarn");
+    });
+
+    it("should show manual install message when no package managers are available", async () => {
+      await using mockPms = await setupMockPackageManagers([]);
+      await using result = await navigateToPackageManagerPrompt(mockPms.PATH);
+
+      // Should show manual install message instead of package manager selection
+      expect(result.screen).toContain("npm install");
+      expect(result.screen).not.toContain(
+        "What package manager do you want to use?"
+      );
+    });
   });
 });

@@ -211,7 +211,7 @@ class TerminalInstanceImpl implements TerminalInstance {
   }
 }
 
-const pathToCliEntrypoint = join(import.meta.dirname, "..", "index.ts");
+export const pathToCliEntrypoint = join(import.meta.dirname, "..", "index.ts");
 export const BLINK_COMMAND = `bun ${pathToCliEntrypoint}`;
 
 export function render(
