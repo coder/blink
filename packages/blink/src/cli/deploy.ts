@@ -92,8 +92,7 @@ export default async function deploy(
       organizationName = organizations[0]!.name;
     } else if (isCI) {
       throw new Error(
-        "Multiple organizations found. In CI mode, you must first deploy locally to select an organization, " +
-          "or set the organization in .blink/config.json"
+        "Multiple organizations found. To use CI mode, please deploy in interactive mode first to select an organization and generate .blink/config.json"
       );
     } else {
       const selectedId = await select({
