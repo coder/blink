@@ -7,7 +7,6 @@ export interface StoredChat {
   created_at: string;
   updated_at: string;
   messages: StoredMessage[];
-  error?: string;
 }
 
 export type StoredMessageMetadata = {

@@ -197,7 +197,6 @@ test("initializes with empty state for non-existent chat", async () => {
   expect(state.messages).toEqual([]);
   expect(state.status).toBe("idle");
   expect(state.streamingMessage).toBeUndefined();
-  expect(state.error).toBeUndefined();
   expect(state.queuedMessages).toEqual([]);
 
   manager.dispose();
@@ -873,126 +872,42 @@ test("watcher onChange does not cause status to flicker during lock release", as
   manager.dispose();
 });
 
-test("error clearing: errors clear when sending new message", async () => {
-  const chatsDir = await mkdtemp(join(tmpdir(), "chat-test-"));
+test("onError callback is called when no agent is available", async () => {
+  const chatId = crypto.randomUUID();
 
-  try {
-    // Create a manager with an agent that will fail
-    const failingAgent: any = {
-      chat: async () => {
-        throw new Error("Test error");
-      },
-    };
+  // Track errors via onError callback
+  const errors: string[] = [];
+  const onError = mock((error: string) => {
+    errors.push(error);
+  });
 
-    const manager = new ChatManager({
-      chatId: crypto.randomUUID(),
-      chatsDirectory: chatsDir,
-    });
+  const manager = new ChatManager({
+    chatId,
+    chatsDirectory: tempDir,
+    onError,
+  });
 
-    // Track state changes before sending message
-    let errorSeen = false;
-    let errorCleared = false;
-    const unsubscribe = manager.subscribe((state) => {
-      if (state.error) {
-        errorSeen = true;
-      }
-      if (errorSeen && !state.error) {
-        errorCleared = true;
-      }
-    });
+  // Don't set an agent, so it should fail when we try to send a message
 
-    manager.setAgent(failingAgent);
+  // Send a message without an agent
+  const message: StoredMessage = {
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+    role: "user",
+    parts: [{ type: "text", text: "Hello" }],
+    mode: "run",
+    metadata: undefined,
+  };
 
-    // Send a message that will fail
-    const message: StoredMessage = {
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-      role: "user",
-      parts: [{ type: "text", text: "Hello" }],
-      mode: "run",
-      metadata: undefined,
-    };
+  await manager.sendMessages([message]);
 
-    await manager.sendMessages([message]);
+  // Wait a bit for the error to be processed
+  await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Wait for error state
-    await new Promise((resolve) => setTimeout(resolve, 100));
+  // Verify onError was called with the "no agent" error message
+  expect(onError).toHaveBeenCalled();
+  expect(errors.length).toBeGreaterThan(0);
+  expect(errors[0]).toContain("agent is not available");
 
-    // Should have seen an error
-    expect(errorSeen).toBe(true);
-    let state = manager.getState();
-    expect(state.status).toBe("error");
-
-    // Now set a working agent
-    const workingAgent = createMockAgent("Success!");
-    manager.setAgent(workingAgent);
-
-    // Send another message
-    const message2: StoredMessage = {
-      id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
-      role: "user",
-      parts: [{ type: "text", text: "Try again" }],
-      mode: "run",
-      metadata: undefined,
-    };
-
-    await manager.sendMessages([message2]);
-
-    // Wait for completion
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    // Error should have been cleared at some point during the lifecycle
-    // This is the key behavior - errors should clear when sending new messages
-    expect(errorCleared).toBe(true);
-
-    // Final state should have no error (watcher may still show error status briefly)
-    state = manager.getState();
-    expect(state.error).toBeUndefined();
-
-    unsubscribe();
-    manager.dispose();
-  } finally {
-    await rm(chatsDir, { recursive: true, force: true });
-  }
-});
-
-test("error clearing: persisted errors don't load from disk", async () => {
-  const chatsDir = await mkdtemp(join(tmpdir(), "chat-test-"));
-
-  try {
-    const chatId = crypto.randomUUID();
-
-    // Manually create a chat with an error in the store
-    const store = createDiskStore<StoredChat>(chatsDir, "id");
-    const locked = await store.lock(chatId);
-    try {
-      await locked.set({
-        id: chatId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        messages: [],
-        error: "Old persisted error",
-      });
-    } finally {
-      await locked.release();
-    }
-
-    // Create a new manager - it should clear the persisted error
-    const manager = new ChatManager({
-      chatId,
-      chatsDirectory: chatsDir,
-    });
-
-    // Wait for initial load
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    const state = manager.getState();
-    expect(state.error).toBeUndefined(); // Error should be cleared
-    expect(state.loading).toBe(false);
-
-    manager.dispose();
-  } finally {
-    await rm(chatsDir, { recursive: true, force: true });
-  }
+  manager.dispose();
 });

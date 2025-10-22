@@ -23,7 +23,6 @@ const Harness: React.FC<HarnessProps> = ({ options, onUpdate }) => {
     result.status,
     result.messages.length,
     result.streamingMessage,
-    result.error,
     result.queuedMessages.length,
   ]);
   return null;
@@ -106,7 +105,6 @@ test("initializes with empty state for non-existent chat", async () => {
   expect(r.messages).toEqual([]);
   expect(r.status).toBe("idle");
   expect(r.streamingMessage).toBeUndefined();
-  expect(r.error).toBeUndefined();
 
   app.unmount();
 });

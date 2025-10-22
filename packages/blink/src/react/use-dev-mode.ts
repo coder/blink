@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import chalk from "chalk";
 import { isToolOrDynamicToolUIPart } from "ai";
 import { isToolApprovalOutput } from "../agent/tools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -310,6 +311,9 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
       }
       return true;
     },
+    onError: (error) => {
+      options.onError?.(`${chalk.red("⚙ [Chat Error]")} ${chalk.gray(error)}`);
+    },
   });
 
   // Track agent logs
@@ -441,16 +445,12 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     if (editAgentError && mode === "edit") {
       errorMap.set("editAgent", `Edit agent error: ${editAgentError.message}`);
     }
-    // Don't show chat error if we're building - user already sees "Compiling..."
-    if (chat.error && buildStatus !== "building") {
-      errorMap.set("chat", `Chat error: ${chat.error}`);
-    }
     if (optionsError) {
       errorMap.set("options", `Options error: ${optionsError.message}`);
     }
 
     return errorMap;
-  }, [agentError, editAgentError, chat.error, optionsError, mode, buildStatus]);
+  }, [agentError, editAgentError, optionsError, mode]);
 
   // Track previous errors to detect changes
   const prevErrorsRef = useRef<Map<string, string>>(new Map());
