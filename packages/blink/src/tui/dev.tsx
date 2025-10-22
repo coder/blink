@@ -58,7 +58,7 @@ const Root = ({ directory }: { directory: string }) => {
     },
     onBuildError: (error) => {
       console.log(
-        chalk.red(`⚙ ${error.message}${error.file ? ` (${error.file})` : ""}`)
+        `${chalk.red(`⚙ [Build Error]`)} ${chalk.gray(error.message)}${error.file ? chalk.bold(` (${error.file})`) : ""}`
       );
     },
     onEnvLoaded: (keys) => {
