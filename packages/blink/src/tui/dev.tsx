@@ -73,7 +73,9 @@ const Root = ({ directory }: { directory: string }) => {
     },
     onAgentLog: (log) => {
       const logColor = log.level === "error" ? "red" : "white";
-      console.log(chalk[logColor](`@ ${log.message}`));
+      const logPrefix =
+        log.level === "error" ? "⚙ [Agent Error]" : "⚙ [Agent Log]";
+      console.log(`${chalk[logColor](logPrefix)} ${chalk.gray(log.message)}`);
     },
     onDevhookRequest: (request) => {
       console.log(

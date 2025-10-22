@@ -312,7 +312,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
       return true;
     },
     onError: (error) => {
-      options.onError?.(chalk.red(`⚙ Chat error: ${error}`));
+      options.onError?.(`${chalk.red("⚙ [Chat Error]")} ${chalk.gray(error)}`);
     },
   });
 
