@@ -68,7 +68,10 @@ function getAuthTokenConfigPath() {
 
 export async function loginIfNeeded(): Promise<string> {
   const client = new Client();
-  let token = getAuthToken();
+
+  // Check for BLINK_TOKEN environment variable first (for CI)
+  let token = process.env.BLINK_TOKEN || getAuthToken();
+
   if (token) {
     client.authToken = token;
 
@@ -76,7 +79,11 @@ export async function loginIfNeeded(): Promise<string> {
       // Ensure that the token is valid.
       await client.users.me();
     } catch (_err) {
-      // The token is invalid, so we need to login again.
+      // The token is invalid
+      if (process.env.BLINK_TOKEN) {
+        throw new Error("BLINK_TOKEN environment variable is invalid");
+      }
+      // Try to login again
       token = await login();
     }
   } else {

@@ -26,6 +26,9 @@ export default async function deploy(
     directory = process.cwd();
   }
 
+  // Detect CI environment
+  const isCI = process.env.CI === "true" || !process.stdout.isTTY;
+
   // Auto-migrate data to .blink if it exists
   await migrateDataToBlink(directory);
 
@@ -63,6 +66,14 @@ export default async function deploy(
     deployConfig = JSON.parse(deployConfigContent);
   }
 
+  // Environment variables take precedence over config file
+  if (process.env.BLINK_ORGANIZATION_ID) {
+    deployConfig.organizationId = process.env.BLINK_ORGANIZATION_ID;
+  }
+  if (process.env.BLINK_AGENT_ID) {
+    deployConfig.agentId = process.env.BLINK_AGENT_ID;
+  }
+
   // Select organization
   let organizationName!: string;
   if (deployConfig?.organizationId) {
@@ -79,6 +90,10 @@ export default async function deploy(
     if (organizations.length === 1) {
       deployConfig.organizationId = organizations[0]!.id;
       organizationName = organizations[0]!.name;
+    } else if (isCI) {
+      throw new Error(
+        "Multiple organizations found. To use CI mode, please deploy in interactive mode first to select an organization and generate .blink/config.json"
+      );
     } else {
       const selectedId = await select({
         message: "Which organization should contain this agent?",
@@ -252,59 +267,78 @@ export default async function deploy(
     const missingEnvVars = Object.keys(localEnv).filter((key) => !prodEnv[key]);
 
     if (missingEnvVars.length > 0) {
-      console.log("\n" + chalk.cyan("Environment Variables"));
-      console.log(
-        chalk.dim(
-          `  Missing ${missingEnvVars.length} var${missingEnvVars.length === 1 ? "" : "s"} in .env.production: ${missingEnvVars.join(", ")}`
-        )
-      );
-
-      const confirmed = await confirm({
-        message: "Copy missing vars from .env.local to .env.production?",
-        initialValue: true,
-      });
-      if (isCancel(confirmed)) {
-        return;
-      }
-      // Add a newline for visual separation.
-      console.log();
-      if (confirmed) {
-        for (const key of missingEnvVars) {
-          prodEnv[key] = localEnv[key]!;
-        }
-        await writeFile(
-          prodEnvFile,
-          `# Environment variables for production deployment\n${Object.entries(
-            prodEnv
-          )
-            .map(([key, value]) => `${key}=${value}`)
-            .join("\n")}`,
-          "utf-8"
+      if (isCI) {
+        console.log(
+          chalk.yellow("Warning:") +
+            ` Missing ${missingEnvVars.length} var${missingEnvVars.length === 1 ? "" : "s"} in .env.production: ${missingEnvVars.join(", ")}`
         );
+        console.log(
+          chalk.dim(
+            "  Skipping in CI mode. Set these in .env.production if needed."
+          )
+        );
+      } else {
+        console.log("\n" + chalk.cyan("Environment Variables"));
+        console.log(
+          chalk.dim(
+            `  Missing ${missingEnvVars.length} var${missingEnvVars.length === 1 ? "" : "s"} in .env.production: ${missingEnvVars.join(", ")}`
+          )
+        );
+
+        const confirmed = await confirm({
+          message: "Copy missing vars from .env.local to .env.production?",
+          initialValue: true,
+        });
+        if (isCancel(confirmed)) {
+          return;
+        }
+        // Add a newline for visual separation.
+        console.log();
+        if (confirmed) {
+          for (const key of missingEnvVars) {
+            prodEnv[key] = localEnv[key]!;
+          }
+          await writeFile(
+            prodEnvFile,
+            `# Environment variables for production deployment\n${Object.entries(
+              prodEnv
+            )
+              .map(([key, value]) => `${key}=${value}`)
+              .join("\n")}`,
+            "utf-8"
+          );
+        }
       }
     }
 
     // Prompt to migrate devhook to production
     const devhookID = getDevhookID(directory);
     if (devhookID) {
-      const productionUrl = `https://${devhookID}.blink.host`;
-      console.log("\n" + chalk.cyan("Webhook Tunnel"));
-      console.log(chalk.dim(`  Current: ${productionUrl} → local dev`));
-      console.log(chalk.dim(`  After: ${productionUrl} → production`));
-      console.log(
-        chalk.dim("  Migrating will keep your webhooks working in production")
-      );
+      if (isCI) {
+        // Skip devhook migration in CI mode
+        console.log(
+          chalk.dim("  Skipping webhook tunnel migration in CI mode")
+        );
+      } else {
+        const productionUrl = `https://${devhookID}.blink.host`;
+        console.log("\n" + chalk.cyan("Webhook Tunnel"));
+        console.log(chalk.dim(`  Current: ${productionUrl} → local dev`));
+        console.log(chalk.dim(`  After: ${productionUrl} → production`));
+        console.log(
+          chalk.dim("  Migrating will keep your webhooks working in production")
+        );
 
-      const confirmed = await confirm({
-        message: "Migrate tunnel to production?",
-      });
-      if (isCancel(confirmed)) {
-        return;
-      }
-      // Add a newline for visual separation.
-      console.log();
-      if (confirmed) {
-        migratedDevhook = true;
+        const confirmed = await confirm({
+          message: "Migrate tunnel to production?",
+        });
+        if (isCancel(confirmed)) {
+          return;
+        }
+        // Add a newline for visual separation.
+        console.log();
+        if (confirmed) {
+          migratedDevhook = true;
+        }
       }
     }
   }
@@ -362,17 +396,28 @@ export default async function deploy(
     (key) => !Object.keys(prodEnv).includes(key)
   );
   if (missingEnvVars.length > 0) {
-    console.log(
-      "Warning: The following environment variables are set in .env.local but not in .env.production:"
-    );
-    for (const v of missingEnvVars) {
-      console.log(`- ${v}`);
-    }
-    const confirmed = await confirm({
-      message: "Do you want to deploy anyway?",
-    });
-    if (confirmed === false || isCancel(confirmed)) {
-      return;
+    if (isCI) {
+      console.log(
+        chalk.yellow("Warning:") +
+          " The following environment variables are set in .env.local but not in .env.production:"
+      );
+      for (const v of missingEnvVars) {
+        console.log(`- ${v}`);
+      }
+      console.log(chalk.dim("  Continuing deployment in CI mode"));
+    } else {
+      console.log(
+        "Warning: The following environment variables are set in .env.local but not in .env.production:"
+      );
+      for (const v of missingEnvVars) {
+        console.log(`- ${v}`);
+      }
+      const confirmed = await confirm({
+        message: "Do you want to deploy anyway?",
+      });
+      if (confirmed === false || isCancel(confirmed)) {
+        return;
+      }
     }
   }
 
@@ -398,7 +443,9 @@ export default async function deploy(
   console.log(chalk.gray(`View Deployment ${chalk.dim(inspectUrl)}`));
 
   // Write deploy config on success
-  await writeDeployConfig(deployConfigPath, deployConfig);
+  if (!isCI) {
+    await writeDeployConfig(deployConfigPath, deployConfig);
+  }
 
   // Poll for deployment completion
   const s = spinner();
