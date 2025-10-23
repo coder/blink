@@ -383,6 +383,8 @@ export class ChatManager {
           };
         });
 
+        // Acquire read lock on agent to prevent it from being disposed while streaming.
+        using _agentLock = await this.agent.agentLock.read();
         // Stream agent response
         const streamStartTime = performance.now();
         const stream = await runAgent({
@@ -541,7 +543,7 @@ export class ChatManager {
     this.disposed = true;
     this.watcher.dispose();
     this.listeners.clear();
-    this.abortController?.abort();
+    this.stopStreaming();
   }
 
   private resetChatState(): void {

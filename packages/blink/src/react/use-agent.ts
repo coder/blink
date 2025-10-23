@@ -7,6 +7,7 @@ import {
   type CapabilitiesResponse,
   APIServerURLEnvironmentVariable,
 } from "../agent/client";
+import { RWLock } from "../local/rw-lock";
 
 export interface AgentLog {
   readonly level: "log" | "error";
@@ -53,6 +54,8 @@ export default function useAgent(options: UseAgentOptions) {
     setAgent(undefined);
     setCapabilities(undefined);
 
+    let lock: RWLock | undefined;
+
     (async () => {
       const port = await getRandomPort();
       const proc = spawn("node", ["--no-deprecation", buildResult.entry], {
@@ -64,11 +67,27 @@ export default function useAgent(options: UseAgentOptions) {
           PORT: port.toString(),
           HOST: "127.0.0.1",
         },
+        // keep the child process tied to the parent process
+        detached: false,
       });
-      controller.signal.addEventListener("abort", () => {
+      const cleanup = () => {
         try {
           proc.kill();
         } catch {}
+      };
+
+      // Clean up - when the parent process exits, kill the child process.
+      process.once("exit", cleanup);
+      process.once("SIGINT", cleanup);
+      process.once("SIGTERM", cleanup);
+      process.once("uncaughtException", cleanup);
+
+      controller.signal.addEventListener("abort", () => {
+        process.off("exit", cleanup);
+        process.off("SIGINT", cleanup);
+        process.off("SIGTERM", cleanup);
+        process.off("uncaughtException", cleanup);
+        cleanup();
       });
       let ready = false;
       proc.stdout.on("data", (data) => {
@@ -114,6 +133,7 @@ export default function useAgent(options: UseAgentOptions) {
       const client = new Client({
         baseUrl: `http://127.0.0.1:${port}`,
       });
+      lock = client.agentLock;
       // Wait for the health endpoint to be alive.
       while (!controller.signal.aborted) {
         try {
@@ -139,7 +159,12 @@ export default function useAgent(options: UseAgentOptions) {
     });
     return () => {
       isCleanup = true;
-      controller.abort();
+      (async () => {
+        // Acquire write lock before cleaning up this agent instance
+        // This waits for any active streams using this agent to complete
+        using _writeLock = await lock?.write();
+        controller.abort();
+      })();
     };
   }, [buildResult, env, apiServerUrl]);
 

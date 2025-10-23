@@ -6,6 +6,7 @@ import {
   getEditModeModel,
   type EditAgent,
 } from "../edit/agent";
+import { RWLock } from "../local/rw-lock";
 
 export interface UseEditAgentOptions {
   readonly directory: string;
@@ -34,6 +35,8 @@ export default function useEditAgent(options: UseEditAgentOptions) {
     }
 
     setMissingApiKey(false);
+
+    let lock: RWLock | undefined;
 
     (async () => {
       // Create the edit agent
@@ -64,6 +67,7 @@ export default function useEditAgent(options: UseEditAgentOptions) {
       const editClient = new Client({
         baseUrl: `http://127.0.0.1:${port}`,
       });
+      lock = editClient.agentLock;
 
       // Wait for health check
       while (!controller.signal.aborted) {
@@ -88,7 +92,12 @@ export default function useEditAgent(options: UseEditAgentOptions) {
 
     return () => {
       isCleanup = true;
-      controller.abort();
+      (async () => {
+        // Acquire write lock before cleaning up this edit agent instance
+        // This waits for any active streams using this agent to complete
+        using _writeLock = await lock?.write();
+        controller.abort();
+      })();
     };
   }, [
     options.directory,
