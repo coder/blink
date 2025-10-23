@@ -89,7 +89,7 @@
     "@blink.so/api": "^1.0.0",
     "@clack/prompts": "^0.11.0",
     "@hono/node-server": "^1.19.3",
-    "@hugodutka/gemini-cli": "npm:@kylecarbs/gemini-cli@0.6.0-nightly-20250912-6",
+    "@jaaydenh/gemini-cli": "0.11.0-nightly-20251022-2",
     "@lydell/node-pty": "^1.1.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.64.6",

@@ -7,7 +7,8 @@ import {
   KeypressProvider as KeypressProviderBase,
   Config,
   type InputPromptProps,
-} from "@hugodutka/gemini-cli/ui";
+  useBracketedPaste
+} from "@jaaydenh/gemini-cli/ui";
 
 function createMinimalConfig(): Config {
   return new Config({
@@ -178,6 +179,8 @@ function TextInput({
 
 export function KeypressProvider({ children }: { children: React.ReactNode }) {
   const config = useMemo(() => createMinimalConfig(), []);
+  useBracketedPaste();
+
   return (
     <KeypressProviderBase kittyProtocolEnabled={true} config={config}>
       {children}
