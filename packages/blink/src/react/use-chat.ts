@@ -30,6 +30,7 @@ export interface UseChatOptions {
 export interface UseChat extends ChatState {
   readonly sendMessage: (message: StoredMessage) => Promise<void>;
   readonly upsertMessage: (message: StoredMessage) => Promise<void>;
+  readonly queueLogMessage: ChatManager["queueLogMessage"];
   readonly deleteMessage: (id: string) => Promise<void>;
   readonly stopStreaming: () => void;
   readonly resetChat: () => Promise<void>;
@@ -55,6 +56,7 @@ export default function useChat(options: UseChatOptions): UseChat {
     status: "idle",
     loading: true,
     queuedMessages: [],
+    queuedLogs: [],
   });
 
   // Create manager on mount or when chatId changes
@@ -108,6 +110,15 @@ export default function useChat(options: UseChatOptions): UseChat {
     }
   }, []);
 
+  const queueLogMessage = useCallback<ChatManager["queueLogMessage"]>(
+    async (args) => {
+      if (managerRef.current) {
+        await managerRef.current.queueLogMessage(args);
+      }
+    },
+    []
+  );
+
   const stopStreaming = useCallback(() => {
     if (managerRef.current) {
       managerRef.current.stopStreaming();
@@ -142,6 +153,7 @@ export default function useChat(options: UseChatOptions): UseChat {
     ...state,
     sendMessage,
     upsertMessage,
+    queueLogMessage,
     stopStreaming,
     resetChat,
     clearQueue,

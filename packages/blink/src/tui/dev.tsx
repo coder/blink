@@ -24,6 +24,10 @@ import { render } from "ink";
 import type { StoredMessage } from "../local/types";
 import type { ID } from "../agent/types";
 import { checkAndMarkFirstRun } from "../cli/lib/first-run";
+import type { UseChat } from "../react/use-chat";
+import util from "node:util";
+import { useLogger } from "../react/use-logger";
+import { Logger, LoggerContext } from "../react/use-logger";
 
 const colors = {
   run: "#1f86ed",
@@ -31,20 +35,37 @@ const colors = {
 } as const;
 
 export async function startDev({ directory }: { directory: string }) {
-  const instance = render(
-    <KeypressProvider>
-      <Root directory={directory} />
-    </KeypressProvider>,
-    {
-      exitOnCtrlC: false,
-    }
-  );
+  const instance = render(<Root directory={directory} />, {
+    exitOnCtrlC: false,
+  });
   await instance.waitUntilExit();
 }
 
 const Root = ({ directory }: { directory: string }) => {
+  const [logger, setLogger] = useState<Logger>(
+    new Logger(async (level, ...message) => {
+      console[level](...message);
+    })
+  );
+  return (
+    <KeypressProvider>
+      <LoggerContext.Provider value={logger}>
+        <App directory={directory} setLogger={setLogger} />
+      </LoggerContext.Provider>
+    </KeypressProvider>
+  );
+};
+
+const App = ({
+  directory,
+  setLogger,
+}: {
+  directory: string;
+  setLogger: (logger: Logger) => void;
+}) => {
   const size = useTerminalSize();
   const [isFirstRun] = useState(() => checkAndMarkFirstRun(directory));
+  const logger = useLogger();
 
   // Use the shared dev mode hook
   const dev = useDevMode({
@@ -73,10 +94,11 @@ const Root = ({ directory }: { directory: string }) => {
       console.log(chalk.gray(`⚙ Send webhooks from anywhere: ${url}`));
     },
     onAgentLog: (log) => {
-      const logColor = log.level === "error" ? "red" : "white";
-      const logPrefix =
-        log.level === "error" ? "⚙ [Agent Error]" : "⚙ [Agent Log]";
-      console.log(`${chalk[logColor](logPrefix)} ${chalk.gray(log.message)}`);
+      if (log.level === "error") {
+        logger.error("agent", log.message);
+      } else {
+        logger.log("agent", log.message);
+      }
     },
     onDevhookRequest: (request) => {
       console.log(
@@ -102,6 +124,17 @@ const Root = ({ directory }: { directory: string }) => {
       }
     },
   });
+  useEffect(() => {
+    setLogger(
+      new Logger((level, source, ...message) => {
+        return dev.chat.queueLogMessage({
+          message: util.format(...message),
+          level,
+          source,
+        });
+      })
+    );
+  }, [dev.chat.queueLogMessage, setLogger]);
 
   const { exit } = useApp();
   const [exitArmed, setExitArmed] = useState(false);
@@ -324,6 +357,20 @@ const Root = ({ directory }: { directory: string }) => {
             maxWidth={size.columns - 2}
           />
         ) : null}
+        {dev.chat.queuedLogs.map((log) => (
+          <Message
+            key={log.id}
+            message={log}
+            nextMessage={undefined}
+            previousMessage={
+              dev.chat.streamingMessage ||
+              (dev.chat.messages.length > 0
+                ? dev.chat.messages.at(dev.chat.messages.length - 1)
+                : undefined)
+            }
+            maxWidth={size.columns - 2}
+          />
+        ))}
         {dev.showWaitingPlaceholder ? (
           <AssistantWaitingPlaceholder maxWidth={size.columns - 2} />
         ) : null}
@@ -632,11 +679,51 @@ const MessageComponent = ({
   maxWidth?: number;
   streaming?: boolean;
 }) => {
+  // Check if this is a log message
+  const isLogMessage =
+    message.metadata &&
+    typeof message.metadata === "object" &&
+    "__blink_log" in message.metadata &&
+    message.metadata.__blink_log === true;
+
   let prefix: React.ReactNode;
   let contentColor: string;
   // Only add margin if there is a previous message.
   // Otherwise, we end up with two blank lines under the banner.
   let marginTop: number = previousMessage ? 1 : 0;
+
+  if (isLogMessage) {
+    // Format log messages with special styling
+    const logLevel = (message.metadata as any).level;
+    const logSource = (message.metadata as any).source;
+    const isError = logLevel === "error";
+
+    prefix = null;
+    contentColor = isError ? "red" : "gray";
+
+    // Render log messages with a different structure
+    const content: React.ReactNode = (
+      <Box gap={1} flexDirection="column" width={maxWidth}>
+        {message.parts
+          .map((part, index) => {
+            if (part.type === "text") {
+              return <Text color="gray">{part.text}</Text>;
+            }
+            return null;
+          })
+          .filter(Boolean)}
+      </Box>
+    );
+
+    return (
+      <Box flexDirection="row" gap={1}>
+        <Text color={isError ? "red" : undefined} bold>
+          [{logSource}]
+        </Text>
+        {content}
+      </Box>
+    );
+  }
 
   switch (message.role) {
     case "system":

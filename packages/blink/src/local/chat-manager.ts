@@ -27,6 +27,7 @@ export interface ChatState {
   readonly streamingMessage?: StoredMessage;
   readonly loading: boolean;
   readonly queuedMessages: StoredMessage[];
+  readonly queuedLogs: StoredMessage[];
 }
 
 export interface ChatManagerOptions {
@@ -67,6 +68,7 @@ export class ChatManager {
   private streamingMessage: StoredMessage | undefined;
   private status: ChatStatus = "idle";
   private queue: StoredMessage[] = [];
+  private logQueue: StoredMessage[] = [];
   private abortController: AbortController | undefined;
   private isProcessingQueue = false;
 
@@ -187,6 +189,7 @@ export class ChatManager {
       streamingMessage: this.streamingMessage,
       loading: this.loading,
       queuedMessages: this.queue,
+      queuedLogs: this.logQueue,
     };
   }
 
@@ -285,6 +288,34 @@ export class ChatManager {
       if (locked) {
         await locked.release();
       }
+    }
+  }
+
+  /**
+   * Queue a log message to be inserted after streaming completes,
+   * or insert immediately if not streaming.
+   */
+  async queueLogMessage(args: {
+    message: string;
+    level: "error" | "log";
+    source: string;
+  }): Promise<void> {
+    const message = {
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      role: "user",
+      parts: [{ type: "text", text: args.message }],
+      metadata: {
+        __blink_log: true,
+        level: args.level,
+        source: args.source,
+      },
+      mode: "run",
+    } satisfies StoredMessage;
+    if (this.isProcessingQueue) {
+      this.logQueue.push(message);
+    } else {
+      await this.upsertMessages([message]);
     }
   }
 
@@ -484,6 +515,13 @@ export class ChatManager {
       this.status = "idle";
 
       if (locked) {
+        // Flush log queue before releasing lock
+        if (this.logQueue.length > 0) {
+          const logs = [...this.logQueue];
+          this.logQueue = [];
+          await this.upsertMessages(logs, locked);
+        }
+
         this.chat.updated_at = new Date().toISOString();
         await locked.set(this.chat);
         await locked.release();
