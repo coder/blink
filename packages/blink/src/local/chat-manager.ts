@@ -1,5 +1,6 @@
 import { isToolOrDynamicToolUIPart, type UIMessage } from "ai";
 import type { Client } from "../agent/client";
+import type { Source } from "../react/use-logger";
 import {
   createDiskStore,
   createDiskStoreWatcher,
@@ -14,6 +15,8 @@ import {
   type StoredMessage,
 } from "./types";
 import type { ID } from "../agent/types";
+import { stripVTControlCharacters } from "node:util";
+import { RWLock } from "./rw-lock";
 
 export type ChatStatus = "idle" | "streaming" | "error";
 
@@ -27,6 +30,7 @@ export interface ChatState {
   readonly streamingMessage?: StoredMessage;
   readonly loading: boolean;
   readonly queuedMessages: StoredMessage[];
+  readonly queuedLogs: StoredMessage[];
 }
 
 export interface ChatManagerOptions {
@@ -67,6 +71,7 @@ export class ChatManager {
   private streamingMessage: StoredMessage | undefined;
   private status: ChatStatus = "idle";
   private queue: StoredMessage[] = [];
+  private logQueue: StoredMessage[] = [];
   private abortController: AbortController | undefined;
   private isProcessingQueue = false;
 
@@ -87,7 +92,6 @@ export class ChatManager {
     this.serializeMessage = options.serializeMessage;
     this.filterMessages = options.filterMessages;
     this.onError = options.onError;
-
     // Start disk watcher
     this.watcher = createDiskStoreWatcher<StoredChat>(options.chatsDirectory, {
       pollInterval: 1000,
@@ -187,6 +191,7 @@ export class ChatManager {
       streamingMessage: this.streamingMessage,
       loading: this.loading,
       queuedMessages: this.queue,
+      queuedLogs: this.logQueue,
     };
   }
 
@@ -288,6 +293,44 @@ export class ChatManager {
     }
   }
 
+  async queueLogMessage({
+    message: logMessage,
+    level,
+    source,
+  }: {
+    message: string;
+    level: "error" | "log";
+    source: Source;
+  }): Promise<void> {
+    const formattedMessage = `(EDIT MODE NOTE) ${source === "agent" ? "The agent" : "The `blink dev` CLI"} printed the following ${level}:\n\`\`\`\n${stripVTControlCharacters(logMessage)}\n\`\`\`\n`;
+    const message = {
+      id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      role: "user",
+      parts: [{ type: "text", text: formattedMessage }],
+      metadata: {
+        __blink_log: true,
+        level,
+        source,
+        message: logMessage,
+      },
+      mode: "edit",
+    } satisfies StoredMessage;
+    this.logQueue.push(message);
+    this.notifyListeners();
+  }
+
+  private async flushLogQueue(
+    locked: LockedStoreEntry<StoredChat>
+  ): Promise<void> {
+    if (this.logQueue.length === 0) {
+      return;
+    }
+    const messages = [...this.logQueue];
+    this.logQueue = [];
+    await this.upsertMessages(messages, locked);
+  }
+
   /**
    * Send a message to the agent
    */
@@ -337,6 +380,7 @@ export class ChatManager {
     let locked: LockedStoreEntry<StoredChat> | undefined;
     try {
       locked = await this.chatStore.lock(this.chatId);
+      await this.flushLogQueue(locked);
       let first = true;
       while (this.queue.length > 0 || first) {
         first = false;
@@ -484,6 +528,8 @@ export class ChatManager {
       this.status = "idle";
 
       if (locked) {
+        await this.flushLogQueue(locked);
+
         this.chat.updated_at = new Date().toISOString();
         await locked.set(this.chat);
         await locked.release();
@@ -556,6 +602,7 @@ export class ChatManager {
     this.streamingMessage = undefined;
     this.status = "idle";
     this.queue = [];
+    this.logQueue = [];
   }
 
   private notifyListeners(): void {

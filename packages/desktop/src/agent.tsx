@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { createRoot } from "react-dom/client";
-import { useDevMode } from "blink/react";
+import { useDevMode, Logger } from "blink/react";
 import { setEsbuildInstance } from "blink/build";
 import { MessageBubble } from "./components/MessageBubble";
 import SourceBrowser, {
@@ -146,6 +146,9 @@ function AgentWindow() {
       onAgentLog: handleAgentLog,
       onError: handleError,
       onModeChange: handleModeChange,
+      logger: new Logger(async (level, source, ...message) => {
+        console[level](source, ...message);
+      }),
     }),
     [
       directory,

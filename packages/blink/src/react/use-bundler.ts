@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { resolveConfig, type BuildLog, type BuildResult } from "../build";
+import { Logger } from "./use-logger";
 
 export type BundlerStatus = "building" | "success" | "error";
 
@@ -13,6 +14,7 @@ export interface BundlerContext {
 
 export interface UseBundlerOptions {
   readonly directory: string;
+  readonly logger: Logger;
   readonly onBuildStart?: () => void;
   readonly onBuildSuccess?: (
     result: BuildResult & { duration: number }
@@ -28,8 +30,15 @@ export interface UseBundlerOptions {
  */
 export default function useBundler(options: UseBundlerOptions | string) {
   // Support both string (directory) and object (options) for backwards compatibility
-  const opts = typeof options === "string" ? { directory: options } : options;
-  const { directory, onBuildStart, onBuildSuccess, onBuildError } = opts;
+  const opts =
+    typeof options === "string"
+      ? {
+          directory: options,
+          logger: new Logger(async () => {}),
+        }
+      : options;
+  const { directory, logger, onBuildStart, onBuildSuccess, onBuildError } =
+    opts;
 
   const config = useMemo(() => resolveConfig(directory), [directory]);
 
@@ -80,7 +89,7 @@ export default function useBundler(options: UseBundlerOptions | string) {
         },
       })
       .catch((err) => {
-        console.log("error", err);
+        logger.error("system", "error", err);
         setStatus("error");
         setError(err);
         onBuildErrorRef.current?.(err);

@@ -3,9 +3,11 @@ import { readFileSync, watch } from "fs";
 
 import { useEffect, useState } from "react";
 import { findNearestEntry } from "../build/util";
+import type { Logger } from "./use-logger";
 
 export default function useDotenv(
   directory: string,
+  logger: Logger,
   name: string = ".env.local"
 ) {
   const [env, setEnv] = useState<Record<string, string>>({});
@@ -19,7 +21,7 @@ export default function useDotenv(
         const parsed = parse(contents);
         setEnv(parsed);
       } catch (error) {
-        console.error(`Error reading ${name}:`, error);
+        logger.error("system", `Error reading ${name}:`, error);
         setEnv({});
       }
     };

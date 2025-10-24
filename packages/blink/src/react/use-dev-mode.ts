@@ -7,7 +7,7 @@ import { join } from "path";
 import type { Client, CapabilitiesResponse } from "../agent/client";
 import { getDevhookID, createDevhookID, hasDevhook } from "../cli/lib/devhook";
 import { createLocalServer, type LocalServer } from "../local/server";
-import { isStoredMessageMetadata } from "../local/types";
+import { isLogMessage, isStoredMessageMetadata } from "../local/types";
 import type { BuildLog } from "../build";
 import type { ID, UIOptions, UIOptionsSchema } from "../agent/index.browser";
 import useOptions from "./use-options";
@@ -18,11 +18,13 @@ import useDevhook from "./use-devhook";
 import useDotenv from "./use-dotenv";
 import useEditAgent from "./use-edit-agent";
 import useAuth, { type UseAuth } from "./use-auth";
+import type { Logger } from "./use-logger";
 
 export type DevMode = "run" | "edit";
 
 export interface UseDevModeOptions {
   readonly directory: string;
+  readonly logger: Logger;
   readonly onBuildStart?: () => void;
   readonly onBuildSuccess?: (result: { duration: number }) => void;
   readonly onBuildError?: (error: BuildLog) => void;
@@ -157,6 +159,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     entry: entrypoint,
   } = useBundler({
     directory,
+    logger: options.logger,
     onBuildStart: options.onBuildStart,
     onBuildSuccess: options.onBuildSuccess,
     onBuildError: options.onBuildError,
@@ -170,7 +173,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
   });
 
   // Environment
-  const dotenv = useDotenv(directory);
+  const dotenv = useDotenv(directory, options.logger);
   const env = useMemo(() => {
     const blinkToken = auth.token;
     if (blinkToken) {
@@ -305,6 +308,9 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
       if (isStoredMessageMetadata(msg.metadata)) {
         return false;
       }
+      if (isLogMessage(msg)) {
+        return false;
+      }
       // Filter out messages created in edit mode
       if (msg.mode === "edit") {
         return false;
@@ -372,6 +378,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
   const devhook = useDevhook({
     id: devhookID,
     directory,
+    logger: options.logger,
     disabled: !capabilities?.request,
     onRequest: async (request) => {
       if (!agent) {
@@ -404,7 +411,11 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
 
         return response;
       } catch (err) {
-        console.error("Error sending request to user's agent:", err);
+        options.logger.error(
+          "system",
+          "Error sending request to user's agent:",
+          err
+        );
         return new Response("Internal server error", { status: 500 });
       }
     },

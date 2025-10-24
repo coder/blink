@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import type { ID } from "../agent/types";
+import type { Source } from "../react/use-logger";
 
 export interface StoredChat {
   id: ID;
@@ -44,5 +45,26 @@ export function isStoredMessageMetadata(
 ): metadata is StoredMessageMetadata {
   return (
     typeof metadata === "object" && metadata?.__blink_internal !== undefined
+  );
+}
+
+export function isLogMessage(
+  message: StoredMessage
+): message is StoredMessage & {
+  metadata: {
+    __blink_log: true;
+    level: "error" | "log";
+    source: Source;
+    message: string;
+  };
+} {
+  return (
+    typeof message.metadata === "object" &&
+    message.metadata !== null &&
+    "__blink_log" in message.metadata &&
+    message.metadata.__blink_log === true &&
+    "level" in message.metadata &&
+    "source" in message.metadata &&
+    "message" in message.metadata
   );
 }

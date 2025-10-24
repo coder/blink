@@ -21,9 +21,13 @@ import TextInput, {
 } from "./components/text-input";
 import useTerminalSize from "./hooks/use-terminal-size";
 import { render } from "ink";
-import type { StoredMessage } from "../local/types";
+import { isLogMessage, type StoredMessage } from "../local/types";
 import type { ID } from "../agent/types";
 import { checkAndMarkFirstRun } from "../cli/lib/first-run";
+import type { UseChat } from "../react/use-chat";
+import util from "node:util";
+import { type Source, useLogger } from "../react/use-logger";
+import { Logger, LoggerContext } from "../react/use-logger";
 
 const colors = {
   run: "#1f86ed",
@@ -31,34 +35,48 @@ const colors = {
 } as const;
 
 export async function startDev({ directory }: { directory: string }) {
-  const instance = render(
-    <KeypressProvider>
-      <Root directory={directory} />
-    </KeypressProvider>,
-    {
-      exitOnCtrlC: false,
-    }
-  );
+  const instance = render(<Root directory={directory} />, {
+    exitOnCtrlC: false,
+  });
   await instance.waitUntilExit();
 }
 
 const Root = ({ directory }: { directory: string }) => {
+  const [logger, setLogger] = useState<Logger>(
+    new Logger(async (level, ...message) => {
+      console[level](...message);
+    })
+  );
+  return (
+    <KeypressProvider>
+      <LoggerContext.Provider value={logger}>
+        <App directory={directory} />
+      </LoggerContext.Provider>
+    </KeypressProvider>
+  );
+};
+
+const App = ({ directory }: { directory: string }) => {
   const size = useTerminalSize();
   const [isFirstRun] = useState(() => checkAndMarkFirstRun(directory));
+  const logger = useLogger();
 
   // Use the shared dev mode hook
   const dev = useDevMode({
     directory,
+    logger,
     onBuildStart: () => {
-      console.log(chalk.gray(`⚙ Compiling...`));
+      logger.log("system", chalk.gray(`⚙ Compiling...`));
     },
     onBuildSuccess: (result) => {
-      console.log(
+      logger.log(
+        "system",
         chalk.green(`⚙ Compiled in ${Math.round(result.duration)}ms`)
       );
     },
     onBuildError: (error) => {
-      console.log(
+      logger.error(
+        "system",
         `${chalk.red(`⚙ [Build Error]`)} ${chalk.gray(error.message)}${error.file ? chalk.bold(` (${error.file})`) : ""}`
       );
     },
@@ -67,19 +85,24 @@ const Root = ({ directory }: { directory: string }) => {
       if (keysText.length === 0) {
         keysText = chalk.dim("(none)");
       }
-      console.log(chalk.gray("⚙ Loaded .env.local:"), keysText);
+      logger.log("system", chalk.gray("⚙ Loaded .env.local:"), keysText);
     },
     onDevhookConnected: (url) => {
-      console.log(chalk.gray(`⚙ Send webhooks from anywhere: ${url}`));
+      logger.log(
+        "system",
+        chalk.gray(`⚙ Send webhooks from anywhere: ${url}`)
+      );
     },
     onAgentLog: (log) => {
-      const logColor = log.level === "error" ? "red" : "white";
-      const logPrefix =
-        log.level === "error" ? "⚙ [Agent Error]" : "⚙ [Agent Log]";
-      console.log(`${chalk[logColor](logPrefix)} ${chalk.gray(log.message)}`);
+      if (log.level === "error") {
+        logger.error("agent", log.message);
+      } else {
+        logger.log("agent", log.message);
+      }
     },
     onDevhookRequest: (request) => {
-      console.log(
+      logger.log(
+        "system",
         chalk.blue(`↩ `) +
           chalk.gray(
             `method=${request.method} path=${request.path} status=${request.status}`
@@ -87,21 +110,34 @@ const Root = ({ directory }: { directory: string }) => {
       );
     },
     onError: (error) => {
-      console.log(error);
+      logger.error("system", error);
     },
     onModeChange: (mode) => {
       switch (mode) {
         case "edit":
-          console.log(
+          logger.log(
+            "system",
             chalk.hex(colors.edit).bold(`✎ entering edit mode`) + "\n"
           );
           break;
         case "run":
-          console.log(chalk.hex(colors.run).bold(`⟳ entering run mode`) + "\n");
+          logger.log(
+            "system",
+            chalk.hex(colors.run).bold(`⟳ entering run mode`) + "\n"
+          );
           break;
       }
     },
   });
+  useEffect(() => {
+    logger.setPrintLog((level, source, ...message) => {
+      return dev.chat.queueLogMessage({
+        message: util.format(...message),
+        level,
+        source,
+      });
+    });
+  }, [dev.chat.queueLogMessage, logger]);
 
   const { exit } = useApp();
   const [exitArmed, setExitArmed] = useState(false);
@@ -324,6 +360,20 @@ const Root = ({ directory }: { directory: string }) => {
             maxWidth={size.columns - 2}
           />
         ) : null}
+        {dev.chat.queuedLogs.map((log) => (
+          <Message
+            key={log.id}
+            message={log}
+            nextMessage={undefined}
+            previousMessage={
+              dev.chat.streamingMessage ||
+              (dev.chat.messages.length > 0
+                ? dev.chat.messages.at(dev.chat.messages.length - 1)
+                : undefined)
+            }
+            maxWidth={size.columns - 2}
+          />
+        ))}
         {dev.showWaitingPlaceholder ? (
           <AssistantWaitingPlaceholder maxWidth={size.columns - 2} />
         ) : null}
@@ -341,6 +391,7 @@ const Root = ({ directory }: { directory: string }) => {
             }}
             onCancel={() => {}}
             autoApproveEnabled={dev.approval.autoApproveEnabled}
+            logger={logger}
           />
         ) : (
           <TextInput
@@ -495,10 +546,12 @@ const ApprovalInput = ({
   onConfirm,
   onCancel,
   autoApproveEnabled,
+  logger,
 }: {
   onConfirm: (approved: boolean, autoApprove?: boolean) => Promise<void>;
   onCancel: () => void;
   autoApproveEnabled: boolean;
+  logger: Logger;
 }) => {
   const [selected, setSelected] = useState<"yes" | "auto" | "no">("yes");
   const [processing, setProcessing] = useState(false);
@@ -512,7 +565,7 @@ const ApprovalInput = ({
       try {
         await onConfirm(approved, autoApprove);
       } catch (err) {
-        console.error("Error processing approval:", err);
+        logger.error("system", "Error processing approval:", err);
       } finally {
         processingRef.current = false;
         setProcessing(false);
@@ -632,11 +685,46 @@ const MessageComponent = ({
   maxWidth?: number;
   streaming?: boolean;
 }) => {
+  // Check if this is a log message
   let prefix: React.ReactNode;
   let contentColor: string;
   // Only add margin if there is a previous message.
   // Otherwise, we end up with two blank lines under the banner.
   let marginTop: number = previousMessage ? 1 : 0;
+
+  if (isLogMessage(message)) {
+    // Format log messages with special styling
+    const logLevel = message.metadata.level;
+    const logSource = message.metadata.source;
+    const logMessage = message.metadata.message;
+    const isError = logLevel === "error";
+
+    prefix = null;
+    contentColor = isError ? "red" : "gray";
+
+    // Render log messages with a different structure
+    const content: React.ReactNode = (
+      <Box gap={1} flexDirection="column" width={maxWidth}>
+        <Text color="gray">{logMessage}</Text>
+      </Box>
+    );
+
+    return (
+      <Box flexDirection="row" gap={1}>
+        {logSource === "agent" ? (
+          <Text color={isError ? "red" : undefined} bold>
+            [{logSource}]
+          </Text>
+        ) : null}
+        {logSource === "system" && isError ? (
+          <Text color="red" bold>
+            [error]
+          </Text>
+        ) : null}
+        {content}
+      </Box>
+    );
+  }
 
   switch (message.role) {
     case "system":

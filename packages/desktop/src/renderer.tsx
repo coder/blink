@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { useDevMode } from "blink/react";
+import { useDevMode, Logger } from "blink/react";
 import { useAuth } from "./hooks/useAuth";
 import { existsSync } from "fs";
 import { join } from "path";
@@ -84,6 +84,9 @@ function App() {
     onModeChange: (mode) => {
       setLogs((prev) => [...prev, `🔄 Mode changed to: ${mode}`]);
     },
+    logger: new Logger(async (level, source, ...message) => {
+      console[level](source, ...message);
+    }),
   });
 
   const handleSubmit = async () => {

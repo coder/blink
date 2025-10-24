@@ -4,6 +4,7 @@ import { lock, getLockInfo } from "../local/lockfile";
 import { join } from "node:path";
 import chalk from "chalk";
 import { getDevhookID } from "../cli/lib/devhook";
+import type { Logger } from "./use-logger";
 
 export interface UseDevhookOptions {
   // ID can optionally be provided to identify the devhook.
@@ -12,6 +13,7 @@ export interface UseDevhookOptions {
   readonly disabled?: boolean;
   readonly onRequest: (request: Request) => Promise<Response>;
   readonly directory: string;
+  readonly logger: Logger;
 }
 
 export default function useDevhook(options: UseDevhookOptions) {
@@ -64,12 +66,14 @@ export default function useDevhook(options: UseDevhookOptions) {
             // Ignore errors reading lock info
           }
 
-          console.error(
+          options.logger.error(
+            "system",
             chalk.red(
               `\nError: Another ${chalk.bold("blink dev")} process is already running in this directory${pidMessage}.`
             )
           );
-          console.error(
+          options.logger.error(
+            "system",
             chalk.red(`Please stop the other process and try again.\n`)
           );
           process.exit(1);
@@ -80,10 +84,12 @@ export default function useDevhook(options: UseDevhookOptions) {
           err && typeof err === "object" && "message" in err
             ? String(err.message)
             : String(err);
-        console.warn(
+        options.logger.error(
+          "system",
           chalk.yellow(`\nWarning: Failed to acquire devhook lock: ${message}`)
         );
-        console.warn(
+        options.logger.error(
+          "system",
           chalk.yellow(
             `Continuing without lock. Multiple ${chalk.bold("blink dev")} processes may conflict with each other.\n`
           )
@@ -168,7 +174,11 @@ export default function useDevhook(options: UseDevhookOptions) {
         try {
           releaseLock();
         } catch (err) {
-          console.warn("Failed to release devhook lock:", err);
+          options.logger.error(
+            "system",
+            "Failed to release devhook lock:",
+            err
+          );
         }
       }
     };
