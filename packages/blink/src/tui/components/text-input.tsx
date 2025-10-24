@@ -7,7 +7,7 @@ import {
   KeypressProvider as KeypressProviderBase,
   Config,
   type InputPromptProps,
-  useBracketedPaste
+  useBracketedPaste,
 } from "@jaaydenh/gemini-cli/ui";
 
 function createMinimalConfig(): Config {
