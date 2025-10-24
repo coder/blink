@@ -11,6 +11,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { clearTerminal as clearTerminalEscape } from "ansi-escapes";
 import { isToolApprovalOutput } from "../agent/tools";
 import useDevMode, { type TokenUsage } from "../react/use-dev-mode";
 import Markdown from "./components/markdown";
@@ -169,8 +170,7 @@ const Root = ({ directory }: { directory: string }) => {
   const { write } = useStdout();
   const [epoch, setEpoch] = useState(0);
   const resetTerminal = useCallback(() => {
-    write("\x1Bc"); // Full terminal reset
-    write("\x1B[?25l"); // Hide cursor
+    write(clearTerminalEscape);
     setEpoch((prev) => prev + 1);
   }, [write]);
 

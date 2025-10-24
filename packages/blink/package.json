@@ -106,6 +106,7 @@
     "@types/ws": "^8.18.1",
     "@whatwg-node/server": "^0.10.12",
     "@xterm/headless": "^5.5.0",
+    "ansi-escapes": "^7.1.1",
     "chalk": "^5.6.2",
     "commander": "^14.0.0",
     "dotenv": "^17.2.3",
