@@ -12,6 +12,7 @@ import { convertResponseToUIMessageStream } from "../internal/convert-response-t
 import type { ID } from "../types";
 import type { UIOptions, UIOptionsSchema } from "../ui";
 import { APIServerURLEnvironmentVariable } from "../constants";
+import { RWLock } from "../../local/rw-lock";
 
 export { APIServerURLEnvironmentVariable };
 
@@ -30,10 +31,12 @@ export type CapabilitiesResponse = Awaited<ReturnType<Client["capabilities"]>>;
 export class Client {
   public readonly baseUrl: string;
   private readonly client: ReturnType<typeof hc<typeof api>>;
+  public readonly agentLock: RWLock;
 
   public constructor(options: ClientOptions) {
     this.client = hc<typeof api>(options.baseUrl);
     this.baseUrl = options.baseUrl;
+    this.agentLock = new RWLock();
   }
 
   /**

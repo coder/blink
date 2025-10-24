@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { UIMessage, UIMessageChunk } from "ai";
 import { ChatManager, type ChatStatus } from "./chat-manager";
 import { createDiskStore } from "./disk-store";
+import { RWLock } from "./rw-lock";
 import type { StoredChat, StoredMessage } from "./types";
 import type { Client } from "../agent/client";
 
@@ -14,6 +15,7 @@ function createMockAgent(
 ): Client & { chatCalls: any[] } {
   const chatCalls: any[] = [];
   return {
+    agentLock: new RWLock(),
     chatCalls,
     chat: async ({ messages, signal }: any) => {
       chatCalls.push({ messages, signal });
@@ -69,6 +71,7 @@ function createMockAgent(
 // Helper to create a slow-streaming agent (yields control between chunks)
 function createSlowAgent(chunks: number = 5): Client {
   return {
+    agentLock: new RWLock(),
     chat: async ({ signal }: any) => {
       const stream = new ReadableStream<UIMessageChunk>({
         async start(controller) {
