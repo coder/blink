@@ -279,7 +279,7 @@ const Root = ({ directory }: { directory: string }) => {
               </Box>
             ) : (
               <Message
-                key={message.id}
+                key={`${message.id}-${index}`}
                 message={message}
                 previousMessage={
                   // These indices are off by one because of the banner's first message.
