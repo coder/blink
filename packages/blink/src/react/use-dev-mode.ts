@@ -125,9 +125,6 @@ export interface UseDevMode {
  */
 export default function useDevMode(options: UseDevModeOptions): UseDevMode {
   const { directory } = options;
-
-  // Approval handling state (declared early so it can be used in callbacks)
-  const [approvalHandled, setApprovalHandled] = useState<string | undefined>();
   const [autoApprove, setAutoApprove] = useState(false);
 
   // Mode state
@@ -141,8 +138,6 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     (newMode: DevMode) => {
       setModeState(newMode);
       options.onModeChange?.(newMode);
-      // Clear approval state when switching modes
-      setApprovalHandled(undefined);
     },
     [options.onModeChange]
   );
@@ -504,11 +499,6 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     if (!lastMessage) {
       return;
     }
-    // Don't show approval prompt if we've already handled this message
-    if (approvalHandled === lastMessage.id) {
-      return;
-    }
-
     const parts = lastMessage.parts.filter(isToolOrDynamicToolUIPart);
     if (parts.length === 0) {
       return;
@@ -521,8 +511,9 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
       return lastMessage as UIMessage;
     }
     return undefined;
-  }, [chat.messages, approvalHandled]);
+  }, [chat.messages]);
 
+  const approvalHandledRef = useRef<string | undefined>(undefined);
   const handleApproval = useCallback(
     async (approved: boolean, enableAutoApprove?: boolean) => {
       if (!needsApproval) return;
@@ -531,9 +522,6 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
       if (enableAutoApprove && approved) {
         setAutoApprove(true);
       }
-
-      // Mark this message as handled immediately
-      setApprovalHandled(needsApproval.id);
 
       const messages = chat.messages;
       if (messages.length === 0) {
@@ -549,6 +537,12 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
       if (!Array.isArray(lastMsg.parts)) {
         return;
       }
+      if (approvalHandledRef.current === lastMsg.id) {
+        return;
+      }
+      // CRITICAL: all code before this point must be synchronous.
+      // Otherwise, the approval may be handled multiple times.
+      approvalHandledRef.current = lastMsg.id;
       // Update all pending approval outputs
       const updatedParts = lastMsg.parts.map((part: any) => {
         if (
@@ -589,14 +583,10 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     const id = crypto.randomUUID();
     setChatId(id);
     setChatIds((prev) => [...prev, id]);
-    // Clear approval state when switching chats
-    setApprovalHandled(undefined);
   }, []);
 
   const switchChat = useCallback((id: ID) => {
     setChatId(id);
-    // Clear approval state when switching chats
-    setApprovalHandled(undefined);
   }, []);
 
   // Build approval object if needed
