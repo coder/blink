@@ -55,12 +55,14 @@ function TextInput({
   slashCommands,
   onLayoutChange,
   borderColor,
+  visible,
 }: {
   onSubmit: (value: string) => void;
   placeholder?: string;
   slashCommands?: Array<SlashCommand>;
   onLayoutChange?: () => void;
   borderColor?: string;
+  visible: boolean;
 }) {
   const config = useMemo(() => createMinimalConfig(), []);
   const [userMessages, setUserMessages] = useState<string[]>([]);
@@ -91,6 +93,10 @@ function TextInput({
   const commands = useMemo(() => {
     return convertToCommands(slashCommands ?? []);
   }, [slashCommands]);
+
+  if (!visible) {
+    return null;
+  }
 
   return (
     <Box marginBottom={isSlashOpen ? 1 : 0} flexDirection="column">

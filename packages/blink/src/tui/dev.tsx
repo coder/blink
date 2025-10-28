@@ -380,7 +380,7 @@ const App = ({ directory }: { directory: string }) => {
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
-        {dev.approval ? (
+        {dev.approval && (
           <ApprovalInput
             onConfirm={async (approved, autoApprove) => {
               if (approved) {
@@ -393,82 +393,82 @@ const App = ({ directory }: { directory: string }) => {
             autoApproveEnabled={dev.approval.autoApproveEnabled}
             logger={logger}
           />
-        ) : (
-          <TextInput
-            borderColor={colors[dev.mode]}
-            slashCommands={[
-              {
-                name: "help",
-                description: "Show help information",
-                action: () => {
-                  getHelpText(dev.build.entrypoint).forEach((line) =>
-                    console.log(line)
-                  );
-                },
-              },
-              {
-                name: "reset",
-                altNames: ["clear"],
-                description: "Reset the chat",
-                action: async () => {
-                  await dev.chat.resetChat();
-                  resetTerminal();
-                },
-              },
-              {
-                name: "switch",
-                description: "Switch to a different chat",
-                action: (args: string) => {
-                  dev.switchChat(args as ID);
-                },
-                completion: async (partialArg: string) => {
-                  return dev.chats.filter((id) => id.startsWith(partialArg));
-                },
-              },
-              {
-                name: "new",
-                description: "Create a new chat",
-                action: (args: string) => {
-                  dev.switchChat(args as ID);
-                },
-              },
-              {
-                name: "edit",
-                description: "Switch to Edit mode (AI helps build your agent)",
-                action: () => {
-                  dev.chat.stopStreaming();
-                  dev.setMode("edit");
-                },
-              },
-              {
-                name: "run",
-                description: "Switch to Run mode (use your agent)",
-                action: () => {
-                  dev.chat.stopStreaming();
-                  dev.setMode("run");
-                },
-              },
-              ...(optionCommand ? [optionCommand] : []),
-            ]}
-            onSubmit={(value) => {
-              dev.chat.sendMessage({
-                id: crypto.randomUUID(),
-                role: "user",
-                parts: [{ type: "text", text: value }],
-                created_at: new Date().toISOString(),
-                metadata: undefined,
-                mode: dev.mode,
-              });
-              return true;
-            }}
-            onLayoutChange={() => {
-              // We could reset the terminal here to fix the extra
-              // space added by the slash command.
-              //
-              // It looks a bit janky, though.
-            }}
-          />
         )}
+        <TextInput
+          visible={!dev.approval}
+          borderColor={colors[dev.mode]}
+          slashCommands={[
+            {
+              name: "help",
+              description: "Show help information",
+              action: () => {
+                getHelpText(dev.build.entrypoint).forEach((line) =>
+                  console.log(line)
+                );
+              },
+            },
+            {
+              name: "reset",
+              altNames: ["clear"],
+              description: "Reset the chat",
+              action: async () => {
+                await dev.chat.resetChat();
+                resetTerminal();
+              },
+            },
+            {
+              name: "switch",
+              description: "Switch to a different chat",
+              action: (args: string) => {
+                dev.switchChat(args as ID);
+              },
+              completion: async (partialArg: string) => {
+                return dev.chats.filter((id) => id.startsWith(partialArg));
+              },
+            },
+            {
+              name: "new",
+              description: "Create a new chat",
+              action: (args: string) => {
+                dev.switchChat(args as ID);
+              },
+            },
+            {
+              name: "edit",
+              description: "Switch to Edit mode (AI helps build your agent)",
+              action: () => {
+                dev.chat.stopStreaming();
+                dev.setMode("edit");
+              },
+            },
+            {
+              name: "run",
+              description: "Switch to Run mode (use your agent)",
+              action: () => {
+                dev.chat.stopStreaming();
+                dev.setMode("run");
+              },
+            },
+            ...(optionCommand ? [optionCommand] : []),
+          ]}
+          onSubmit={(value) => {
+            dev.chat.sendMessage({
+              id: crypto.randomUUID(),
+              role: "user",
+              parts: [{ type: "text", text: value }],
+              created_at: new Date().toISOString(),
+              metadata: undefined,
+              mode: dev.mode,
+            });
+            return true;
+          }}
+          onLayoutChange={() => {
+            // We could reset the terminal here to fix the extra
+            // space added by the slash command.
+            //
+            // It looks a bit janky, though.
+          }}
+        />
       </Box>
 
       <Box>
