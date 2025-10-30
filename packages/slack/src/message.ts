@@ -1,6 +1,6 @@
 import type {
   AnyBlock,
-  AppMentionEvent,
+  // AppMentionEvent,
   GenericMessageEvent,
   RichTextChannelMention,
   RichTextTeamMention,
@@ -16,6 +16,7 @@ import type {
 } from "@slack/web-api";
 import type { AssistantAppThreadBlock } from "@slack/web-api/dist/types/response/ChatPostMessageResponse";
 import type { UIMessage } from "ai";
+import type { KnownEventFromType } from "@slack/bolt";
 
 /**
  * Helps LLMs format messages for Slack.
@@ -77,17 +78,28 @@ NEVER USE:
 - Standard markdown bold/italic conventions`;
 
 /**
+ * These are the Slack event types that we currently support for automatically creating messages from events.
+ * The list is not exhaustive - we may want to add more in the future.
+ */
+type SlackEventType =
+  | "app_mention"
+  | "assistant_thread_started"
+  | "file_shared"
+  | "link_shared"
+  | "member_joined_channel"
+  | "message"
+  | "reaction_added"
+  | "reaction_removed";
+
+/**
  * CreateMessageFromEventOptions extends ExtractMessageDetailsFromEventOptions.
  *
  * It exists so we can add options in the future.
  * Feel free to use `extractMessageDetailsFromEvent` to construct your own message.
  */
 export interface CreateMessageFromEventOptions
-  extends Omit<
-    ExtractMessagesMetadataOptions<GenericMessageEvent | AppMentionEvent>,
-    "messages"
-  > {
-  event: GenericMessageEvent | AppMentionEvent;
+  extends Omit<ExtractMessagesMetadataOptions<SlackEventType>, "messages"> {
+  event: KnownEventFromType<SlackEventType>;
 }
 
 export interface CreateMessageFromEventResult {
@@ -105,7 +117,10 @@ export interface CreateMessageFromEventResult {
 export const createMessageFromEvent = async (
   options: CreateMessageFromEventOptions
 ): Promise<CreateMessageFromEventResult> => {
-  const id = options.event.client_msg_id ?? crypto.randomUUID();
+  const id =
+    ("client_msg_id" in options.event
+      ? options.event.client_msg_id
+      : undefined) ?? crypto.randomUUID();
 
   const [botInfo, [response]] = await Promise.all([
     options.client.auth
@@ -122,7 +137,10 @@ export const createMessageFromEvent = async (
       messages: [
         {
           ...options.event,
-          files: options.event.files as GenericMessageEvent["files"],
+          files:
+            "files" in options.event
+              ? (options.event.files as GenericMessageEvent["files"])
+              : undefined,
         },
       ],
       supportedFileTypes: options.supportedFileTypes,
@@ -132,10 +150,41 @@ export const createMessageFromEvent = async (
   if (!response) {
     throw new Error("Failed to extract message metadata");
   }
+  let message: CreatePartsFromMessageMetadataOptions["message"];
+  switch (options.event.type) {
+    case "assistant_thread_started":
+      message = {
+        channel: options.event.assistant_thread.channel_id,
+        thread_ts: options.event.assistant_thread.thread_ts,
+        ts: options.event.event_ts,
+      };
+      break;
+    case "file_shared":
+      message = {
+        channel: options.event.channel_id,
+        ts: options.event.event_ts,
+      };
+      break;
+    case "reaction_added":
+      message = {
+        channel: options.event.item.channel,
+        ts: options.event.event_ts,
+      };
+      break;
+    case "reaction_removed":
+      message = {
+        channel: options.event.item.channel,
+        ts: options.event.event_ts,
+      };
+      break;
+    default:
+      message = options.event;
+      break;
+  }
   const parts = createPartsFromMessageMetadata({
     metadata: response.metadata,
     botUserId: botInfo?.user_id,
-    message: options.event,
+    message,
   });
 
   return {
