@@ -63,6 +63,12 @@ export function toolWithApproval<INPUT, OUTPUT>(
   return tool;
 }
 
+type ToolSetWithPrefix<TOOLS extends ToolSet, PREFIX extends string> = {
+  [K in keyof TOOLS as `${PREFIX}${K & string}`]: K extends string
+    ? TOOLS[K]
+    : never;
+};
+
 /**
  * Tools are helpers for managing tools.
  */
@@ -253,12 +259,15 @@ export const tools = Object.freeze({
    * @param prefix The prefix to add to the tools.
    * @returns The prefixed tool set.
    */
-  prefix(tools: ToolSet, prefix: string): ToolSet {
+  prefix<PREFIX extends string, TOOLS extends ToolSet>(
+    tools: TOOLS,
+    prefix: PREFIX
+  ): ToolSetWithPrefix<TOOLS, PREFIX> {
     const prefixed: ToolSet = {};
     for (const [key, tool] of Object.entries(tools)) {
       prefixed[`${prefix}${key}`] = tool;
     }
-    return prefixed;
+    return prefixed as ToolSetWithPrefix<TOOLS, PREFIX>;
   },
 });
 
