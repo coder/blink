@@ -66,14 +66,13 @@ export default function useDevhook(options: UseDevhookOptions) {
             // Ignore errors reading lock info
           }
 
-          options.logger.error(
-            "system",
+          // don't use logger since it's not guaranteed to print before exiting
+          console.error(
             chalk.red(
               `\nError: Another ${chalk.bold("blink dev")} process is already running in this directory${pidMessage}.`
             )
           );
-          options.logger.error(
-            "system",
+          console.error(
             chalk.red(`Please stop the other process and try again.\n`)
           );
           process.exit(1);
