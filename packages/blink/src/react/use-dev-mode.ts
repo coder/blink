@@ -523,28 +523,30 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
         setAutoApprove(true);
       }
 
-      const messages = chat.messages;
-      if (messages.length === 0) {
+      const lastApprovalMessage = chat.messages.reverse().find((msg) => {
+        if (msg.role !== "assistant") {
+          return false;
+        }
+        if (!Array.isArray(msg.parts)) {
+          return false;
+        }
+        return msg.parts.some(
+          (part) =>
+            "output" in part &&
+            isToolApprovalOutput(part.output) &&
+            part.output.outcome === "pending"
+        );
+      });
+
+      if (!lastApprovalMessage) {
         return;
       }
-      const lastMsg = messages[messages.length - 1];
-      if (!lastMsg) {
-        return;
-      }
-      if (lastMsg.role !== "assistant") {
-        return;
-      }
-      if (!Array.isArray(lastMsg.parts)) {
-        return;
-      }
-      if (approvalHandledRef.current === lastMsg.id) {
-        return;
-      }
+
       // CRITICAL: all code before this point must be synchronous.
       // Otherwise, the approval may be handled multiple times.
-      approvalHandledRef.current = lastMsg.id;
+      approvalHandledRef.current = lastApprovalMessage.id;
       // Update all pending approval outputs
-      const updatedParts = lastMsg.parts.map((part: any) => {
+      const updatedParts = lastApprovalMessage.parts.map((part: any) => {
         if (
           part.output &&
           isToolApprovalOutput(part.output) &&
@@ -562,7 +564,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
       });
 
       await chat.upsertMessage({
-        ...lastMsg,
+        ...lastApprovalMessage,
         parts: updatedParts,
       });
 
