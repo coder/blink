@@ -11,7 +11,7 @@ import { isLogMessage, isStoredMessageMetadata } from "../local/types";
 import type { BuildLog } from "../build";
 import type { ID, UIOptions, UIOptionsSchema } from "../agent/index.browser";
 import useOptions from "./use-options";
-import useAgent, { type AgentLog } from "./use-agent";
+import useAgent, { type AgentLog, type Agent } from "./use-agent";
 import useBundler, { type BundlerStatus } from "./use-bundler";
 import useChat, { type UseChat } from "./use-chat";
 import useDevhook from "./use-devhook";
@@ -196,7 +196,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
   }, [env, options.onEnvLoaded]);
 
   // Server - always use run agent for webhook/API handling
-  const runAgentRef = useRef<Client | undefined>(undefined);
+  const runAgentRef = useRef<Agent | undefined>(undefined);
   const server = useMemo(() => {
     return createLocalServer({
       port: 0,
@@ -219,7 +219,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
 
   // Edit agent
   const {
-    client: editAgent,
+    agent: editAgent,
     error: editAgentError,
     missingApiKey: editModeMissingApiKey,
     setUserAgentUrl,
@@ -247,7 +247,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
   // Update edit agent with user agent URL and handle cleanup
   useEffect(() => {
     if (agent) {
-      setUserAgentUrl(agent.baseUrl);
+      setUserAgentUrl(agent.client.baseUrl);
     }
 
     // Stop streaming when agents become unavailable
@@ -382,7 +382,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
 
       // Always send the request to the user's agent (not the edit agent)
       const requestURL = new URL(request.url);
-      const agentURL = new URL(agent.baseUrl);
+      const agentURL = new URL(agent.client.baseUrl);
       agentURL.pathname = requestURL.pathname;
       agentURL.search = requestURL.search;
 
@@ -431,7 +431,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     error: optionsError,
     setOption,
   } = useOptions({
-    agent: mode === "run" ? agent : editAgent,
+    agent: mode === "run" ? agent?.client : editAgent?.client,
     capabilities,
     messages: chat.messages,
   });

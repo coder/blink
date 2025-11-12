@@ -17,6 +17,7 @@ import {
 import type { ID } from "../agent/types";
 import { stripVTControlCharacters } from "node:util";
 import { RWLock } from "./rw-lock";
+import type { Agent } from "../react/use-agent";
 
 export type ChatStatus = "idle" | "streaming" | "error";
 
@@ -60,7 +61,7 @@ type StateListener = (state: ChatState) => void;
  */
 export class ChatManager {
   private chatId: ID;
-  private agent: Client | undefined;
+  private agent: Agent | undefined;
   private chatStore: Store<StoredChat>;
   private serializeMessage?: (message: UIMessage) => StoredMessage | undefined;
   private filterMessages?: (message: StoredMessage) => boolean;
@@ -171,7 +172,7 @@ export class ChatManager {
   /**
    * Update the agent instance to be used for chats
    */
-  setAgent(agent: Client | undefined): void {
+  setAgent(agent: Agent | undefined): void {
     this.agent = agent;
   }
 
@@ -428,11 +429,11 @@ export class ChatManager {
         });
 
         // Acquire read lock on agent to prevent it from being disposed while streaming.
-        using _agentLock = await this.agent.agentLock.read();
+        using _agentLock = await this.agent.lock.read();
         // Stream agent response
         const streamStartTime = performance.now();
         const stream = await runAgent({
-          agent: this.agent,
+          agent: this.agent.client,
           id: this.chatId as ID,
           signal: controller.signal,
           messages,

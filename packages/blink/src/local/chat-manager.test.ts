@@ -10,99 +10,45 @@ import type { StoredChat, StoredMessage } from "./types";
 import type { Client } from "../agent/client";
 
 // Helper to create a mock agent
-function createMockAgent(
-  responseText: string = "Assistant response"
-): Client & { chatCalls: any[] } {
+function createMockAgent(responseText: string = "Assistant response"): {
+  lock: RWLock;
+  client: Client;
+  chatCalls: any[];
+} {
   const chatCalls: any[] = [];
   return {
-    agentLock: new RWLock(),
+    lock: new RWLock(),
     chatCalls,
-    chat: async ({ messages, signal }: any) => {
-      chatCalls.push({ messages, signal });
+    client: {
+      chat: async ({ messages, signal }: any) => {
+        chatCalls.push({ messages, signal });
 
-      // Return a ReadableStream of UIMessageChunk objects
-      const stream = new ReadableStream<UIMessageChunk>({
-        async start(controller) {
-          if (signal?.aborted) {
-            controller.close();
-            return;
-          }
-
-          // Start the message
-          controller.enqueue({
-            type: "start",
-            messageId: "msg-1",
-          } as UIMessageChunk);
-
-          // Add text content
-          controller.enqueue({
-            type: "text-start",
-            id: "text-1",
-          } as UIMessageChunk);
-
-          // Send text
-          controller.enqueue({
-            type: "text-delta",
-            id: "text-1",
-            delta: responseText,
-          } as UIMessageChunk);
-
-          if (!signal?.aborted) {
-            controller.enqueue({
-              type: "text-end",
-              id: "text-1",
-            } as UIMessageChunk);
-
-            controller.enqueue({
-              type: "finish",
-              finishReason: "stop",
-              usage: { promptTokens: 10, completionTokens: 5 },
-            } as UIMessageChunk);
-          }
-          controller.close();
-        },
-      });
-
-      return stream;
-    },
-  } as any;
-}
-
-// Helper to create a slow-streaming agent (yields control between chunks)
-function createSlowAgent(chunks: number = 5): Client {
-  return {
-    agentLock: new RWLock(),
-    chat: async ({ signal }: any) => {
-      const stream = new ReadableStream<UIMessageChunk>({
-        async start(controller) {
-          try {
+        // Return a ReadableStream of UIMessageChunk objects
+        const stream = new ReadableStream<UIMessageChunk>({
+          async start(controller) {
             if (signal?.aborted) {
               controller.close();
               return;
             }
 
+            // Start the message
             controller.enqueue({
               type: "start",
               messageId: "msg-1",
             } as UIMessageChunk);
 
+            // Add text content
             controller.enqueue({
               type: "text-start",
               id: "text-1",
             } as UIMessageChunk);
 
-            for (let i = 0; i < chunks; i++) {
-              if (signal?.aborted) {
-                throw new Error("AbortError");
-              }
-              controller.enqueue({
-                type: "text-delta",
-                id: "text-1",
-                delta: `chunk${i}`,
-              } as UIMessageChunk);
-              // Yield control to allow other operations
-              await new Promise((resolve) => setImmediate(resolve));
-            }
+            // Send text
+            controller.enqueue({
+              type: "text-delta",
+              id: "text-1",
+              delta: responseText,
+            } as UIMessageChunk);
 
             if (!signal?.aborted) {
               controller.enqueue({
@@ -117,18 +63,78 @@ function createSlowAgent(chunks: number = 5): Client {
               } as UIMessageChunk);
             }
             controller.close();
-          } catch (err: any) {
-            if (err.message === "AbortError" || signal?.aborted) {
+          },
+        });
+
+        return stream;
+      },
+    } as any,
+  };
+}
+
+// Helper to create a slow-streaming agent (yields control between chunks)
+function createSlowAgent(chunks: number = 5): { client: Client; lock: RWLock } {
+  return {
+    lock: new RWLock(),
+    client: {
+      chat: async ({ signal }: any) => {
+        const stream = new ReadableStream<UIMessageChunk>({
+          async start(controller) {
+            try {
+              if (signal?.aborted) {
+                controller.close();
+                return;
+              }
+
+              controller.enqueue({
+                type: "start",
+                messageId: "msg-1",
+              } as UIMessageChunk);
+
+              controller.enqueue({
+                type: "text-start",
+                id: "text-1",
+              } as UIMessageChunk);
+
+              for (let i = 0; i < chunks; i++) {
+                if (signal?.aborted) {
+                  throw new Error("AbortError");
+                }
+                controller.enqueue({
+                  type: "text-delta",
+                  id: "text-1",
+                  delta: `chunk${i}`,
+                } as UIMessageChunk);
+                // Yield control to allow other operations
+                await new Promise((resolve) => setImmediate(resolve));
+              }
+
+              if (!signal?.aborted) {
+                controller.enqueue({
+                  type: "text-end",
+                  id: "text-1",
+                } as UIMessageChunk);
+
+                controller.enqueue({
+                  type: "finish",
+                  finishReason: "stop",
+                  usage: { promptTokens: 10, completionTokens: 5 },
+                } as UIMessageChunk);
+              }
               controller.close();
-            } else {
-              controller.error(err);
+            } catch (err: any) {
+              if (err.message === "AbortError" || signal?.aborted) {
+                controller.close();
+              } else {
+                controller.error(err);
+              }
             }
-          }
-        },
-      });
-      return stream;
-    },
-  } as any;
+          },
+        });
+        return stream;
+      },
+    } as any,
+  };
 }
 
 // Helper to create a stored message

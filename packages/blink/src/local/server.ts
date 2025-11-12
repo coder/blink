@@ -10,11 +10,12 @@ import { ChatManager } from "./chat-manager";
 import { createDiskStore } from "./disk-store";
 import { convertMessage, type StoredChat } from "./types";
 import { v5 as uuidv5 } from "uuid";
+import type { Agent } from "../react/use-agent";
 
 export interface CreateLocalServerOptions {
   readonly dataDirectory: string;
   readonly port?: number;
-  readonly getAgent: () => Client | undefined;
+  readonly getAgent: () => Agent | undefined;
 }
 
 export type LocalServer = ReturnType<typeof createLocalServer>;

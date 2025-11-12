@@ -4,12 +4,13 @@ import type { Client } from "../agent/client";
 import { ChatManager, type ChatState } from "../local/chat-manager";
 import type { StoredMessage } from "../local/types";
 import type { ID } from "../agent/types";
+import type { Agent } from "./use-agent";
 
 export type { ChatStatus } from "../local/chat-manager";
 
 export interface UseChatOptions {
   readonly chatId: ID;
-  readonly agent: Client | undefined;
+  readonly agent: Agent | undefined;
   readonly chatsDirectory: string;
   /**
    * Optional function to filter messages before persisting them.

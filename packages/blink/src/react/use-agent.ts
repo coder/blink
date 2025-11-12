@@ -20,9 +20,14 @@ export interface UseAgentOptions {
   readonly apiServerUrl?: string;
 }
 
+export interface Agent {
+  readonly client: Client;
+  readonly lock: RWLock;
+}
+
 // useAgent is a hook that provides a client for an agent at the given entrypoint.
 export default function useAgent(options: UseAgentOptions) {
-  const [agent, setAgent] = useState<Client | undefined>(undefined);
+  const [agent, setAgent] = useState<Agent | undefined>(undefined);
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [error, setError] = useState<Error | undefined>(undefined);
   const [buildResult, setBuildResult] = useState(options.buildResult);
@@ -133,7 +138,8 @@ export default function useAgent(options: UseAgentOptions) {
       const client = new Client({
         baseUrl: `http://127.0.0.1:${port}`,
       });
-      lock = client.agentLock;
+      const agentLock = new RWLock();
+      lock = agentLock;
       // Wait for the health endpoint to be alive.
       while (!controller.signal.aborted) {
         try {
@@ -150,7 +156,7 @@ export default function useAgent(options: UseAgentOptions) {
       ready = true;
       const capabilities = await client.capabilities();
       setCapabilities(capabilities);
-      setAgent(client);
+      setAgent({ client, lock: agentLock });
     })().catch((err) => {
       // Don't set error if this was just a cleanup abort
       if (!isCleanup) {

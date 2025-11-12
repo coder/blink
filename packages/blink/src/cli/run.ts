@@ -9,6 +9,7 @@ import { resolveConfig } from "../build";
 import { findNearestEntry } from "../build/util";
 import { existsSync } from "node:fs";
 import type { ID } from "../agent/types";
+import { RWLock } from "../local/rw-lock";
 
 export default async function run(
   message: string[],
@@ -71,7 +72,7 @@ export default async function run(
       console.error("Error:", error);
     },
   });
-  manager.setAgent(agent.client);
+  manager.setAgent({ client: agent.client, lock: new RWLock() });
 
   try {
     // Wait for completion by subscribing to state changes

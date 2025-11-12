@@ -15,8 +15,15 @@ export interface UseEditAgentOptions {
   readonly getDevhookUrl: () => string;
 }
 
+interface ClientAndLock {
+  readonly client: Client;
+  readonly lock: RWLock;
+}
+
 export default function useEditAgent(options: UseEditAgentOptions) {
-  const [client, setClient] = useState<Client | undefined>(undefined);
+  const [clientAndLock, setClientAndLock] = useState<ClientAndLock | undefined>(
+    undefined
+  );
   const [error, setError] = useState<Error | undefined>(undefined);
   const [missingApiKey, setMissingApiKey] = useState(false);
   const editAgentRef = useRef<EditAgent | undefined>(undefined);
@@ -27,7 +34,7 @@ export default function useEditAgent(options: UseEditAgentOptions) {
 
     // Clear error at the start - attempting to create edit agent
     setError(undefined);
-    setClient(undefined);
+    setClientAndLock(undefined);
 
     if (!getEditModeModel(options.env)) {
       setMissingApiKey(true);
@@ -67,7 +74,8 @@ export default function useEditAgent(options: UseEditAgentOptions) {
       const editClient = new Client({
         baseUrl: `http://127.0.0.1:${port}`,
       });
-      lock = editClient.agentLock;
+      const editAgentLock = new RWLock();
+      lock = editAgentLock;
 
       // Wait for health check
       while (!controller.signal.aborted) {
@@ -82,7 +90,7 @@ export default function useEditAgent(options: UseEditAgentOptions) {
         throw controller.signal.reason;
       }
 
-      setClient(editClient);
+      setClientAndLock({ client: editClient, lock: editAgentLock });
     })().catch((err) => {
       // Don't set error if this was just a cleanup abort
       if (!isCleanup) {
@@ -108,14 +116,14 @@ export default function useEditAgent(options: UseEditAgentOptions) {
 
   return useMemo(() => {
     return {
-      client,
+      agent: clientAndLock,
       error,
       missingApiKey,
       setUserAgentUrl: (url: string) => {
         editAgentRef.current?.setUserAgentUrl(url);
       },
     };
-  }, [client, error, missingApiKey]);
+  }, [clientAndLock, error, missingApiKey]);
 }
 
 async function getRandomPort(): Promise<number> {
