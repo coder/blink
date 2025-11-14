@@ -640,11 +640,16 @@ export class Server {
       }, payload.timeout_ms);
     }
 
-    const end = () => {
+    const end = async () => {
       if (ended) {
         return;
       }
       ended = true;
+      // This is janky, but it seems like there's a single tick
+      // between when output is available _sometimes_. If we don't
+      // do this, semi-occasionally the plain output will be incorrect.
+      // TODO: ensure all process output is written before this function is called instead of a sleep
+      await new Promise((resolve) => setTimeout(resolve, 50));
       if (onOutput) {
         onOutput.dispose();
       }
@@ -703,12 +708,7 @@ export class Server {
       }
     });
     onExit = process.onExit(() => {
-      // This is janky, but it seems like there's a single tick
-      // between when output is available _sometimes_. If we don't
-      // do this, semi-occasionally the plain output will be incorrect.
-      setTimeout(() => {
-        end();
-      }, 10);
+      end();
     });
 
     signal.addEventListener("abort", () => {
