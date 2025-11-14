@@ -1,6 +1,6 @@
 {
   "name": "blink",
-  "version": "1.1.31",
+  "version": "1.1.32",
   "description": "Blink is a tool for building and deploying AI agents.",
   "type": "module",
   "bin": {
@@ -74,7 +74,7 @@
     "gen-templates": "bun run src/cli/scripts/generate-templates.ts && cd ../.. && bun format"
   },
   "dependencies": {
-    "@blink-sdk/compute-protocol": "^0.0.6"
+    "@blink-sdk/compute-protocol": "^0.0.7"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^2.0.15",

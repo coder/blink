@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "blink-repo",
@@ -16,12 +17,12 @@
     },
     "packages/blink": {
       "name": "blink",
-      "version": "1.1.23",
+      "version": "1.1.32",
       "bin": {
         "blink": "./dist/cli/index.js",
       },
       "dependencies": {
-        "@blink-sdk/compute-protocol": "^0.0.6",
+        "@blink-sdk/compute-protocol": "^0.0.7",
       },
       "devDependencies": {
         "@ai-sdk/anthropic": "^2.0.15",
@@ -102,7 +103,7 @@
     },
     "packages/compute-protocol": {
       "name": "@blink-sdk/compute-protocol",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "devDependencies": {
         "@blink-sdk/events": "workspace:*",
         "@blink-sdk/multiplexer": "workspace:*",
@@ -194,7 +195,7 @@
     },
     "packages/slack": {
       "name": "@blink-sdk/slack",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "devDependencies": {
         "@ai-sdk/provider": "^2.0.0",
         "@slack/types": "^2.17.0",
