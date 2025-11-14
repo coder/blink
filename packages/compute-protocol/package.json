@@ -1,7 +1,7 @@
 {
   "name": "@blink-sdk/compute-protocol",
   "description": "The compute protocol for the Blink SDK.",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "type": "module",
   "keywords": [
     "blink",
