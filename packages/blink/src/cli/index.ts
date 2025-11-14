@@ -127,6 +127,15 @@ program
   .description("Log in to the Blink Cloud.")
   .action(asyncEntry(() => import("./login")));
 
+const computeCommand = program
+  .command("compute")
+  .description("Compute-related commands.");
+
+computeCommand
+  .command("server")
+  .description("Run a compute protocol server on localhost.")
+  .action(asyncEntry(() => import("./compute-server")));
+
 // Configure error output
 program.configureOutput({
   writeErr: (str) => {
