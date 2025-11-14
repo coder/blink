@@ -33,9 +33,11 @@ export default async function serveCompute() {
     throw new Error("PORT environment variable is not a number");
   }
 
-  const wss = new WebSocketServer({ port });
+  const host = process.env.HOST ?? "127.0.0.1";
 
-  console.log(`Compute server running on port ${port}`);
+  const wss = new WebSocketServer({ port, host });
+
+  console.log(`Compute server running on ${host}:${port}`);
 
   wss.on("connection", (ws) => {
     console.log("Client connected");
