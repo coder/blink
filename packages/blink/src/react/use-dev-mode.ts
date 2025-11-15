@@ -176,12 +176,11 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
       ...dotenv,
     }
     if (blinkToken) {
-      return {
-        ...allEnv,
-        BLINK_TOKEN: blinkToken,
-      };
+      allEnv.BLINK_TOKEN = blinkToken;
     }
-    return allEnv;
+    return Object.fromEntries(
+      Object.entries(allEnv).filter(([_, value]) => value !== undefined)
+    ) as Record<string, string>;
   }, [dotenv, auth.token]);
 
   // Track env changes
