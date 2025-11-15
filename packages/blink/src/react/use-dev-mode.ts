@@ -173,6 +173,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     const blinkToken = auth.token;
     if (blinkToken) {
       return {
+        ...process.env,
         ...dotenv,
         BLINK_TOKEN: blinkToken,
       };
