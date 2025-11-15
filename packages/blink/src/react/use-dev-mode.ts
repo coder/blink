@@ -171,14 +171,17 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
   const dotenv = useDotenv(directory, options.logger);
   const env = useMemo(() => {
     const blinkToken = auth.token;
+    const allEnv = {
+      ...process.env,
+      ...dotenv,
+    }
     if (blinkToken) {
       return {
-        ...process.env,
-        ...dotenv,
+        ...allEnv,
         BLINK_TOKEN: blinkToken,
       };
     }
-    return dotenv;
+    return allEnv;
   }, [dotenv, auth.token]);
 
   // Track env changes
