@@ -130,8 +130,8 @@ export default function withModelIntent(
         })
       ),
       execute: value.execute
-        ? async (input, options) => {
-            return value.execute!(input.properties, options);
+        ? function (this: any, input, options) {
+            return value.execute!.call(this, input.properties, options);
           }
         : undefined,
       onInputDelta: async ({ inputTextDelta, toolCallId, abortSignal }) => {
