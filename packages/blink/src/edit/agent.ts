@@ -659,6 +659,7 @@ export function getEditModeModel(
   if (env.ANTHROPIC_API_KEY) {
     return createAnthropic({
       apiKey: env.ANTHROPIC_API_KEY,
+      baseURL: env.ANTHROPIC_BASE_URL,
     }).chat("claude-sonnet-4-5");
   }
 
@@ -666,6 +667,7 @@ export function getEditModeModel(
   if (env.OPENAI_API_KEY) {
     return createOpenAI({
       apiKey: env.OPENAI_API_KEY,
+      baseURL: env.OPENAI_BASE_URL,
       // avoid the responses API due to https://github.com/coder/blink/issues/34#issuecomment-3426704264
     }).chat("gpt-5");
   }
