@@ -1,6 +1,13 @@
 import { test, expect } from "bun:test";
 import { z } from "zod";
-import { tool, type ToolSet } from "ai";
+import {
+  streamText,
+  simulateReadableStream,
+  tool,
+  type ModelMessage,
+  type ToolSet,
+} from "ai";
+import { MockLanguageModelV2 } from "ai/test";
 import withModelIntent from "./index";
 
 type Properties = { foo: string; bar?: number };
@@ -57,4 +64,77 @@ test("when properties is missing, remaining keys go into properties", () => {
   }) as ParsedShape;
   expect(parsed.model_intent).toBe("standalone intent");
   expect(parsed.properties).toEqual({ foo: "z", bar: 2 });
+});
+
+const colorTools: ToolSet = {
+  get_favorite_color: tool({
+    description: "Get your favorite colors",
+    inputSchema: z.object({}),
+    async *execute() {
+      yield "blue";
+      await Promise.resolve();
+      yield "red";
+      await Promise.resolve();
+      yield "green";
+    },
+  }),
+};
+
+const baseMessages: ModelMessage[] = [
+  { role: "user", content: "List your favorite colors." },
+];
+
+const usageStub = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+
+const runFavoriteColorTool = async (
+  tools: ToolSet,
+  rawToolInput: Record<string, unknown>
+) => {
+  const mockModel = new MockLanguageModelV2({
+    async doStream() {
+      return {
+        stream: simulateReadableStream({
+          chunks: [
+            { type: "stream-start", warnings: [] },
+            {
+              type: "tool-call",
+              toolCallId: "call-1",
+              toolName: "get_favorite_color",
+              input: JSON.stringify(rawToolInput),
+            },
+            {
+              type: "finish",
+              finishReason: "tool-calls",
+              usage: usageStub,
+            },
+          ],
+        }),
+      };
+    },
+  });
+
+  const result = streamText({
+    model: mockModel,
+    messages: baseMessages,
+    tools,
+    toolChoice: { type: "tool", toolName: "get_favorite_color" },
+  });
+
+  return result.toolResults;
+};
+
+test("async generator tools stream their final output without model intent", async () => {
+  const toolResults = await runFavoriteColorTool(colorTools, {});
+  expect(toolResults).toHaveLength(1);
+  expect(toolResults[0]?.output).toBe("green");
+});
+
+test("withModelIntent with async generator tool", async () => {
+  const wrappedTools = withModelIntent(colorTools);
+  const toolResults = await runFavoriteColorTool(wrappedTools, {
+    model_intent: "listing colors",
+    properties: {},
+  });
+  expect(toolResults).toHaveLength(1);
+  expect(toolResults[0]?.output).toBe("green");
 });
