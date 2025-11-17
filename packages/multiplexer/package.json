@@ -1,9 +1,38 @@
 {
   "name": "@blink-sdk/multiplexer",
-  "private": true,
+  "description": "High-performance stream multiplexer for the Blink SDK.",
+  "version": "0.0.1",
   "type": "module",
+  "keywords": [
+    "blink",
+    "multiplexer",
+    "stream"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Coder",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coder/blink.git"
+  },
+  "homepage": "https://github.com/coder/blink/tree/main/packages/multiplexer",
+  "bugs": {
+    "url": "https://github.com/coder/blink/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown"
+  },
   "exports": {
-    ".": "./src/multiplexer.ts"
+    ".": {
+      "import": "./dist/multiplexer.js",
+      "types": "./dist/multiplexer.d.ts",
+      "default": "./dist/multiplexer.cjs"
+    }
   },
   "devDependencies": {
     "@blink-sdk/events": "workspace:*"

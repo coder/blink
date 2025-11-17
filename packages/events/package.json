@@ -2,7 +2,14 @@
   "name": "@blink-sdk/events",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build": "tsdown"
+  },
   "exports": {
-    ".": "./src/events.ts"
+    ".": {
+      "import": "./dist/events.js",
+      "types": "./dist/events.d.ts",
+      "default": "./dist/events.cjs"
+    }
   }
 }
