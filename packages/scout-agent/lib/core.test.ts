@@ -9,6 +9,14 @@ import * as blink from "blink";
 import { Client } from "blink/client";
 import { GeneralPurposeCore, type Message, type Options } from "./index";
 
+// Add async iterator support to ReadableStream for testing
+declare global {
+  // biome-ignore lint/suspicious/noExplicitAny: this is a test
+  interface ReadableStream<R = any> {
+    [Symbol.asyncIterator](): AsyncIterableIterator<R>;
+  }
+}
+
 type DoStreamOptions = Parameters<MockLanguageModelV2["doStream"]>[0];
 
 const newMockModel = ({
@@ -164,7 +172,7 @@ test("core class name", () => {
 describe("config", async () => {
   const findWarningLog = (logs: unknown[]) => {
     return logs.find(
-      (l): l is string => typeof l === "string" && l.includes("not configured"),
+      (l): l is string => typeof l === "string" && l.includes("not configured")
     );
   };
   const cases = {
@@ -176,19 +184,19 @@ describe("config", async () => {
           const log = findWarningLog(logs);
           expect(log).toBeDefined();
           expect(log).toInclude(
-            "GitHub is not configured. The `appID`, `privateKey`, and `webhookSecret` config fields are undefined.",
+            "GitHub is not configured. The `appID`, `privateKey`, and `webhookSecret` config fields are undefined."
           );
           expect(log).toInclude(
-            "Slack is not configured. The `botToken` and `signingSecret` config fields are undefined.",
+            "Slack is not configured. The `botToken` and `signingSecret` config fields are undefined."
           );
           expect(log).toInclude(
-            "Web search is not configured. The `exaApiKey` config field is undefined.",
+            "Web search is not configured. The `exaApiKey` config field is undefined."
           );
           expect(log).toInclude(
-            "Did you provide all required environment variables?",
+            "Did you provide all required environment variables?"
           );
           expect(log).toInclude(
-            `Alternatively, you can suppress this message by setting \`suppressConfigWarnings\` to \`true\` on \`${GeneralPurposeCore.name}\`.`,
+            `Alternatively, you can suppress this message by setting \`suppressConfigWarnings\` to \`true\` on \`${GeneralPurposeCore.name}\`.`
           );
         },
       },
@@ -205,7 +213,7 @@ describe("config", async () => {
           const log = findWarningLog(logs);
           expect(log).toBeDefined();
           expect(log).toInclude(
-            "GitHub is not configured. The `privateKey` and `webhookSecret` config fields are undefined.",
+            "GitHub is not configured. The `privateKey` and `webhookSecret` config fields are undefined."
           );
         },
       },
@@ -243,7 +251,7 @@ describe("config", async () => {
         assertion: ({ callOptions }) => {
           expect(callOptions.tools).toBeDefined();
           expect(
-            callOptions.tools?.find((tool) => tool.name === "web_search"),
+            callOptions.tools?.find((tool) => tool.name === "web_search")
           ).toBeDefined();
         },
       },
@@ -256,8 +264,8 @@ describe("config", async () => {
           expect(callOptions.tools).toBeDefined();
           expect(
             callOptions.tools?.find(
-              (tool) => tool.name === "github_create_pull_request",
-            ),
+              (tool) => tool.name === "github_create_pull_request"
+            )
           ).toBeDefined();
         },
       },
@@ -270,7 +278,7 @@ describe("config", async () => {
         assertion: ({ callOptions }) => {
           expect(callOptions.tools).toBeUndefined();
           expect(JSON.stringify(callOptions.prompt)).not.toInclude(
-            "report your Slack status",
+            "report your Slack status"
           );
         },
       },
@@ -286,7 +294,7 @@ describe("config", async () => {
     }[];
   };
   const testSets = Object.entries(cases).sort((a, b) =>
-    a[0].localeCompare(b[0]),
+    a[0].localeCompare(b[0])
   );
   for (const [testSetName, cases] of testSets) {
     describe(testSetName, () => {
@@ -370,9 +378,9 @@ test("respond in slack", async () => {
   const callOptions = await doStreamOptionsPromise;
   expect(callOptions.tools).toBeDefined();
   expect(
-    callOptions.tools?.find((tool) => tool.name === "slack_sendMessage"),
+    callOptions.tools?.find((tool) => tool.name === "slack_sendMessage")
   ).toBeDefined();
   expect(JSON.stringify(callOptions.prompt)).toInclude(
-    "report your Slack status",
+    "report your Slack status"
   );
 });
