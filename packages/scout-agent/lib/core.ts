@@ -5,6 +5,7 @@ import type { App } from "@slack/bolt";
 import {
   convertToModelMessages,
   type LanguageModel,
+  type StreamTextResult,
   streamText,
   type Tool,
 } from "ai";
@@ -25,8 +26,6 @@ type Tools = Partial<ReturnType<typeof createSlackTools>> &
   Record<string, Tool>;
 
 type NullableTools = { [K in keyof Tools]: Tools[K] | undefined };
-
-const SUPPRESS_WARNINGS_FIELD = "suppressConfigWarnings";
 
 type ConfigFields<T> = { [K in keyof T]: T[K] | undefined };
 
@@ -106,11 +105,11 @@ const loadConfig = <K extends readonly string[]>(
   };
 };
 
-export class GeneralPurposeCore {
+export class Scout {
   // we declare the class name here instead of using the `name` property
   // because the latter may be overridden by the bundler
-  private static CLASS_NAME = "GeneralPurposeCore";
-  private readonly [SUPPRESS_WARNINGS_FIELD]: boolean;
+  private static CLASS_NAME = "Scout";
+  private readonly suppressConfigWarnings: boolean;
   private readonly agent: blink.Agent<Message>;
   private readonly github:
     | { config: GitHubConfig; warningMessage?: undefined }
@@ -144,7 +143,7 @@ export class GeneralPurposeCore {
     webSearch?: ConfigFields<WebSearchConfig>;
     compute?: { type: "docker" };
     logger?: Logger;
-    [SUPPRESS_WARNINGS_FIELD]?: boolean;
+    suppressConfigWarnings?: boolean;
   }) {
     this.agent = options.agent;
     this.github = loadConfig(options.github, [
@@ -157,16 +156,27 @@ export class GeneralPurposeCore {
       "signingSecret",
     ] as const);
     if (slackConfigResult.config) {
-      const { app, receiver } = createSlackApp({
-        agent: this.agent,
-        slackSigningSecret: slackConfigResult.config.signingSecret,
-        slackBotToken: slackConfigResult.config.botToken,
-      });
-      this.slack = {
-        config: slackConfigResult.config,
-        app,
-        receiver,
-      };
+      // this is janky
+      // TODO: figure out a better way to mock slack for testing
+      if (slackConfigResult.config.botToken === "test") {
+        this.slack = {
+          config: slackConfigResult.config,
+          app: { client: null },
+          receiver: undefined,
+          // biome-ignore lint/suspicious/noExplicitAny: todo: this needs to be fixed
+        } as any;
+      } else {
+        const { app, receiver } = createSlackApp({
+          agent: this.agent,
+          slackSigningSecret: slackConfigResult.config.signingSecret,
+          slackBotToken: slackConfigResult.config.botToken,
+        });
+        this.slack = {
+          config: slackConfigResult.config,
+          app,
+          receiver,
+        };
+      }
     } else {
       this.slack = { warningMessage: slackConfigResult.warningMessage };
     }
@@ -175,10 +185,10 @@ export class GeneralPurposeCore {
       ? { config: options.compute }
       : { warningMessage: "Compute is not configured" };
     this.logger = options.logger ?? console;
-    this[SUPPRESS_WARNINGS_FIELD] = options[SUPPRESS_WARNINGS_FIELD] ?? false;
+    this.suppressConfigWarnings = options.suppressConfigWarnings ?? false;
   }
 
-  async handleSlackWebhook(request: Request) {
+  async handleSlackWebhook(request: Request): Promise<Response> {
     if (this.slack.config === undefined) {
       this.logger.warn(
         `Slack is not configured but received a Slack webhook. ${this.slack.warningMessage} Did you provide all required environment variables?`
@@ -188,7 +198,7 @@ export class GeneralPurposeCore {
     return this.slack.receiver.handle(request);
   }
 
-  async handleGitHubWebhook(request: Request) {
+  async handleGitHubWebhook(request: Request): Promise<Response> {
     if (this.github.config === undefined) {
       this.logger.warn(
         `Received a GitHub webhook but GitHub is not configured. ${this.github.warningMessage} Did you provide all required environment variables?`
@@ -218,7 +228,7 @@ export class GeneralPurposeCore {
     }
     if (warnings.length > 0) {
       this.logger.warn(
-        `${warnings.join("\n")}\n\nDid you provide all required environment variables?\nAlternatively, you can suppress this message by setting \`${SUPPRESS_WARNINGS_FIELD}\` to \`true\` on \`${GeneralPurposeCore.CLASS_NAME}\`.`
+        `${warnings.join("\n")}\n\nDid you provide all required environment variables?\nAlternatively, you can suppress this message by setting \`suppressConfigWarnings\` to \`true\` on \`${Scout.CLASS_NAME}\`.`
       );
     }
   }
@@ -230,8 +240,8 @@ export class GeneralPurposeCore {
     providerOptions,
     tools: providedTools,
     systemPrompt = defaultSystemPrompt,
-  }: StreamStepResponseOptions) {
-    if (!this[SUPPRESS_WARNINGS_FIELD]) {
+  }: StreamStepResponseOptions): StreamTextResult<Tools, never> {
+    if (!this.suppressConfigWarnings) {
       this.printConfigWarnings();
     }
 
@@ -252,7 +262,6 @@ export class GeneralPurposeCore {
             chatID,
             githubAppID: this.github.config.appID,
             githubAppPrivateKey: this.github.config.privateKey,
-            messages,
           })
         : undefined),
       ...(this.compute.config?.type === "docker"
@@ -261,7 +270,6 @@ export class GeneralPurposeCore {
             githubConfig: this.github.config,
             initializeWorkspace: initializeDockerWorkspace,
             createWorkspaceClient: getDockerWorkspaceClient,
-            messages,
           })
         : {}),
       ...providedTools,

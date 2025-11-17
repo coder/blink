@@ -7,7 +7,7 @@ import {
 import { MockLanguageModelV2 } from "ai/test";
 import * as blink from "blink";
 import { Client } from "blink/client";
-import { GeneralPurposeCore, type Message, type Options } from "./index";
+import { type Message, Scout } from "./index";
 
 // Add async iterator support to ReadableStream for testing
 declare global {
@@ -50,10 +50,10 @@ const newMockModel = ({
 
 const newAgent = (options: {
   model: MockLanguageModelV2;
-  core?: Omit<ConstructorParameters<typeof GeneralPurposeCore>[0], "agent">;
+  core?: Omit<ConstructorParameters<typeof Scout>[0], "agent">;
 }) => {
-  const agent = new blink.Agent<blink.WithUIOptions<Options, Message>>();
-  const core = new GeneralPurposeCore({ agent, ...options.core });
+  const agent = new blink.Agent<Message>();
+  const core = new Scout({ agent, ...options.core });
   agent.on("request", async () => {
     return new Response("Hello, world!", { status: 200 });
   });
@@ -166,7 +166,7 @@ const newPromise = <T>(timeoutMs: number = 5000) => {
 
 test("core class name", () => {
   // biome-ignore lint/complexity/useLiteralKeys: accessing a private field
-  expect(GeneralPurposeCore["CLASS_NAME"]).toBe(GeneralPurposeCore.name);
+  expect(Scout["CLASS_NAME"]).toBe(Scout.name);
 });
 
 describe("config", async () => {
@@ -196,7 +196,7 @@ describe("config", async () => {
             "Did you provide all required environment variables?"
           );
           expect(log).toInclude(
-            `Alternatively, you can suppress this message by setting \`suppressConfigWarnings\` to \`true\` on \`${GeneralPurposeCore.name}\`.`
+            `Alternatively, you can suppress this message by setting \`suppressConfigWarnings\` to \`true\` on \`${Scout.name}\`.`
           );
         },
       },
@@ -219,7 +219,7 @@ describe("config", async () => {
       },
       {
         name: "full slack config",
-        config: { slack: { botToken: "set", signingSecret: "set" } },
+        config: { slack: { botToken: "test", signingSecret: "set" } },
         assertion: ({ logs }) => {
           const log = findWarningLog(logs);
           expect(log).toBeDefined();
@@ -273,7 +273,7 @@ describe("config", async () => {
         // there's a counterpart to this test called "respond in slack" below
         name: "no slack tools with slack config when not responding in slack",
         config: {
-          slack: { botToken: "set", signingSecret: "set" },
+          slack: { botToken: "test", signingSecret: "set" },
         },
         assertion: ({ callOptions }) => {
           expect(callOptions.tools).toBeUndefined();
@@ -345,7 +345,7 @@ test("respond in slack", async () => {
   await using setupResult = await setup({
     core: {
       logger: noopLogger,
-      slack: { botToken: "set", signingSecret: "set" },
+      slack: { botToken: "test", signingSecret: "set" },
     },
     model: newMockModel({
       textResponse: "slack test",

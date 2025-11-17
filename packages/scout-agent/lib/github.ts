@@ -1,31 +1,19 @@
 import * as github from "@blink-sdk/github";
 import { Octokit } from "@octokit/core";
-import { tool, type UIMessage } from "ai";
+import { type Tool, tool, type UIMessage } from "ai";
 import * as blink from "blink";
-import type { Logger, Message } from "./types";
+import type { Logger } from "./types";
 
 export const getGithubAppContext = async ({
   githubAppID,
   githubAppPrivateKey,
-  messages,
 }: {
   githubAppID: string;
   githubAppPrivateKey: string;
-  messages: Message[];
-}) => {
-  const isSharedChannel = messages.find(
-    (m) => m.metadata?.type === "slack" && m.metadata.shared_channel,
-  );
-  const hasExternalMembers = messages.find(
-    (m) => m.metadata?.type === "slack" && m.metadata.ext_shared_channel,
-  );
-  if (isSharedChannel || hasExternalMembers) {
-    return {
-      appId: githubAppID,
-      privateKey: Buffer.from(githubAppPrivateKey, "base64").toString("utf-8"),
-      repositoryNames: ["coder", "vscode-coder"],
-    };
-  }
+}): Promise<{
+  appId: string;
+  privateKey: string;
+}> => {
   return {
     appId: githubAppID,
     privateKey: Buffer.from(githubAppPrivateKey, "base64").toString("utf-8"),
@@ -37,14 +25,12 @@ export const createGitHubTools = ({
   chatID,
   githubAppID,
   githubAppPrivateKey,
-  messages,
 }: {
   agent: blink.Agent<UIMessage>;
   chatID: blink.ID;
   githubAppID: string;
   githubAppPrivateKey: string;
-  messages: Message[];
-}) => {
+}): Record<string, Tool> => {
   return {
     ...blink.tools.prefix(
       blink.tools.withContext(github.tools, {
@@ -53,12 +39,11 @@ export const createGitHubTools = ({
           const context = await getGithubAppContext({
             githubAppID,
             githubAppPrivateKey,
-            messages,
           });
           return context;
         },
       }),
-      "github_",
+      "github_"
     ),
 
     github_create_pull_request: tool({
@@ -68,11 +53,10 @@ export const createGitHubTools = ({
         const githubAppContext = await getGithubAppContext({
           githubAppID,
           githubAppPrivateKey,
-          messages,
         });
         if (!githubAppContext) {
           throw new Error(
-            "You are not authorized to use this tool in this context.",
+            "You are not authorized to use this tool in this context."
           );
         }
         const token = await github.authenticateApp(githubAppContext);
@@ -93,13 +77,13 @@ export const createGitHubTools = ({
             request: {
               signal: abortSignal,
             },
-          },
+          }
         );
 
         await agent.store.set(`chat-id-for-pr-${response.data.id}`, chatID);
         await agent.store.set(
           `chat-id-for-pr-${response.data.node_id}`,
-          chatID,
+          chatID
         );
 
         return {
@@ -152,7 +136,7 @@ export const handleGitHubWebhook = async ({
   agent: blink.Agent<UIMessage>;
   githubWebhookSecret: string;
   logger: Logger;
-}) => {
+}): Promise<Response> => {
   const { Webhooks } = await import("@octokit/webhooks");
   const webhooks = new Webhooks({
     secret: githubWebhookSecret,
@@ -173,7 +157,7 @@ export const handleGitHubWebhook = async ({
     modelMessage: string;
   }) => {
     const chat = await agent.store.get(
-      `chat-id-for-pr-${props.prNodeID ?? props.prID}`,
+      `chat-id-for-pr-${props.prNodeID ?? props.prID}`
     );
     if (chat) {
       await agent.chat.sendMessages(chat as blink.ID, [

@@ -1,7 +1,7 @@
 import * as compute from "@blink-sdk/compute";
 import type { Client } from "@blink-sdk/compute-protocol/client";
 import * as github from "@blink-sdk/github";
-import { tool } from "ai";
+import { type Tool, tool } from "ai";
 import * as blink from "blink";
 import { z } from "zod";
 import { getGithubAppContext } from "../github";
@@ -10,25 +10,23 @@ import { WORKSPACE_INFO_KEY } from "./common";
 
 export const createComputeTools = ({
   agent,
-  messages,
   githubConfig,
   initializeWorkspace,
   createWorkspaceClient,
 }: {
   agent: blink.Agent<Message>;
-  messages: Message[];
   initializeWorkspace: () => Promise<unknown>;
   createWorkspaceClient: (workspaceInfo: unknown) => Promise<Client>;
   githubConfig?: {
     appID: string;
     privateKey: string;
   };
-}) => {
+}): Record<string, Tool> => {
   const newClient = async () => {
     const workspaceInfo = await agent.store.get(WORKSPACE_INFO_KEY);
     if (!workspaceInfo) {
       throw new Error(
-        "Workspace not initialized. Call initialize_workspace first.",
+        "Workspace not initialized. Call initialize_workspace first."
       );
     }
     const parsedWorkspaceInfo = JSON.parse(workspaceInfo);
@@ -43,7 +41,7 @@ export const createComputeTools = ({
         const workspaceInfo = await initializeWorkspace();
         await agent.store.set(
           WORKSPACE_INFO_KEY,
-          JSON.stringify(workspaceInfo),
+          JSON.stringify(workspaceInfo)
         );
         return "Workspace initialized.";
       },
@@ -71,11 +69,10 @@ It's safe to call this multiple times - re-authenticating is perfectly fine and 
               const githubAppContext = await getGithubAppContext({
                 githubAppID: githubConfig.appID,
                 githubAppPrivateKey: githubConfig.privateKey,
-                messages,
               });
               if (!githubAppContext) {
                 throw new Error(
-                  "You can only use public repositories in this context.",
+                  "You can only use public repositories in this context."
                 );
               }
               const token = await github.authenticateApp({
@@ -98,7 +95,7 @@ It's safe to call this multiple times - re-authenticating is perfectly fine and 
               });
               if (respWait.exit_code !== 0) {
                 throw new Error(
-                  `Failed to authenticate with Git. Output: ${respWait.plain_output.lines.join("\n")}`,
+                  `Failed to authenticate with Git. Output: ${respWait.plain_output.lines.join("\n")}`
                 );
               }
               return "Git authenticated.";

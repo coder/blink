@@ -1,7 +1,7 @@
 import * as slack from "@blink-sdk/slack";
 import type { KnownEventFromType } from "@slack/bolt";
 import { App } from "@slack/bolt";
-import type { UIMessage } from "ai";
+import type { Tool, UIMessage } from "ai";
 import * as blink from "blink";
 import type { Message } from "./types";
 
@@ -13,7 +13,7 @@ export const createSlackApp = ({
   agent: blink.Agent<UIMessage>;
   slackSigningSecret: string;
   slackBotToken: string;
-}) => {
+}): { app: App; receiver: slack.Receiver } => {
   const receiver = new slack.Receiver({
     signingSecret: slackSigningSecret,
   });
@@ -43,7 +43,7 @@ export const createSlackApp = ({
           event,
           slackApp: app,
           agent,
-        }),
+        })
       );
     }
   });
@@ -94,10 +94,14 @@ const handleSlackEvent = async ({
   }
 };
 
-export const createSlackTools = ({ slackApp }: { slackApp: App }) => {
+export const createSlackTools = ({
+  slackApp,
+}: {
+  slackApp: App;
+}): Record<string, Tool> => {
   return blink.tools.prefix(
     slack.createTools({ client: slackApp.client }),
-    "slack_",
+    "slack_"
   );
 };
 

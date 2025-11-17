@@ -1,8 +1,12 @@
-import { tool } from "ai";
+import { type Tool, tool } from "ai";
 import { Exa } from "exa-js";
 import { z } from "zod";
 
-export const createWebSearchTools = ({ exaApiKey }: { exaApiKey: string }) => {
+export const createWebSearchTools = ({
+  exaApiKey,
+}: {
+  exaApiKey: string;
+}): { web_search: Tool } => {
   const exaClient = new Exa(exaApiKey);
 
   return {

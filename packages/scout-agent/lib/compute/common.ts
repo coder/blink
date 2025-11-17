@@ -5,7 +5,7 @@ import type { WebSocket } from "ws";
 
 export const WORKSPACE_INFO_KEY = "__compute_workspace_id";
 
-export const newComputeClient = async (ws: WebSocket) => {
+export const newComputeClient = async (ws: WebSocket): Promise<Client> => {
   return new Promise<Client>((resolve, reject) => {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
