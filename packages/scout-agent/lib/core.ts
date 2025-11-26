@@ -1,3 +1,4 @@
+import util from "node:util";
 import type { ProviderOptions } from "@ai-sdk/provider-utils";
 import withModelIntent from "@blink-sdk/model-intent";
 import * as slack from "@blink-sdk/slack";
@@ -11,6 +12,12 @@ import {
 } from "ai";
 import type * as blink from "blink";
 import {
+  type DaytonaWorkspaceInfo,
+  getDaytonaWorkspaceClient,
+  initializeDaytonaWorkspace,
+} from "./compute/daytona/index";
+import {
+  type DockerWorkspaceInfo,
   getDockerWorkspaceClient,
   initializeDockerWorkspace,
 } from "./compute/docker";
@@ -59,6 +66,21 @@ interface WebSearchConfig {
   exaApiKey: string;
 }
 
+export interface DaytonaConfig {
+  apiKey: string;
+  computeServerPort: number;
+  /** The snapshot must initialize the Blink compute server on `computeServerPort`. */
+  snapshot: string;
+  /** Default is 60. */
+  autoDeleteIntervalMinutes?: number;
+  envVars?: Record<string, string>;
+  labels?: Record<string, string>;
+}
+
+type ComputeConfig =
+  | { type: "docker" }
+  | { type: "daytona"; options: DaytonaConfig };
+
 const loadConfig = <K extends readonly string[]>(
   input: ConfigFields<Record<K[number], string>> | undefined,
   fields: K
@@ -105,6 +127,16 @@ const loadConfig = <K extends readonly string[]>(
   };
 };
 
+export interface ScoutOptions {
+  agent: blink.Agent<Message>;
+  github?: ConfigFields<GitHubConfig>;
+  slack?: ConfigFields<SlackConfig>;
+  webSearch?: ConfigFields<WebSearchConfig>;
+  compute?: ComputeConfig;
+  logger?: Logger;
+  suppressConfigWarnings?: boolean;
+}
+
 export class Scout {
   // we declare the class name here instead of using the `name` property
   // because the latter may be overridden by the bundler
@@ -131,20 +163,12 @@ export class Scout {
     | { config: WebSearchConfig; warningMessage?: undefined }
     | { config?: undefined; warningMessage: string };
   private readonly compute:
-    | { config: { type: "docker" }; warningMessage?: undefined }
+    | { config: ComputeConfig; warningMessage?: undefined }
     | { config?: undefined; warningMessage: string };
 
   private readonly logger: Logger;
 
-  constructor(options: {
-    agent: blink.Agent<Message>;
-    github?: ConfigFields<GitHubConfig>;
-    slack?: ConfigFields<SlackConfig>;
-    webSearch?: ConfigFields<WebSearchConfig>;
-    compute?: { type: "docker" };
-    logger?: Logger;
-    suppressConfigWarnings?: boolean;
-  }) {
+  constructor(options: ScoutOptions) {
     this.agent = options.agent;
     this.github = loadConfig(options.github, [
       "appID",
@@ -249,6 +273,55 @@ export class Scout {
     const respondingInSlack =
       this.slack.app !== undefined && slackMetadata !== undefined;
 
+    let computeTools: Record<string, Tool> = {};
+    const computeConfig = this.compute.config;
+    switch (computeConfig?.type) {
+      case "docker": {
+        computeTools = createComputeTools<DockerWorkspaceInfo>({
+          agent: this.agent,
+          githubConfig: this.github.config,
+          initializeWorkspace: initializeDockerWorkspace,
+          createWorkspaceClient: getDockerWorkspaceClient,
+        });
+        break;
+      }
+      case "daytona": {
+        const opts = computeConfig.options;
+        computeTools = createComputeTools<DaytonaWorkspaceInfo>({
+          agent: this.agent,
+          githubConfig: this.github.config,
+          initializeWorkspace: (info) =>
+            initializeDaytonaWorkspace(
+              this.logger,
+              {
+                daytonaApiKey: opts.apiKey,
+                snapshot: opts.snapshot,
+                autoDeleteIntervalMinutes: opts.autoDeleteIntervalMinutes,
+                envVars: opts.envVars,
+                labels: opts.labels,
+              },
+              info
+            ),
+          createWorkspaceClient: (info) =>
+            getDaytonaWorkspaceClient(
+              {
+                daytonaApiKey: opts.apiKey,
+                computeServerPort: opts.computeServerPort,
+              },
+              info
+            ),
+        });
+        break;
+      }
+      default: {
+        // exhaustiveness check
+        computeConfig satisfies undefined;
+        throw new Error(
+          `unexpected compute config: ${util.inspect(computeConfig)}`
+        );
+      }
+    }
+
     const tools = {
       ...(this.webSearch.config
         ? createWebSearchTools({ exaApiKey: this.webSearch.config.exaApiKey })
@@ -264,14 +337,7 @@ export class Scout {
             githubAppPrivateKey: this.github.config.privateKey,
           })
         : undefined),
-      ...(this.compute.config?.type === "docker"
-        ? createComputeTools({
-            agent: this.agent,
-            githubConfig: this.github.config,
-            initializeWorkspace: initializeDockerWorkspace,
-            createWorkspaceClient: getDockerWorkspaceClient,
-          })
-        : {}),
+      ...computeTools,
       ...providedTools,
     };
 

@@ -8,15 +8,17 @@ import { getGithubAppContext } from "../github";
 import type { Message } from "../types";
 import { WORKSPACE_INFO_KEY } from "./common";
 
-export const createComputeTools = ({
+export const createComputeTools = <T>({
   agent,
   githubConfig,
   initializeWorkspace,
   createWorkspaceClient,
 }: {
   agent: blink.Agent<Message>;
-  initializeWorkspace: () => Promise<unknown>;
-  createWorkspaceClient: (workspaceInfo: unknown) => Promise<Client>;
+  initializeWorkspace: (
+    existingWorkspaceInfo: T | undefined
+  ) => Promise<{ workspaceInfo: T; message: string }>;
+  createWorkspaceClient: (workspaceInfo: T) => Promise<Client>;
   githubConfig?: {
     appID: string;
     privateKey: string;
@@ -38,12 +40,19 @@ export const createComputeTools = ({
       description: "Initialize a workspace for the user.",
       inputSchema: z.object({}),
       execute: async (_args, _opts) => {
-        const workspaceInfo = await initializeWorkspace();
+        const existingWorkspaceInfoRaw =
+          await agent.store.get(WORKSPACE_INFO_KEY);
+        const existingWorkspaceInfo = existingWorkspaceInfoRaw
+          ? JSON.parse(existingWorkspaceInfoRaw)
+          : undefined;
+        const { workspaceInfo, message } = await initializeWorkspace(
+          existingWorkspaceInfo
+        );
         await agent.store.set(
           WORKSPACE_INFO_KEY,
           JSON.stringify(workspaceInfo)
         );
-        return "Workspace initialized.";
+        return message;
       },
     }),
 

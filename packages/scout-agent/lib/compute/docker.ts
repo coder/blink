@@ -48,7 +48,7 @@ const dockerWorkspaceInfoSchema: z.ZodObject<{
   containerName: z.string(),
 });
 
-type DockerWorkspaceInfo = z.infer<typeof dockerWorkspaceInfoSchema>;
+export type DockerWorkspaceInfo = z.infer<typeof dockerWorkspaceInfoSchema>;
 
 const COMPUTE_SERVER_PORT = 22137;
 const BOOTSTRAP_SCRIPT = `
@@ -83,83 +83,86 @@ const DOCKERFILE_HASH = crypto
   .slice(0, 16);
 const DOCKERFILE_BASE64 = Buffer.from(DOCKERFILE).toString("base64");
 
-export const initializeDockerWorkspace =
-  async (): Promise<DockerWorkspaceInfo> => {
-    const { exitCode: versionExitCode } = await execProcess("docker --version");
-    if (versionExitCode !== 0) {
+export const initializeDockerWorkspace = async (): Promise<{
+  workspaceInfo: DockerWorkspaceInfo;
+  message: string;
+}> => {
+  const { exitCode: versionExitCode } = await execProcess("docker --version");
+  if (versionExitCode !== 0) {
+    throw new Error(
+      `Docker is not available. Please install it or choose a different workspace provider.`
+    );
+  }
+
+  const imageName = `blink-workspace:${DOCKERFILE_HASH}`;
+  const { exitCode: dockerImageExistsExitCode } = await execProcess(
+    `docker image inspect ${imageName}`
+  );
+  if (dockerImageExistsExitCode !== 0) {
+    const buildCmd = `echo "${DOCKERFILE_BASE64}" | base64 -d | docker build -t ${imageName} -f - .`;
+    const {
+      exitCode: buildExitCode,
+      stdout: buildStdout,
+      stderr: buildStderr,
+    } = await execProcess(buildCmd);
+    if (buildExitCode !== 0) {
       throw new Error(
-        `Docker is not available. Please install it or choose a different workspace provider.`
+        `Failed to build docker image ${imageName}. Build output: ${buildStdout}\n${buildStderr}`
       );
     }
+  }
 
-    const imageName = `blink-workspace:${DOCKERFILE_HASH}`;
-    const { exitCode: dockerImageExistsExitCode } = await execProcess(
-      `docker image inspect ${imageName}`
-    );
-    if (dockerImageExistsExitCode !== 0) {
-      const buildCmd = `echo "${DOCKERFILE_BASE64}" | base64 -d | docker build -t ${imageName} -f - .`;
-      const {
-        exitCode: buildExitCode,
-        stdout: buildStdout,
-        stderr: buildStderr,
-      } = await execProcess(buildCmd);
-      if (buildExitCode !== 0) {
-        throw new Error(
-          `Failed to build docker image ${imageName}. Build output: ${buildStdout}\n${buildStderr}`
-        );
-      }
-    }
+  const containerName = `blink-workspace-${crypto.randomUUID()}`;
+  const { exitCode: runExitCode } = await execProcess(
+    `docker run -d --publish ${COMPUTE_SERVER_PORT} --name ${containerName} ${imageName} bash -c 'echo "${BOOTSTRAP_SCRIPT_BASE64}" | base64 -d | bash'`
+  );
+  if (runExitCode !== 0) {
+    throw new Error(`Failed to run docker container ${containerName}`);
+  }
 
-    const containerName = `blink-workspace-${crypto.randomUUID()}`;
-    const { exitCode: runExitCode } = await execProcess(
-      `docker run -d --publish ${COMPUTE_SERVER_PORT} --name ${containerName} ${imageName} bash -c 'echo "${BOOTSTRAP_SCRIPT_BASE64}" | base64 -d | bash'`
-    );
-    if (runExitCode !== 0) {
-      throw new Error(`Failed to run docker container ${containerName}`);
-    }
-
-    const timeout = 60000;
-    const start = Date.now();
-    while (true) {
-      const {
-        exitCode: inspectExitCode,
-        stdout,
-        stderr,
-      } = await execProcess(
-        `docker container inspect -f json ${containerName}`
+  const timeout = 60000;
+  const start = Date.now();
+  while (true) {
+    const {
+      exitCode: inspectExitCode,
+      stdout,
+      stderr,
+    } = await execProcess(`docker container inspect -f json ${containerName}`);
+    if (inspectExitCode !== 0) {
+      throw new Error(
+        `Failed to run docker container ${containerName}. Inspect failed: ${stdout}\n${stderr}`
       );
-      if (inspectExitCode !== 0) {
-        throw new Error(
-          `Failed to run docker container ${containerName}. Inspect failed: ${stdout}\n${stderr}`
-        );
-      }
-      const inspectOutput = dockerInspectSchema.parse(JSON.parse(stdout));
-      if (!inspectOutput[0]?.State.Running) {
-        throw new Error(`Docker container ${containerName} is not running.`);
-      }
-      if (Date.now() - start > timeout) {
-        throw new Error(
-          `Timeout waiting for docker container ${containerName} to start.`
-        );
-      }
-      const {
-        exitCode: logsExitCode,
-        stdout: logsOutput,
-        stderr: logsStderr,
-      } = await execProcess(`docker container logs ${containerName}`);
-      if (logsExitCode !== 0) {
-        throw new Error(
-          `Failed to get logs for docker container ${containerName}. Logs: ${logsOutput}\n${logsStderr}`
-        );
-      }
-      if (logsOutput.includes("Compute server running")) {
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 500));
     }
+    const inspectOutput = dockerInspectSchema.parse(JSON.parse(stdout));
+    if (!inspectOutput[0]?.State.Running) {
+      throw new Error(`Docker container ${containerName} is not running.`);
+    }
+    if (Date.now() - start > timeout) {
+      throw new Error(
+        `Timeout waiting for docker container ${containerName} to start.`
+      );
+    }
+    const {
+      exitCode: logsExitCode,
+      stdout: logsOutput,
+      stderr: logsStderr,
+    } = await execProcess(`docker container logs ${containerName}`);
+    if (logsExitCode !== 0) {
+      throw new Error(
+        `Failed to get logs for docker container ${containerName}. Logs: ${logsOutput}\n${logsStderr}`
+      );
+    }
+    if (logsOutput.includes("Compute server running")) {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
 
-    return { containerName };
+  return {
+    workspaceInfo: { containerName },
+    message: "Workspace initialized.",
   };
+};
 
 const dockerInspectSchema = z.array(
   z.object({
