@@ -5,6 +5,7 @@ import { createServerAdapter } from "@whatwg-node/server";
 import {
   readUIMessageStream,
   simulateReadableStream,
+  streamText,
   type UIMessage,
 } from "ai";
 import { MockLanguageModelV2 } from "ai/test";
@@ -64,11 +65,12 @@ const newAgent = (options: {
     return new Response("Hello, world!", { status: 200 });
   });
   agent.on("chat", async ({ messages }) => {
-    return core.streamStepResponse({
+    const params = core.buildStreamTextParams({
       model: options.model,
       messages,
       chatID: "b485db32-3d53-45fb-b980-6f4672fc66a6",
     });
+    return streamText(params);
   });
   return agent;
 };
@@ -611,11 +613,12 @@ describe("daytona integration", () => {
       },
     });
 
-    const result = scout.streamStepResponse({
+    const params = scout.buildStreamTextParams({
       chatID: "test-chat-id" as blink.ID,
       messages: [],
       model: newMockModel({ textResponse: "test" }),
     });
+    const result = streamText(params);
 
     // Access the tools from the result and call initialize_workspace directly
     // biome-ignore lint/suspicious/noExplicitAny: accessing internal tools for testing
@@ -677,11 +680,12 @@ describe("daytona integration", () => {
       },
     });
 
-    const result = scout.streamStepResponse({
+    const params = scout.buildStreamTextParams({
       chatID: "test-chat-id" as blink.ID,
       messages: [],
       model: newMockModel({ textResponse: "test" }),
     });
+    const result = streamText(params);
 
     // biome-ignore lint/suspicious/noExplicitAny: accessing internal tools for testing
     const tools = (result as any).tools as Record<

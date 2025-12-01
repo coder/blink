@@ -1,15 +1,9 @@
 import util from "node:util";
-import type { ProviderOptions } from "@ai-sdk/provider-utils";
+import type { ModelMessage, ProviderOptions } from "@ai-sdk/provider-utils";
 import withModelIntent from "@blink-sdk/model-intent";
 import * as slack from "@blink-sdk/slack";
 import type { App } from "@slack/bolt";
-import {
-  convertToModelMessages,
-  type LanguageModel,
-  type StreamTextResult,
-  streamText,
-  type Tool,
-} from "ai";
+import { convertToModelMessages, type LanguageModel, type Tool } from "ai";
 import type * as blink from "blink";
 import {
   type DaytonaClient,
@@ -260,14 +254,20 @@ export class Scout {
     }
   }
 
-  streamStepResponse({
+  buildStreamTextParams({
     messages,
     chatID,
     model,
     providerOptions,
     tools: providedTools,
     systemPrompt = defaultSystemPrompt,
-  }: StreamStepResponseOptions): StreamTextResult<Tools, never> {
+  }: StreamStepResponseOptions): {
+    model: LanguageModel;
+    messages: ModelMessage[];
+    maxOutputTokens: number;
+    providerOptions?: ProviderOptions;
+    tools: Tools;
+  } {
     if (!this.suppressConfigWarnings) {
       this.printConfigWarnings();
     }
@@ -376,12 +376,12 @@ ${slack.formattingRules}
     }
     lastMessage.providerOptions = providerOptions;
 
-    return streamText({
+    return {
       model,
       messages: converted,
       maxOutputTokens: 64_000,
       providerOptions,
       tools: withModelIntent(tools),
-    });
+    };
   }
 }

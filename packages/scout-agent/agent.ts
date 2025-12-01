@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { streamText, tool } from "ai";
 import * as blink from "blink";
 import { z } from "zod";
 import { type Message, Scout } from "./lib";
@@ -36,9 +36,9 @@ agent.on("request", async (request) => {
 });
 
 agent.on("chat", async ({ id, messages }) => {
-  return scout.streamStepResponse({
-    chatID: id,
+  const params = scout.buildStreamTextParams({
     messages,
+    chatID: id,
     model: "anthropic/claude-sonnet-4.5",
     providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
     tools: {
@@ -51,6 +51,7 @@ agent.on("chat", async ({ id, messages }) => {
       }),
     },
   });
+  return streamText(params);
 });
 
 agent.serve();
