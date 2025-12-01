@@ -1,7 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import * as http from "node:http";
 import { Server as ComputeServer } from "@blink-sdk/compute-protocol/server";
-import { createServerAdapter } from "@whatwg-node/server";
 import {
   readUIMessageStream,
   simulateReadableStream,
@@ -11,10 +9,14 @@ import {
 import { MockLanguageModelV2 } from "ai/test";
 import * as blink from "blink";
 import { Client } from "blink/client";
-import { api as controlApi } from "blink/control";
 import { WebSocketServer } from "ws";
 import type { DaytonaClient, DaytonaSandbox } from "./compute/daytona/index";
 import { type Message, Scout } from "./index";
+import {
+  createMockBlinkApiServer,
+  noopLogger,
+  withBlinkApiUrl,
+} from "./test-helpers";
 
 // Add async iterator support to ReadableStream for testing
 declare global {
@@ -341,12 +343,6 @@ describe("config", async () => {
   }
 });
 
-const noopLogger = {
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-};
-
 test("respond in slack", async () => {
   const { promise: doStreamOptionsPromise, resolve } =
     newPromise<DoStreamOptions>();
@@ -393,98 +389,6 @@ test("respond in slack", async () => {
   );
 });
 
-// Mock Blink API server for integration tests
-const createMockBlinkApiServer = () => {
-  const storage: Record<string, string> = {};
-
-  const storeImpl: blink.AgentStore = {
-    async get(key) {
-      const decodedKey = decodeURIComponent(key);
-      return storage[decodedKey];
-    },
-    async set(key, value) {
-      const decodedKey = decodeURIComponent(key);
-      storage[decodedKey] = value;
-    },
-    async delete(key) {
-      const decodedKey = decodeURIComponent(key);
-      delete storage[decodedKey];
-    },
-    async list(prefix, options) {
-      const decodedPrefix = prefix ? decodeURIComponent(prefix) : undefined;
-      const limit = Math.min(options?.limit ?? 100, 1000);
-      const allKeys = Object.keys(storage)
-        .filter((key) => !decodedPrefix || key.startsWith(decodedPrefix))
-        .sort();
-      let startIndex = 0;
-      if (options?.cursor) {
-        const cursorIndex = allKeys.indexOf(options.cursor);
-        if (cursorIndex !== -1) startIndex = cursorIndex + 1;
-      }
-      const keysToReturn = allKeys.slice(startIndex, startIndex + limit);
-      return {
-        entries: keysToReturn.map((key) => ({ key })),
-        cursor:
-          startIndex + limit < allKeys.length
-            ? keysToReturn[keysToReturn.length - 1]
-            : undefined,
-      };
-    },
-  };
-
-  const chatImpl: blink.AgentChat = {
-    async upsert() {
-      return {
-        id: "00000000-0000-0000-0000-000000000000" as blink.ID,
-        created: true,
-        createdAt: new Date().toISOString(),
-      };
-    },
-    async get() {
-      return undefined;
-    },
-    async getMessages() {
-      return [];
-    },
-    async sendMessages() {},
-    async deleteMessages() {},
-    async start() {},
-    async stop() {},
-    async delete() {},
-  };
-
-  const server = http.createServer(
-    createServerAdapter((req) => {
-      return controlApi.fetch(req, {
-        chat: chatImpl,
-        store: storeImpl,
-        // biome-ignore lint/suspicious/noExplicitAny: mock
-        otlp: undefined as any,
-      });
-    })
-  );
-
-  server.listen(0);
-
-  const getUrl = () => {
-    const addr = server.address();
-    if (addr && typeof addr !== "string") {
-      return `http://127.0.0.1:${addr.port}`;
-    }
-    return "http://127.0.0.1:0";
-  };
-
-  return {
-    get url() {
-      return getUrl();
-    },
-    storage,
-    [Symbol.dispose]: () => {
-      server.close();
-    },
-  };
-};
-
 // Daytona integration test helpers
 const createMockDaytonaSandbox = (
   overrides: Partial<DaytonaSandbox> = {}
@@ -504,20 +408,6 @@ const createMockDaytonaSdk = (
   get: mock(() => Promise.resolve(sandbox)),
   create: mock(() => Promise.resolve(sandbox)),
 });
-
-const withBlinkApiUrl = (url: string) => {
-  const originalApiUrl = process.env.BLINK_API_URL;
-  process.env.BLINK_API_URL = url;
-  return {
-    [Symbol.dispose]: () => {
-      if (originalApiUrl) {
-        process.env.BLINK_API_URL = originalApiUrl;
-      } else {
-        delete process.env.BLINK_API_URL;
-      }
-    },
-  };
-};
 
 const createMockComputeServer = () => {
   const wss = new WebSocketServer({ port: 0 });
