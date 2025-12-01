@@ -318,9 +318,13 @@ export class Scout {
         });
         break;
       }
+      case undefined: {
+        // No compute configured, leave computeTools empty
+        break;
+      }
       default: {
         // exhaustiveness check
-        computeConfig satisfies undefined;
+        computeConfig satisfies never;
         throw new Error(
           `unexpected compute config: ${util.inspect(computeConfig)}`
         );

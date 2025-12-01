@@ -1,4 +1,7 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
+import * as http from "node:http";
+import { Server as ComputeServer } from "@blink-sdk/compute-protocol/server";
+import { createServerAdapter } from "@whatwg-node/server";
 import {
   readUIMessageStream,
   simulateReadableStream,
@@ -7,6 +10,9 @@ import {
 import { MockLanguageModelV2 } from "ai/test";
 import * as blink from "blink";
 import { Client } from "blink/client";
+import { api as controlApi } from "blink/control";
+import { WebSocketServer } from "ws";
+import type { DaytonaClient, DaytonaSandbox } from "./compute/daytona/index";
 import { type Message, Scout } from "./index";
 
 // Add async iterator support to ReadableStream for testing
@@ -383,4 +389,342 @@ test("respond in slack", async () => {
   expect(JSON.stringify(callOptions.prompt)).toInclude(
     "report your Slack status"
   );
+});
+
+// Mock Blink API server for integration tests
+const createMockBlinkApiServer = () => {
+  const storage: Record<string, string> = {};
+
+  const storeImpl: blink.AgentStore = {
+    async get(key) {
+      const decodedKey = decodeURIComponent(key);
+      return storage[decodedKey];
+    },
+    async set(key, value) {
+      const decodedKey = decodeURIComponent(key);
+      storage[decodedKey] = value;
+    },
+    async delete(key) {
+      const decodedKey = decodeURIComponent(key);
+      delete storage[decodedKey];
+    },
+    async list(prefix, options) {
+      const decodedPrefix = prefix ? decodeURIComponent(prefix) : undefined;
+      const limit = Math.min(options?.limit ?? 100, 1000);
+      const allKeys = Object.keys(storage)
+        .filter((key) => !decodedPrefix || key.startsWith(decodedPrefix))
+        .sort();
+      let startIndex = 0;
+      if (options?.cursor) {
+        const cursorIndex = allKeys.indexOf(options.cursor);
+        if (cursorIndex !== -1) startIndex = cursorIndex + 1;
+      }
+      const keysToReturn = allKeys.slice(startIndex, startIndex + limit);
+      return {
+        entries: keysToReturn.map((key) => ({ key })),
+        cursor:
+          startIndex + limit < allKeys.length
+            ? keysToReturn[keysToReturn.length - 1]
+            : undefined,
+      };
+    },
+  };
+
+  const chatImpl: blink.AgentChat = {
+    async upsert() {
+      return {
+        id: "00000000-0000-0000-0000-000000000000" as blink.ID,
+        created: true,
+        createdAt: new Date().toISOString(),
+      };
+    },
+    async get() {
+      return undefined;
+    },
+    async getMessages() {
+      return [];
+    },
+    async sendMessages() {},
+    async deleteMessages() {},
+    async start() {},
+    async stop() {},
+    async delete() {},
+  };
+
+  const server = http.createServer(
+    createServerAdapter((req) => {
+      return controlApi.fetch(req, {
+        chat: chatImpl,
+        store: storeImpl,
+        // biome-ignore lint/suspicious/noExplicitAny: mock
+        otlp: undefined as any,
+      });
+    })
+  );
+
+  server.listen(0);
+
+  const getUrl = () => {
+    const addr = server.address();
+    if (addr && typeof addr !== "string") {
+      return `http://127.0.0.1:${addr.port}`;
+    }
+    return "http://127.0.0.1:0";
+  };
+
+  return {
+    get url() {
+      return getUrl();
+    },
+    storage,
+    [Symbol.dispose]: () => {
+      server.close();
+    },
+  };
+};
+
+// Daytona integration test helpers
+const createMockDaytonaSandbox = (
+  overrides: Partial<DaytonaSandbox> = {}
+): DaytonaSandbox => ({
+  id: "test-workspace-id",
+  state: "started",
+  start: mock(() => Promise.resolve()),
+  getPreviewLink: mock(() =>
+    Promise.resolve({ url: "ws://localhost:9999", token: "test-token" })
+  ),
+  ...overrides,
+});
+
+const createMockDaytonaSdk = (
+  sandbox: DaytonaSandbox = createMockDaytonaSandbox()
+): DaytonaClient => ({
+  get: mock(() => Promise.resolve(sandbox)),
+  create: mock(() => Promise.resolve(sandbox)),
+});
+
+const withBlinkApiUrl = (url: string) => {
+  const originalApiUrl = process.env.BLINK_API_URL;
+  process.env.BLINK_API_URL = url;
+  return {
+    [Symbol.dispose]: () => {
+      if (originalApiUrl) {
+        process.env.BLINK_API_URL = originalApiUrl;
+      } else {
+        delete process.env.BLINK_API_URL;
+      }
+    },
+  };
+};
+
+const createMockComputeServer = () => {
+  const wss = new WebSocketServer({ port: 0 });
+  const address = wss.address();
+  const port =
+    typeof address === "object" && address !== null ? address.port : 0;
+  const url = `ws://localhost:${port}`;
+
+  wss.on("connection", (ws) => {
+    // Create the compute protocol server that sends responses via WebSocket
+    const computeServer = new ComputeServer({
+      send: (message: Uint8Array) => {
+        ws.send(message);
+      },
+    });
+
+    // Forward WebSocket messages to the compute server
+    ws.on("message", (data: Buffer) => {
+      computeServer.handleMessage(new Uint8Array(data));
+    });
+  });
+
+  return {
+    url,
+    [Symbol.dispose]: () => {
+      wss.close();
+    },
+  };
+};
+
+describe("daytona integration", () => {
+  test("Scout creates compute tools for daytona config", async () => {
+    const { promise: doStreamOptionsPromise, resolve } =
+      newPromise<DoStreamOptions>();
+
+    const mockSdk = createMockDaytonaSdk();
+
+    await using setupResult = await setup({
+      core: {
+        logger: noopLogger,
+        compute: {
+          type: "daytona",
+          options: {
+            apiKey: "test-api-key",
+            computeServerPort: 3000,
+            snapshot: "test-snapshot",
+            daytonaSdk: mockSdk,
+          },
+        },
+      },
+      model: newMockModel({
+        textResponse: "daytona test",
+        onDoStream: (options) => {
+          resolve(options);
+        },
+      }),
+    });
+    const { client } = setupResult;
+
+    const stream = await sendUserMessage(client, "hello");
+    for await (const _message of stream) {
+      // consume the stream
+    }
+
+    const callOptions = await doStreamOptionsPromise;
+    expect(callOptions.tools).toBeDefined();
+    expect(
+      callOptions.tools?.find((tool) => tool.name === "initialize_workspace")
+    ).toBeDefined();
+  });
+
+  test("initialize_workspace tool triggers daytona SDK", async () => {
+    using apiServer = createMockBlinkApiServer();
+    using _env = withBlinkApiUrl(apiServer.url);
+
+    const mockSandbox = createMockDaytonaSandbox({
+      id: "new-daytona-workspace",
+    });
+    const mockSdk = createMockDaytonaSdk(mockSandbox);
+
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger: noopLogger,
+      compute: {
+        type: "daytona",
+        options: {
+          apiKey: "test-api-key",
+          computeServerPort: 3000,
+          snapshot: "test-snapshot",
+          daytonaSdk: mockSdk,
+        },
+      },
+    });
+
+    const result = scout.streamStepResponse({
+      chatID: "test-chat-id" as blink.ID,
+      messages: [],
+      model: newMockModel({ textResponse: "test" }),
+    });
+
+    // Access the tools from the result and call initialize_workspace directly
+    // biome-ignore lint/suspicious/noExplicitAny: accessing internal tools for testing
+    const tools = (result as any).tools as Record<
+      string,
+      // biome-ignore lint/suspicious/noExplicitAny: mock input
+      { execute: (input: any) => Promise<string> }
+    >;
+    const initTool = tools.initialize_workspace;
+    expect(initTool).toBeDefined();
+
+    // Execute the tool - withModelIntent wrapper expects { model_intent, properties }
+    // biome-ignore lint/style/noNonNullAssertion: we just checked it's defined
+    const toolResult = await initTool!.execute({
+      model_intent: "initializing workspace",
+      properties: {},
+    });
+
+    expect(toolResult).toBe("Workspace initialized.");
+    expect(mockSdk.create).toHaveBeenCalledTimes(1);
+    expect(mockSdk.create).toHaveBeenCalledWith({
+      snapshot: "test-snapshot",
+      autoDeleteInterval: 60,
+      envVars: undefined,
+      labels: undefined,
+    });
+
+    // Verify workspace info was stored
+    expect(apiServer.storage.__compute_workspace_id).toBe(
+      JSON.stringify({ id: "new-daytona-workspace" })
+    );
+  });
+
+  test("compute tools use daytona client to connect to workspace", async () => {
+    using apiServer = createMockBlinkApiServer();
+    using computeServer = createMockComputeServer();
+    using _env = withBlinkApiUrl(apiServer.url);
+
+    const mockSandbox = createMockDaytonaSandbox({
+      id: "workspace-for-compute",
+      getPreviewLink: mock(() =>
+        Promise.resolve({ url: computeServer.url, token: "test-token" })
+      ),
+    });
+    const mockSdk = createMockDaytonaSdk(mockSandbox);
+
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger: noopLogger,
+      compute: {
+        type: "daytona",
+        options: {
+          apiKey: "test-api-key",
+          computeServerPort: 2137,
+          snapshot: "test-snapshot",
+          daytonaSdk: mockSdk,
+        },
+      },
+    });
+
+    const result = scout.streamStepResponse({
+      chatID: "test-chat-id" as blink.ID,
+      messages: [],
+      model: newMockModel({ textResponse: "test" }),
+    });
+
+    // biome-ignore lint/suspicious/noExplicitAny: accessing internal tools for testing
+    const tools = (result as any).tools as Record<
+      string,
+      // biome-ignore lint/suspicious/noExplicitAny: mock input
+      { execute: (input: any) => Promise<unknown> }
+    >;
+
+    // First, initialize the workspace
+    // biome-ignore lint/style/noNonNullAssertion: we know it exists
+    await tools.initialize_workspace!.execute({
+      model_intent: "initializing workspace",
+      properties: {},
+    });
+
+    expect(mockSdk.create).toHaveBeenCalledTimes(1);
+    expect(mockSdk.get).not.toHaveBeenCalled();
+
+    // Now call a compute tool that uses the workspace client
+    // This should trigger getDaytonaWorkspaceClient which calls daytona.get()
+    const readDirTool = tools.read_directory;
+    expect(readDirTool).toBeDefined();
+
+    // Call the tool - the compute server will handle the request
+    // biome-ignore lint/suspicious/noExplicitAny: test result
+    // biome-ignore lint/style/noNonNullAssertion: we just checked it's defined
+    const readResult: any = await readDirTool!.execute({
+      model_intent: "reading directory",
+      properties: {
+        directory_path: "/tmp",
+      },
+    });
+
+    // Verify the compute server responded correctly
+    expect(readResult).toBeDefined();
+    expect(readResult.entries).toBeDefined();
+
+    // Verify that the daytona SDK was used to get the workspace
+    expect(mockSdk.get).toHaveBeenCalledTimes(1);
+    expect(mockSdk.get).toHaveBeenCalledWith("workspace-for-compute");
+
+    // Verify getPreviewLink was called with the correct port
+    expect(mockSandbox.getPreviewLink).toHaveBeenCalledTimes(1);
+    expect(mockSandbox.getPreviewLink).toHaveBeenCalledWith(2137);
+  });
 });
