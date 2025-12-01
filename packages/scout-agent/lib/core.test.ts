@@ -174,11 +174,6 @@ const newPromise = <T>(timeoutMs: number = 5000) => {
   };
 };
 
-test("core class name", () => {
-  // biome-ignore lint/complexity/useLiteralKeys: accessing a private field
-  expect(Scout["CLASS_NAME"]).toBe(Scout.name);
-});
-
 describe("config", async () => {
   const findWarningLog = (logs: unknown[]) => {
     return logs.find(
@@ -191,23 +186,9 @@ describe("config", async () => {
         name: "empty config",
         config: {},
         assertion: ({ logs }) => {
+          // No warnings when config is not provided at all
           const log = findWarningLog(logs);
-          expect(log).toBeDefined();
-          expect(log).toInclude(
-            "GitHub is not configured. The `appID`, `privateKey`, and `webhookSecret` config fields are undefined."
-          );
-          expect(log).toInclude(
-            "Slack is not configured. The `botToken` and `signingSecret` config fields are undefined."
-          );
-          expect(log).toInclude(
-            "Web search is not configured. The `exaApiKey` config field is undefined."
-          );
-          expect(log).toInclude(
-            "Did you provide all required environment variables?"
-          );
-          expect(log).toInclude(
-            `Alternatively, you can suppress this message by setting \`suppressConfigWarnings\` to \`true\` on \`${Scout.name}\`.`
-          );
+          expect(log).toBeUndefined();
         },
       },
       {
@@ -223,7 +204,37 @@ describe("config", async () => {
           const log = findWarningLog(logs);
           expect(log).toBeDefined();
           expect(log).toInclude(
-            "GitHub is not configured. The `privateKey` and `webhookSecret` config fields are undefined."
+            "GitHub is not configured. The `privateKey` and `webhookSecret` config fields are undefined. You may remove the `github` config object to suppress this warning."
+          );
+        },
+      },
+      {
+        name: "multiple partial configs",
+        config: {
+          github: {
+            appID: "set",
+            privateKey: undefined,
+            webhookSecret: undefined,
+          },
+          slack: {
+            botToken: undefined,
+            signingSecret: "set",
+          },
+          webSearch: {
+            exaApiKey: undefined,
+          },
+        },
+        assertion: ({ logs }) => {
+          const log = findWarningLog(logs);
+          expect(log).toBeDefined();
+          expect(log).toInclude(
+            "GitHub is not configured. The `privateKey` and `webhookSecret` config fields are undefined. You may remove the `github` config object to suppress this warning."
+          );
+          expect(log).toInclude(
+            "Slack is not configured. The `botToken` config field is undefined. You may remove the `slack` config object to suppress this warning."
+          );
+          expect(log).toInclude(
+            "Web search is not configured. The `exaApiKey` config field is undefined. You may remove the `webSearch` config object to suppress this warning."
           );
         },
       },
@@ -231,19 +242,9 @@ describe("config", async () => {
         name: "full slack config",
         config: { slack: { botToken: "test", signingSecret: "set" } },
         assertion: ({ logs }) => {
+          // No warnings when slack config is fully provided
           const log = findWarningLog(logs);
-          expect(log).toBeDefined();
           expect(log).not.toInclude("Slack is not configured");
-        },
-      },
-      {
-        name: "suppress config warnings",
-        config: {
-          suppressConfigWarnings: true,
-        },
-        assertion: ({ logs }) => {
-          const log = findWarningLog(logs);
-          expect(log).toBeUndefined();
         },
       },
     ],

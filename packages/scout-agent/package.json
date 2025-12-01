@@ -1,7 +1,7 @@
 {
   "name": "@blink-sdk/scout-agent",
   "description": "A general-purpose AI agent with GitHub, Slack, web search, and compute capabilities built on Blink SDK.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "type": "module",
   "keywords": [
     "blink",

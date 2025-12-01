@@ -88,8 +88,12 @@ const loadConfig = <K extends readonly string[]>(
     }
   | {
       config?: undefined;
-      warningMessage: string;
+      warningMessage?: string;
     } => {
+  // If no config provided at all, return without warning
+  if (input === undefined) {
+    return {};
+  }
   const missingFields = [];
   for (const field of fields) {
     if (input?.[field as K[number]] === undefined) {
@@ -131,18 +135,13 @@ export interface ScoutOptions {
   webSearch?: ConfigFields<WebSearchConfig>;
   compute?: ComputeConfig;
   logger?: Logger;
-  suppressConfigWarnings?: boolean;
 }
 
 export class Scout {
-  // we declare the class name here instead of using the `name` property
-  // because the latter may be overridden by the bundler
-  private static CLASS_NAME = "Scout";
-  private readonly suppressConfigWarnings: boolean;
   private readonly agent: blink.Agent<Message>;
   private readonly github:
     | { config: GitHubConfig; warningMessage?: undefined }
-    | { config?: undefined; warningMessage: string };
+    | { config?: undefined; warningMessage?: string };
   private readonly slack:
     | {
         config: SlackConfig;
@@ -154,14 +153,14 @@ export class Scout {
         config?: undefined;
         app?: undefined;
         receiver?: undefined;
-        warningMessage: string;
+        warningMessage?: string;
       };
   private readonly webSearch:
     | { config: WebSearchConfig; warningMessage?: undefined }
-    | { config?: undefined; warningMessage: string };
+    | { config?: undefined; warningMessage?: string };
   private readonly compute:
     | { config: ComputeConfig; warningMessage?: undefined }
-    | { config?: undefined; warningMessage: string };
+    | { config?: undefined; warningMessage?: string };
 
   private readonly logger: Logger;
 
@@ -202,11 +201,8 @@ export class Scout {
       this.slack = { warningMessage: slackConfigResult.warningMessage };
     }
     this.webSearch = loadConfig(options.webSearch, ["exaApiKey"] as const);
-    this.compute = options.compute
-      ? { config: options.compute }
-      : { warningMessage: "Compute is not configured" };
+    this.compute = options.compute ? { config: options.compute } : {};
     this.logger = options.logger ?? console;
-    this.suppressConfigWarnings = options.suppressConfigWarnings ?? false;
   }
 
   async handleSlackWebhook(request: Request): Promise<Response> {
@@ -237,19 +233,23 @@ export class Scout {
   private printConfigWarnings() {
     const warnings = [];
     if (this.github.warningMessage !== undefined) {
-      warnings.push(`GitHub is not configured. ${this.github.warningMessage}`);
+      warnings.push(
+        `GitHub is not configured. ${this.github.warningMessage} You may remove the \`github\` config object to suppress this warning.`
+      );
     }
     if (this.slack.warningMessage !== undefined) {
-      warnings.push(`Slack is not configured. ${this.slack.warningMessage}`);
+      warnings.push(
+        `Slack is not configured. ${this.slack.warningMessage} You may remove the \`slack\` config object to suppress this warning.`
+      );
     }
     if (this.webSearch.warningMessage !== undefined) {
       warnings.push(
-        `Web search is not configured. ${this.webSearch.warningMessage}`
+        `Web search is not configured. ${this.webSearch.warningMessage} You may remove the \`webSearch\` config object to suppress this warning.`
       );
     }
     if (warnings.length > 0) {
       this.logger.warn(
-        `${warnings.join("\n")}\n\nDid you provide all required environment variables?\nAlternatively, you can suppress this message by setting \`suppressConfigWarnings\` to \`true\` on \`${Scout.CLASS_NAME}\`.`
+        `${warnings.join("\n")}\n\nDid you provide all required environment variables?`
       );
     }
   }
@@ -268,9 +268,7 @@ export class Scout {
     providerOptions?: ProviderOptions;
     tools: Tools;
   } {
-    if (!this.suppressConfigWarnings) {
-      this.printConfigWarnings();
-    }
+    this.printConfigWarnings();
 
     const slackMetadata = getSlackMetadata(messages);
     const respondingInSlack =
