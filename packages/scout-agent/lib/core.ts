@@ -12,6 +12,7 @@ import {
 } from "ai";
 import type * as blink from "blink";
 import {
+  type DaytonaClient,
   type DaytonaWorkspaceInfo,
   getDaytonaWorkspaceClient,
   initializeDaytonaWorkspace,
@@ -75,6 +76,8 @@ export interface DaytonaConfig {
   autoDeleteIntervalMinutes?: number;
   envVars?: Record<string, string>;
   labels?: Record<string, string>;
+  /** Optional Daytona SDK client for testing. If not provided, a real client is created. */
+  daytonaSdk?: DaytonaClient;
 }
 
 type ComputeConfig =
@@ -299,6 +302,7 @@ export class Scout {
                 autoDeleteIntervalMinutes: opts.autoDeleteIntervalMinutes,
                 envVars: opts.envVars,
                 labels: opts.labels,
+                daytonaSdk: opts.daytonaSdk,
               },
               info
             ),
@@ -307,6 +311,7 @@ export class Scout {
               {
                 daytonaApiKey: opts.apiKey,
                 computeServerPort: opts.computeServerPort,
+                daytonaSdk: opts.daytonaSdk,
               },
               info
             ),

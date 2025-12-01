@@ -4,6 +4,25 @@ import { WebSocket } from "ws";
 import type { Logger } from "../../types";
 import { newComputeClient } from "../common";
 
+/** Minimal interface for what we use from a Daytona sandbox/workspace. */
+export interface DaytonaSandbox {
+  id: string;
+  state?: string;
+  start(timeout: number): Promise<void>;
+  getPreviewLink(port: number): Promise<{ url: string; token: string }>;
+}
+
+/** Minimal interface for what we use from the Daytona SDK client. */
+export interface DaytonaClient {
+  get(id: string): Promise<DaytonaSandbox>;
+  create(opts: {
+    snapshot: string;
+    autoDeleteInterval: number;
+    envVars?: Record<string, string>;
+    labels?: Record<string, string>;
+  }): Promise<DaytonaSandbox>;
+}
+
 export interface DaytonaWorkspaceInfo {
   id: string;
 }
@@ -16,6 +35,8 @@ export interface InitializeDaytonaWorkspaceOptions {
   autoDeleteIntervalMinutes?: number;
   envVars?: Record<string, string>;
   labels?: Record<string, string>;
+  /** Optional Daytona SDK client for testing. If not provided, a real client is created. */
+  daytonaSdk?: DaytonaClient;
 }
 
 export const initializeDaytonaWorkspace = async (
@@ -23,9 +44,8 @@ export const initializeDaytonaWorkspace = async (
   options: InitializeDaytonaWorkspaceOptions,
   existingWorkspaceInfo: DaytonaWorkspaceInfo | undefined
 ): Promise<{ workspaceInfo: DaytonaWorkspaceInfo; message: string }> => {
-  const daytona = new Daytona({
-    apiKey: options.daytonaApiKey,
-  });
+  const daytona: DaytonaClient =
+    options.daytonaSdk ?? new Daytona({ apiKey: options.daytonaApiKey });
   if (existingWorkspaceInfo) {
     try {
       // I think this throws if the workspace doesn't exist anymore.
@@ -62,15 +82,16 @@ export const initializeDaytonaWorkspace = async (
 export interface GetDaytonaWorkspaceClientOptions {
   daytonaApiKey: string;
   computeServerPort: number;
+  /** Optional Daytona SDK client for testing. If not provided, a real client is created. */
+  daytonaSdk?: DaytonaClient;
 }
 
 export const getDaytonaWorkspaceClient = async (
   options: GetDaytonaWorkspaceClientOptions,
   workspaceInfo: DaytonaWorkspaceInfo
 ): Promise<Client> => {
-  const daytona = new Daytona({
-    apiKey: options.daytonaApiKey,
-  });
+  const daytona: DaytonaClient =
+    options.daytonaSdk ?? new Daytona({ apiKey: options.daytonaApiKey });
   const sandbox = await daytona.get(workspaceInfo.id);
   if (sandbox.state === "stopped") {
     // timeout is in seconds
