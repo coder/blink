@@ -344,6 +344,78 @@ describe("config", async () => {
   }
 });
 
+test("buildStreamTextParams honors getGithubAppContext param", async () => {
+  const mockGetGithubAppContext = mock(() =>
+    Promise.resolve({
+      appId: "custom-app-id",
+      privateKey: "custom-private-key",
+    })
+  );
+
+  const agent = new blink.Agent<Message>();
+  const scout = new Scout({
+    agent,
+    logger: noopLogger,
+    github: {
+      appID: "config-app-id",
+      privateKey: "config-private-key",
+      webhookSecret: "config-webhook-secret",
+    },
+  });
+
+  const params = scout.buildStreamTextParams({
+    chatID: "test-chat-id" as blink.ID,
+    messages: [],
+    model: newMockModel({ textResponse: "test" }),
+    getGithubAppContext: mockGetGithubAppContext,
+  });
+
+  // Verify GitHub tools are available
+  expect(params.tools.github_create_pull_request).toBeDefined();
+
+  const result = streamText(params);
+
+  // Access the tools from the streamText result
+  // biome-ignore lint/suspicious/noExplicitAny: accessing internal tools for testing
+  const tools = (result as any).tools as Record<
+    string,
+    // biome-ignore lint/suspicious/noExplicitAny: mock input
+    { execute: (input: any, opts?: any) => Promise<unknown> }
+  >;
+
+  // Execute a GitHub tool to verify our custom getGithubAppContext is called
+  const tool = tools.github_create_pull_request;
+  expect(tool).toBeDefined();
+
+  // The tool will fail when trying to authenticate (since we're using fake credentials),
+  // but we can verify our mock was called before that happens
+  try {
+    // biome-ignore lint/style/noNonNullAssertion: we just checked it's defined
+    await tool!.execute(
+      {
+        model_intent: "creating pull request",
+        properties: {
+          owner: "test-owner",
+          repo: "test-repo",
+          base: "main",
+          head: "feature",
+          title: "Test PR",
+        },
+      },
+      {
+        abortSignal: new AbortController().signal,
+        toolCallId: "test-tool-call",
+        messages: [],
+      }
+    );
+  } catch {
+    // Expected to fail during authentication
+  }
+
+  // Verify our custom getGithubAppContext was called, not the default factory
+  expect(mockGetGithubAppContext).toHaveBeenCalledTimes(1);
+});
+
 test("respond in slack", async () => {
   const { promise: doStreamOptionsPromise, resolve } =
     newPromise<DoStreamOptions>();
@@ -621,5 +693,97 @@ describe("daytona integration", () => {
     // Verify getPreviewLink was called with the correct port
     expect(mockSandbox.getPreviewLink).toHaveBeenCalledTimes(1);
     expect(mockSandbox.getPreviewLink).toHaveBeenCalledWith(2137);
+  });
+
+  test("compute tools honor getGithubAppContext param", async () => {
+    using apiServer = createMockBlinkApiServer();
+    using computeServer = createMockComputeServer();
+    using _env = withBlinkApiUrl(apiServer.url);
+
+    const mockGetGithubAppContext = mock(() =>
+      Promise.resolve({
+        appId: "custom-app-id",
+        privateKey: "custom-private-key",
+      })
+    );
+
+    const mockSandbox = createMockDaytonaSandbox({
+      id: "workspace-for-git-auth",
+      getPreviewLink: mock(() =>
+        Promise.resolve({ url: computeServer.url, token: "test-token" })
+      ),
+    });
+    const mockSdk = createMockDaytonaSdk(mockSandbox);
+
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger: noopLogger,
+      github: {
+        appID: "config-app-id",
+        privateKey: "config-private-key",
+        webhookSecret: "config-webhook-secret",
+      },
+      compute: {
+        type: "daytona",
+        options: {
+          apiKey: "test-api-key",
+          computeServerPort: 2137,
+          snapshot: "test-snapshot",
+          daytonaSdk: mockSdk,
+        },
+      },
+    });
+
+    const params = scout.buildStreamTextParams({
+      chatID: "test-chat-id" as blink.ID,
+      messages: [],
+      model: newMockModel({ textResponse: "test" }),
+      getGithubAppContext: mockGetGithubAppContext,
+    });
+    const result = streamText(params);
+
+    // biome-ignore lint/suspicious/noExplicitAny: accessing internal tools for testing
+    const tools = (result as any).tools as Record<
+      string,
+      // biome-ignore lint/suspicious/noExplicitAny: mock input
+      { execute: (input: any, opts?: any) => Promise<unknown> }
+    >;
+
+    // First, initialize the workspace (required before workspace_authenticate_git)
+    // biome-ignore lint/style/noNonNullAssertion: we know it exists
+    await tools.initialize_workspace!.execute({
+      model_intent: "initializing workspace",
+      properties: {},
+    });
+
+    // Verify workspace_authenticate_git tool is available
+    const gitAuthTool = tools.workspace_authenticate_git;
+    expect(gitAuthTool).toBeDefined();
+
+    // Execute workspace_authenticate_git - it will fail when trying to authenticate
+    // with GitHub (since we're using fake credentials), but our mock should be called first
+    try {
+      // biome-ignore lint/style/noNonNullAssertion: we just checked it's defined
+      await gitAuthTool!.execute(
+        {
+          model_intent: "authenticating git",
+          properties: {
+            owner: "test-owner",
+            repos: ["test-repo"],
+          },
+        },
+        {
+          abortSignal: new AbortController().signal,
+          toolCallId: "git-auth-tool-call",
+          messages: [],
+        }
+      );
+    } catch {
+      // Expected to fail during GitHub authentication
+    }
+
+    // Verify our custom getGithubAppContext was called, not the default factory
+    expect(mockGetGithubAppContext).toHaveBeenCalledTimes(1);
   });
 });

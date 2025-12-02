@@ -17,7 +17,7 @@ import { HttpResponse, http as mswHttp } from "msw";
 import { setupServer } from "msw/node";
 import {
   createGitHubTools,
-  getGithubAppContext,
+  githubAppContextFactory,
   handleGitHubWebhook,
 } from "./github";
 import {
@@ -187,16 +187,24 @@ const withGitHubBotLogin = (login: string) => {
   return withEnvVariable("GITHUB_BOT_LOGIN", login);
 };
 
-describe("getGithubAppContext", () => {
+const getGithubAppContextFactory =
+  (args: { appId: string; privateKey: string }) => async () => {
+    return {
+      appId: args.appId,
+      privateKey: Buffer.from(args.privateKey, "base64").toString("utf-8"),
+    };
+  };
+
+describe("defaultGetGithubAppContextFactory", () => {
   test("decodes base64 private key", async () => {
     const privateKey =
       "-----BEGIN RSA PRIVATE KEY-----\nmy-private-key\n-----END RSA PRIVATE KEY-----";
     const base64Key = Buffer.from(privateKey).toString("base64");
 
-    const result = await getGithubAppContext({
-      githubAppID: "app-123",
-      githubAppPrivateKey: base64Key,
-    });
+    const result = await githubAppContextFactory({
+      appId: "app-123",
+      privateKey: base64Key,
+    })();
 
     expect(result.appId).toBe("app-123");
     expect(result.privateKey).toBe(privateKey);
@@ -205,10 +213,10 @@ describe("getGithubAppContext", () => {
   test("handles empty private key", async () => {
     const base64Key = Buffer.from("").toString("base64");
 
-    const result = await getGithubAppContext({
-      githubAppID: "app-456",
-      githubAppPrivateKey: base64Key,
-    });
+    const result = await githubAppContextFactory({
+      appId: "app-456",
+      privateKey: base64Key,
+    })();
 
     expect(result.appId).toBe("app-456");
     expect(result.privateKey).toBe("");
@@ -221,10 +229,10 @@ SomeMoreBase64Content
 -----END RSA PRIVATE KEY-----`;
     const base64Key = Buffer.from(privateKey).toString("base64");
 
-    const result = await getGithubAppContext({
-      githubAppID: "app-789",
-      githubAppPrivateKey: base64Key,
-    });
+    const result = await githubAppContextFactory({
+      appId: "app-789",
+      privateKey: base64Key,
+    })();
 
     expect(result.appId).toBe("app-789");
     expect(result.privateKey).toBe(privateKey);
@@ -240,8 +248,10 @@ describe("createGitHubTools", () => {
     const tools = createGitHubTools({
       agent,
       chatID: "test-chat-id" as blink.ID,
-      githubAppID: "app-id",
-      githubAppPrivateKey: Buffer.from("key").toString("base64"),
+      getGithubAppContext: getGithubAppContextFactory({
+        appId: "app-id",
+        privateKey: Buffer.from("key").toString("base64"),
+      }),
     });
 
     // Check that tools are prefixed
@@ -307,8 +317,10 @@ describe("createGitHubTools", () => {
     const tools = createGitHubTools({
       agent,
       chatID,
-      githubAppID: "12345",
-      githubAppPrivateKey: TEST_RSA_PRIVATE_KEY_BASE64,
+      getGithubAppContext: getGithubAppContextFactory({
+        appId: "12345",
+        privateKey: TEST_RSA_PRIVATE_KEY_BASE64,
+      }),
     });
 
     // Execute the tool
@@ -395,8 +407,10 @@ describe("createGitHubTools", () => {
     const tools = createGitHubTools({
       agent,
       chatID: "chat-id" as blink.ID,
-      githubAppID: "12345",
-      githubAppPrivateKey: TEST_RSA_PRIVATE_KEY_BASE64,
+      getGithubAppContext: getGithubAppContextFactory({
+        appId: "12345",
+        privateKey: TEST_RSA_PRIVATE_KEY_BASE64,
+      }),
     });
 
     // biome-ignore lint/style/noNonNullAssertion: tool is defined in test setup
@@ -494,8 +508,10 @@ describe("createGitHubTools", () => {
     const tools = createGitHubTools({
       agent,
       chatID: "chat" as blink.ID,
-      githubAppID: "12345",
-      githubAppPrivateKey: TEST_RSA_PRIVATE_KEY_BASE64,
+      getGithubAppContext: getGithubAppContextFactory({
+        appId: "12345",
+        privateKey: TEST_RSA_PRIVATE_KEY_BASE64,
+      }),
     });
 
     // biome-ignore lint/style/noNonNullAssertion: tool is defined in test setup

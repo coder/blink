@@ -4,13 +4,12 @@ import * as github from "@blink-sdk/github";
 import { type Tool, tool } from "ai";
 import * as blink from "blink";
 import { z } from "zod";
-import { getGithubAppContext } from "../github";
 import type { Message } from "../types";
 import { WORKSPACE_INFO_KEY } from "./common";
 
 export const createComputeTools = <T>({
   agent,
-  githubConfig,
+  getGithubAppContext,
   initializeWorkspace,
   createWorkspaceClient,
 }: {
@@ -19,10 +18,11 @@ export const createComputeTools = <T>({
     existingWorkspaceInfo: T | undefined
   ) => Promise<{ workspaceInfo: T; message: string }>;
   createWorkspaceClient: (workspaceInfo: T) => Promise<Client>;
-  githubConfig?: {
-    appID: string;
-    privateKey: string;
-  };
+  /**
+   * A function that returns the GitHub auth context for Git authentication.
+   * If provided, the workspace_authenticate_git tool will be available.
+   */
+  getGithubAppContext?: () => Promise<github.AppAuthOptions>;
 }): Record<string, Tool> => {
   const newClient = async () => {
     const workspaceInfo = await agent.store.get(WORKSPACE_INFO_KEY);
@@ -56,7 +56,7 @@ export const createComputeTools = <T>({
       },
     }),
 
-    ...(githubConfig
+    ...(getGithubAppContext
       ? {
           workspace_authenticate_git: tool({
             description: `Authenticate with Git repositories for push/pull operations. Call this before any Git operations that require authentication.
@@ -75,10 +75,7 @@ It's safe to call this multiple times - re-authenticating is perfectly fine and 
               const client = await newClient();
 
               // Here we generate a GitHub token scoped to the repositories.
-              const githubAppContext = await getGithubAppContext({
-                githubAppID: githubConfig.appID,
-                githubAppPrivateKey: githubConfig.privateKey,
-              });
+              const githubAppContext = await getGithubAppContext();
               if (!githubAppContext) {
                 throw new Error(
                   "You can only use public repositories in this context."

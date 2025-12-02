@@ -1,5 +1,6 @@
 import util from "node:util";
 import type { ModelMessage, ProviderOptions } from "@ai-sdk/provider-utils";
+import type * as github from "@blink-sdk/github";
 import withModelIntent from "@blink-sdk/model-intent";
 import * as slack from "@blink-sdk/slack";
 import type { App } from "@slack/bolt";
@@ -17,7 +18,11 @@ import {
   initializeDockerWorkspace,
 } from "./compute/docker";
 import { createComputeTools } from "./compute/tools";
-import { createGitHubTools, handleGitHubWebhook } from "./github";
+import {
+  createGitHubTools,
+  githubAppContextFactory,
+  handleGitHubWebhook,
+} from "./github";
 import { defaultSystemPrompt } from "./prompt";
 import { createSlackApp, createSlackTools, getSlackMetadata } from "./slack";
 import type { Message } from "./types";
@@ -31,13 +36,18 @@ type NullableTools = { [K in keyof Tools]: Tools[K] | undefined };
 
 type ConfigFields<T> = { [K in keyof T]: T[K] | undefined };
 
-export interface StreamStepResponseOptions {
+export interface BuildStreamTextParamsOptions {
   messages: Message[];
   chatID: blink.ID;
   model: LanguageModel;
   providerOptions?: ProviderOptions;
   tools?: NullableTools;
   systemPrompt?: string;
+  /**
+   * A function that returns the GitHub auth context for the GitHub tools and for Git authentication inside workspaces.
+   * If not provided, the GitHub auth context will be created using the app ID and private key from the GitHub config.
+   */
+  getGithubAppContext?: () => Promise<github.AppAuthOptions>;
 }
 
 interface Logger {
@@ -260,8 +270,9 @@ export class Scout {
     model,
     providerOptions,
     tools: providedTools,
+    getGithubAppContext,
     systemPrompt = defaultSystemPrompt,
-  }: StreamStepResponseOptions): {
+  }: BuildStreamTextParamsOptions): {
     model: LanguageModel;
     messages: ModelMessage[];
     maxOutputTokens: number;
@@ -280,7 +291,13 @@ export class Scout {
       case "docker": {
         computeTools = createComputeTools<DockerWorkspaceInfo>({
           agent: this.agent,
-          githubConfig: this.github.config,
+          getGithubAppContext: this.github.config
+            ? (getGithubAppContext ??
+              githubAppContextFactory({
+                appId: this.github.config.appID,
+                privateKey: this.github.config.privateKey,
+              }))
+            : undefined,
           initializeWorkspace: initializeDockerWorkspace,
           createWorkspaceClient: getDockerWorkspaceClient,
         });
@@ -290,7 +307,13 @@ export class Scout {
         const opts = computeConfig.options;
         computeTools = createComputeTools<DaytonaWorkspaceInfo>({
           agent: this.agent,
-          githubConfig: this.github.config,
+          getGithubAppContext: this.github.config
+            ? (getGithubAppContext ??
+              githubAppContextFactory({
+                appId: this.github.config.appID,
+                privateKey: this.github.config.privateKey,
+              }))
+            : undefined,
           initializeWorkspace: (info) =>
             initializeDaytonaWorkspace(
               this.logger,
@@ -340,8 +363,13 @@ export class Scout {
         ? createGitHubTools({
             agent: this.agent,
             chatID,
-            githubAppID: this.github.config.appID,
-            githubAppPrivateKey: this.github.config.privateKey,
+            getGithubAppContext:
+              getGithubAppContext !== undefined
+                ? getGithubAppContext
+                : githubAppContextFactory({
+                    appId: this.github.config.appID,
+                    privateKey: this.github.config.privateKey,
+                  }),
           })
         : undefined),
       ...computeTools,

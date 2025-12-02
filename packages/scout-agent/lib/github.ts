@@ -4,44 +4,34 @@ import { type Tool, tool, type UIMessage } from "ai";
 import * as blink from "blink";
 import type { Logger } from "./types";
 
-export const getGithubAppContext = async ({
-  githubAppID,
-  githubAppPrivateKey,
+export const githubAppContextFactory = ({
+  appId,
+  privateKey,
 }: {
-  githubAppID: string;
-  githubAppPrivateKey: string;
-}): Promise<{
   appId: string;
   privateKey: string;
-}> => {
-  return {
-    appId: githubAppID,
-    privateKey: Buffer.from(githubAppPrivateKey, "base64").toString("utf-8"),
+}): (() => Promise<github.AppAuthOptions>) => {
+  return async () => {
+    return {
+      appId,
+      privateKey: Buffer.from(privateKey, "base64").toString("utf-8"),
+    };
   };
 };
 
 export const createGitHubTools = ({
   agent,
   chatID,
-  githubAppID,
-  githubAppPrivateKey,
+  getGithubAppContext,
 }: {
   agent: blink.Agent<UIMessage>;
   chatID: blink.ID;
-  githubAppID: string;
-  githubAppPrivateKey: string;
+  getGithubAppContext: () => Promise<github.AppAuthOptions>;
 }): Record<string, Tool> => {
   return {
     ...blink.tools.prefix(
       blink.tools.withContext(github.tools, {
-        appAuth: async () => {
-          // TODO: This is janky.
-          const context = await getGithubAppContext({
-            githubAppID,
-            githubAppPrivateKey,
-          });
-          return context;
-        },
+        appAuth: getGithubAppContext,
       }),
       "github_"
     ),
@@ -50,10 +40,7 @@ export const createGitHubTools = ({
       description: github.tools.create_pull_request.description,
       inputSchema: github.tools.create_pull_request.inputSchema,
       execute: async (args, { abortSignal }) => {
-        const githubAppContext = await getGithubAppContext({
-          githubAppID,
-          githubAppPrivateKey,
-        });
+        const githubAppContext = await getGithubAppContext();
         if (!githubAppContext) {
           throw new Error(
             "You are not authorized to use this tool in this context."
