@@ -22,6 +22,8 @@
     "typescript": "^5"
   },
   "devDependencies": {
+    "@blink.so/api": "workspace:*",
+    "@blink.so/database": "workspace:*",
     "@lexical/react": "^0.32.1",
     "@lexical/utils": "^0.32.1",
     "@next/bundle-analyzer": "^15.5.3",
@@ -80,6 +82,7 @@
     "tailwindcss-animate": "^1.0.7",
     "unist-util-visit": "^5.0.0",
     "usehooks-ts": "^3.1.1",
+    "uuid": "^11.1.0",
     "vite-plugin-inspect": "^11.1.0",
     "vite-plugin-node-polyfills": "^0.24.0",
     "zod": "^4.0.0"

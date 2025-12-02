@@ -10,7 +10,9 @@
   },
   "dependencies": {},
   "devDependencies": {
+    "@blink.so/api": "workspace:*",
     "aws4fetch": "^1.0.20",
+    "hono": "^4.9.7",
     "jszip": "^3.10.1"
   }
 }

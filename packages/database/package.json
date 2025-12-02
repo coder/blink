@@ -18,6 +18,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.2",
+    "bcrypt-ts": "^5.0.2",
     "dotenv": "^17.2.3",
     "drizzle-kit": "^0.31.5",
     "drizzle-orm": "^0.44.5",
