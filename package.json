@@ -35,7 +35,7 @@
     "tsdown": "^0.15.7",
     "tsx": "^4.20.5",
     "wrangler": "^4.31.0",
-    "zod": "^3.25.28"
+    "zod": "^3.24.0"
   },
   "peerDependencies": {
     "typescript": "^5.9.3"
