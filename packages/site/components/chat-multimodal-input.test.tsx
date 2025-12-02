@@ -17,6 +17,8 @@ beforeAll(() => {
 });
 
 afterAll(async () => {
+  // Wait for React's deferred work to complete before cleanup
+  await new Promise((resolve) => setTimeout(resolve, 50));
   // @ts-ignore
   delete globalThis.window;
   // @ts-ignore
