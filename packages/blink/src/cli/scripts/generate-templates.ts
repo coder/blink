@@ -1,7 +1,7 @@
-import { generateTemplates } from "../lib/templates";
-import { readdir, readFile, writeFile } from "fs/promises";
+import { writeFile } from "fs/promises";
 import stringify from "json-stable-stringify";
 import { join } from "path";
+import { generateTemplates } from "../lib/templates";
 
 const main = async () => {
   const templates = await generateTemplates();

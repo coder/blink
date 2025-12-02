@@ -1,15 +1,15 @@
-import { join, resolve } from "node:path";
-import { ChatManager } from "../local/chat-manager";
-import { spawnAgent } from "../local/spawn-agent";
 import { parse } from "dotenv";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { getAuthToken } from "./lib/auth";
-import { migrateDataToBlink } from "./lib/migrate";
+import { join, resolve } from "node:path";
+import type { ID } from "../agent/types";
 import { resolveConfig } from "../build";
 import { findNearestEntry } from "../build/util";
-import { existsSync } from "node:fs";
-import type { ID } from "../agent/types";
+import { ChatManager } from "../local/chat-manager";
 import { RWLock } from "../local/rw-lock";
+import { spawnAgent } from "../local/spawn-agent";
+import { getAuthToken } from "./lib/auth";
+import { migrateDataToBlink } from "./lib/migrate";
 
 export default async function run(
   message: string[],

@@ -1,9 +1,8 @@
 import Client from "@blink.so/api";
-import { useEffect, useRef, useState } from "react";
-import { lock, getLockInfo } from "../local/lockfile";
-import { join } from "node:path";
 import chalk from "chalk";
-import { getDevhookID } from "../cli/lib/devhook";
+import { join } from "node:path";
+import { useEffect, useRef, useState } from "react";
+import { getLockInfo, lock } from "../local/lockfile";
 import type { Logger } from "./use-logger";
 
 export interface UseDevhookOptions {

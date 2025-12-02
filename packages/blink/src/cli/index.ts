@@ -19,13 +19,13 @@ if (typeof globalThis["Bun"] !== "undefined") {
   };
 }
 
+import * as clack from "@clack/prompts";
 import { program } from "commander";
 import { randomUUID } from "crypto";
 import { version } from "../../package.json";
 import build from "./build";
 import deploy from "./deploy";
 import setupSlackApp from "./setup-slack-app";
-import * as clack from "@clack/prompts";
 
 // This polyfill is because older versions of NodeJS don't have a global crypto object.
 if (!globalThis.crypto) {

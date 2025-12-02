@@ -1,17 +1,9 @@
-import React, { useState, useEffect, Suspense } from "react";
+import React, { Suspense, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { useAuth } from "./hooks/useAuth";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import { Button } from "./components/ui/button";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "./components/ui/card";
 import { Alert, AlertDescription } from "./components/ui/alert";
+import { Button } from "./components/ui/button";
+import { ThemeProvider } from "./contexts/ThemeContext";
+import { useAuth } from "./hooks/useAuth";
 
 const AgentView = React.lazy(() => import("./components/AgentView"));
 

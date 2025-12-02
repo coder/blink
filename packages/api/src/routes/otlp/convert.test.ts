@@ -1,0 +1,1172 @@
+import { create } from "@bufbuild/protobuf";
+import { describe, expect, test } from "bun:test";
+
+import { ExportTraceServiceRequestSchema } from "./gen/opentelemetry/proto/collector/trace/v1/trace_service_pb";
+import {
+  AnyValueSchema,
+  ArrayValueSchema,
+  InstrumentationScopeSchema,
+  KeyValueListSchema,
+  KeyValueSchema,
+} from "./gen/opentelemetry/proto/common/v1/common_pb";
+import { ResourceSchema } from "./gen/opentelemetry/proto/resource/v1/resource_pb";
+import {
+  ResourceSpansSchema,
+  ScopeSpansSchema,
+  SpanSchema,
+  Span_EventSchema,
+  Span_LinkSchema,
+  Span_SpanKind,
+  StatusSchema,
+  Status_StatusCode,
+} from "./gen/opentelemetry/proto/trace/v1/trace_pb";
+
+import {
+  mapExportTraceServiceRequestToOtelSpans,
+  parseOtlpHttpTraces,
+  type TraceOptions,
+} from "./convert";
+
+// Helper function to create mock Uint8Array IDs
+function createMockId(hexString: string): Uint8Array {
+  const bytes =
+    hexString.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) ?? [];
+  return new Uint8Array(bytes);
+}
+
+// Helper function to create mock KeyValue attributes
+function createMockAttribute(key: string, value: string) {
+  return create(KeyValueSchema, {
+    key,
+    value: create(AnyValueSchema, {
+      value: {
+        case: "stringValue",
+        value,
+      },
+    }),
+  });
+}
+
+// Helper function to create mock TraceOptions
+function createMockOptions(): TraceOptions {
+  return {
+    agent_id: "test-agent-123",
+    deployment_id: "test-deployment-456",
+    deployment_target_id: "test-target-def",
+    run_id: "test-run-789",
+    step_id: "test-step-abc",
+  };
+}
+
+// Helper function to create mock ExportTraceServiceRequest
+function createMockTraceRequest() {
+  const mockEvent = create(Span_EventSchema, {
+    timeUnixNano: BigInt("1640995200500000000"),
+    name: "test-event",
+    attributes: [createMockAttribute("event.type", "log")],
+    droppedAttributesCount: 0,
+  });
+
+  const mockLink = create(Span_LinkSchema, {
+    traceId: createMockId("deadbeefcafebabe1234567890abcdef"),
+    spanId: createMockId("cafebabe12345678"),
+    attributes: [createMockAttribute("link.type", "reference")],
+    traceState: "vendor=test",
+    flags: 1,
+    droppedAttributesCount: 0,
+  });
+
+  const mockSpan = create(SpanSchema, {
+    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+    spanId: createMockId("1234567890abcdef"),
+    parentSpanId: createMockId("fedcba0987654321"),
+    name: "test-span",
+    kind: Span_SpanKind.INTERNAL,
+    startTimeUnixNano: BigInt("1640995200000000000"), // 2022-01-01 00:00:00 UTC
+    endTimeUnixNano: BigInt("1640995201000000000"), // 2022-01-01 00:00:01 UTC
+    attributes: [
+      createMockAttribute("service.name", "test-service"),
+      createMockAttribute("span.kind", "internal"),
+    ],
+    events: [mockEvent],
+    links: [mockLink],
+    status: create(StatusSchema, {
+      code: Status_StatusCode.OK,
+      message: "Success",
+    }),
+    droppedAttributesCount: 0,
+    droppedEventsCount: 0,
+    droppedLinksCount: 0,
+    flags: 0,
+    traceState: "",
+  });
+
+  const mockScopeSpans = create(ScopeSpansSchema, {
+    scope: create(InstrumentationScopeSchema, {
+      name: "test-instrumentation",
+      version: "1.0.0",
+      attributes: [createMockAttribute("library.language", "typescript")],
+      droppedAttributesCount: 0,
+    }),
+    spans: [mockSpan],
+    schemaUrl: "https://opentelemetry.io/schemas/1.9.0",
+  });
+
+  const mockResourceSpans = create(ResourceSpansSchema, {
+    resource: create(ResourceSchema, {
+      attributes: [
+        createMockAttribute("service.name", "test-app"),
+        createMockAttribute("service.version", "1.0.0"),
+      ],
+      droppedAttributesCount: 0,
+    }),
+    scopeSpans: [mockScopeSpans],
+    schemaUrl: "https://opentelemetry.io/schemas/1.9.0",
+  });
+
+  return create(ExportTraceServiceRequestSchema, {
+    resourceSpans: [mockResourceSpans],
+  });
+}
+
+describe("OTEL Conversion Functions", () => {
+  test("parseOtlpHttpTraces handles OTLP/JSON hex IDs (span + links)", async () => {
+    const hexTraceId = "664e67a4c7b9917582df5246701a186a";
+    const hexSpanId = "abcdef1234567890";
+    const hexLinkTraceId = "a1b2c3d4e5f67890fedcba0987654321";
+    const hexLinkSpanId = "1234567890abcdef";
+
+    const jsonBody = {
+      resourceSpans: [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: {},
+              spans: [
+                {
+                  traceId: hexTraceId,
+                  spanId: hexSpanId,
+                  parentSpanId: "",
+                  name: "test-span-json",
+                  kind: "SPAN_KIND_INTERNAL",
+                  startTimeUnixNano: "1640995200000000000",
+                  endTimeUnixNano: "1640995200103524564",
+                  events: [],
+                  links: [
+                    {
+                      traceId: hexLinkTraceId,
+                      spanId: hexLinkSpanId,
+                      attributes: [],
+                      droppedAttributesCount: 0,
+                      flags: 0,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } as const;
+
+    const req = new Request("http://localhost/v1/traces", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(jsonBody),
+    });
+
+    const parsed = await parseOtlpHttpTraces(req);
+    const opts: TraceOptions = {
+      agent_id: "agent-json-1",
+      deployment_id: "deploy-json-1",
+      deployment_target_id: "target-json-1",
+    };
+    const spans = mapExportTraceServiceRequestToOtelSpans(parsed, opts);
+    expect(spans).toHaveLength(1);
+    const span = spans[0];
+    expect(span.payload.span.trace_id).toBe(hexTraceId);
+    expect(span.payload.span.id).toBe(hexSpanId);
+    expect(span.payload.span.links[0]?.linked_trace_id).toBe(hexLinkTraceId);
+    expect(span.payload.span.links[0]?.linked_span_id).toBe(hexLinkSpanId);
+  });
+
+  describe("mapExportTraceServiceRequestToOtelSpans", () => {
+    test("should convert a basic trace request to OtelSpan array", () => {
+      const mockRequest = createMockTraceRequest();
+      const options = createMockOptions();
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        options
+      );
+
+      expect(result).toHaveLength(1);
+
+      const span = result[0];
+      expect(span.agent_id).toBe(options.agent_id);
+      expect(span.payload.span.name).toBe("test-span");
+      expect(span.payload.span.kind).toBe("INTERNAL");
+      expect(span.payload.span.status_code).toBe("OK");
+      expect(span.payload.span.status_message).toBe("Success");
+      expect(span.payload.span.trace_id).toBe(
+        "a1b2c3d4e5f67890fedcba0987654321"
+      );
+      expect(span.payload.span.id).toBe("1234567890abcdef");
+      expect(span.payload.span.parent_span_id).toBe("fedcba0987654321");
+    });
+
+    test("should convert timestamps correctly", () => {
+      const mockRequest = createMockTraceRequest();
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        createMockOptions()
+      );
+
+      const span = result[0];
+      expect(span.start_time).toBe("2022-01-01 00:00:00.000000000");
+      expect(span.end_time).toBe("2022-01-01 00:00:01.000000000");
+      expect(span.payload.span.duration_ns).toBe("1000000000"); // 1 second in nanoseconds
+    });
+
+    test("should convert span attributes correctly", () => {
+      const mockRequest = createMockTraceRequest();
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        createMockOptions()
+      );
+
+      const span = result[0];
+      expect(span.payload.span.attributes).toEqual({
+        "service.name": "test-service",
+        "span.kind": "internal",
+      });
+    });
+
+    test("should convert resource attributes correctly", () => {
+      const mockRequest = createMockTraceRequest();
+      const options = createMockOptions();
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        options
+      );
+
+      const span = result[0];
+      expect(span.payload.resource.attributes).toEqual({
+        "service.name": "test-app",
+        "service.version": "1.0.0",
+        blink: {
+          agent_id: options.agent_id,
+          deployment_id: options.deployment_id,
+          deployment_target_id: options.deployment_target_id,
+          run_id: options.run_id,
+          step_id: options.step_id,
+        },
+      });
+    });
+
+    test("should add blink object to resource attributes with provided options", () => {
+      const customOptions: TraceOptions = {
+        agent_id: "custom-agent-999",
+        deployment_id: "custom-deploy-888",
+        deployment_target_id: "custom-target-555",
+        run_id: "custom-run-777",
+        step_id: "custom-step-666",
+      };
+
+      const mockRequest = createMockTraceRequest();
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        customOptions
+      );
+
+      const span = result[0];
+      expect(span.payload.resource.attributes.blink).toEqual({
+        agent_id: "custom-agent-999",
+        deployment_id: "custom-deploy-888",
+        deployment_target_id: "custom-target-555",
+        run_id: "custom-run-777",
+        step_id: "custom-step-666",
+      });
+    });
+
+    test("should handle optional runId and stepId in blink object", () => {
+      const mockRequest = createMockTraceRequest();
+
+      // Test with only required fields
+      const optionsWithoutOptional: TraceOptions = {
+        agent_id: "test-agent-123",
+        deployment_id: "test-deployment-456",
+        deployment_target_id: "test-target-def",
+      };
+
+      const resultWithoutOptional = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        optionsWithoutOptional
+      );
+
+      const spanWithoutOptional = resultWithoutOptional[0];
+      expect(spanWithoutOptional.payload.resource.attributes.blink).toEqual({
+        agent_id: "test-agent-123",
+        deployment_id: "test-deployment-456",
+        deployment_target_id: "test-target-def",
+      });
+
+      // Should not have runId or stepId properties
+      expect(
+        spanWithoutOptional.payload.resource.attributes.blink
+      ).not.toHaveProperty("run_id");
+      expect(
+        spanWithoutOptional.payload.resource.attributes.blink
+      ).not.toHaveProperty("step_id");
+
+      // Test with only runId
+      const optionsWithRunId: TraceOptions = {
+        agent_id: "test-agent-123",
+        deployment_id: "test-deployment-456",
+        deployment_target_id: "test-target-def",
+        run_id: "test-run-789",
+      };
+
+      const resultWithRunId = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        optionsWithRunId
+      );
+
+      const spanWithRunId = resultWithRunId[0];
+      expect(spanWithRunId.payload.resource.attributes.blink).toEqual({
+        agent_id: "test-agent-123",
+        deployment_id: "test-deployment-456",
+        deployment_target_id: "test-target-def",
+        run_id: "test-run-789",
+      });
+      expect(
+        spanWithRunId.payload.resource.attributes.blink
+      ).not.toHaveProperty("step_id");
+
+      // Test with only stepId
+      const optionsWithStepId: TraceOptions = {
+        agent_id: "test-agent-123",
+        deployment_id: "test-deployment-456",
+        deployment_target_id: "test-target-def",
+        step_id: "test-step-abc",
+      };
+
+      const resultWithStepId = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        optionsWithStepId
+      );
+
+      const spanWithStepId = resultWithStepId[0];
+      expect(spanWithStepId.payload.resource.attributes.blink).toEqual({
+        agent_id: "test-agent-123",
+        deployment_id: "test-deployment-456",
+        deployment_target_id: "test-target-def",
+        step_id: "test-step-abc",
+      });
+      expect(
+        spanWithStepId.payload.resource.attributes.blink
+      ).not.toHaveProperty("run_id");
+    });
+
+    test("should replace existing blink object in resource attributes", () => {
+      const existingBlinkAttr = create(KeyValueSchema, {
+        key: "blink",
+        value: create(AnyValueSchema, {
+          value: {
+            case: "kvlistValue",
+            value: create(KeyValueListSchema, {
+              values: [
+                create(KeyValueSchema, {
+                  key: "oldAgentId",
+                  value: create(AnyValueSchema, {
+                    value: { case: "stringValue", value: "old-agent-123" },
+                  }),
+                }),
+                create(KeyValueSchema, {
+                  key: "oldDeploymentId",
+                  value: create(AnyValueSchema, {
+                    value: { case: "stringValue", value: "old-deploy-456" },
+                  }),
+                }),
+              ],
+            }),
+          },
+        }),
+      });
+
+      const requestWithExistingBlink = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [
+          create(ResourceSpansSchema, {
+            resource: create(ResourceSchema, {
+              attributes: [
+                createMockAttribute("service.name", "test-app"),
+                createMockAttribute("service.version", "1.0.0"),
+                existingBlinkAttr, // This should be replaced
+              ],
+              droppedAttributesCount: 0,
+            }),
+            scopeSpans: [
+              create(ScopeSpansSchema, {
+                scope: create(InstrumentationScopeSchema, {
+                  name: "test-instrumentation",
+                  version: "1.0.0",
+                }),
+                spans: [
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("1234567890abcdef"),
+                    name: "test-span",
+                    kind: Span_SpanKind.INTERNAL,
+                    startTimeUnixNano: BigInt("1640995200000000000"),
+                    endTimeUnixNano: BigInt("1640995201000000000"),
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const options = createMockOptions();
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        requestWithExistingBlink,
+        options
+      );
+
+      const span = result[0];
+
+      // Should have our new blink object, not the old one
+      expect(span.payload.resource.attributes.blink).toEqual({
+        agent_id: options.agent_id,
+        deployment_id: options.deployment_id,
+        deployment_target_id: options.deployment_target_id,
+        run_id: options.run_id,
+        step_id: options.step_id,
+      });
+
+      // Should not contain the old blink properties
+      expect(span.payload.resource.attributes.blink).not.toHaveProperty(
+        "oldAgentId"
+      );
+      expect(span.payload.resource.attributes.blink).not.toHaveProperty(
+        "oldDeploymentId"
+      );
+
+      // Other attributes should remain unchanged
+      expect(span.payload.resource.attributes["service.name"]).toBe("test-app");
+      expect(span.payload.resource.attributes["service.version"]).toBe("1.0.0");
+    });
+
+    test("should convert scope attributes correctly", () => {
+      const mockRequest = createMockTraceRequest();
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        createMockOptions()
+      );
+
+      const span = result[0];
+      expect(span.payload.scope.attributes).toEqual({
+        "library.language": "typescript",
+      });
+      expect(span.payload.scope.name).toBe("test-instrumentation");
+      expect(span.payload.scope.version).toBe("1.0.0");
+    });
+
+    test("should convert events to array of objects", () => {
+      const mockRequest = createMockTraceRequest();
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        createMockOptions()
+      );
+
+      const span = result[0];
+      expect(span.payload.span.events).toHaveLength(1);
+      expect(span.payload.span.events[0]).toEqual({
+        time: "2022-01-01 00:00:00.500000000",
+        name: "test-event",
+        dropped_attributes_count: 0,
+        attributes: {
+          "event.type": "log",
+        },
+      });
+    });
+
+    test("should convert links to array of objects", () => {
+      const mockRequest = createMockTraceRequest();
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        mockRequest,
+        createMockOptions()
+      );
+
+      const span = result[0];
+      expect(span.payload.span.links).toHaveLength(1);
+      expect(span.payload.span.links[0]).toEqual({
+        linked_trace_id: "deadbeefcafebabe1234567890abcdef",
+        linked_span_id: "cafebabe12345678",
+        trace_state: "vendor=test",
+        flags: 1,
+        dropped_attributes_count: 0,
+        attributes: {
+          "link.type": "reference",
+        },
+      });
+    });
+
+    test("should handle empty arrays gracefully", () => {
+      const emptyRequest = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [
+          create(ResourceSpansSchema, {
+            resource: create(ResourceSchema, {
+              attributes: [createMockAttribute("service.name", "test-app")],
+              droppedAttributesCount: 0,
+            }),
+            scopeSpans: [
+              create(ScopeSpansSchema, {
+                scope: create(InstrumentationScopeSchema, {
+                  name: "test-instrumentation",
+                  version: "1.0.0",
+                }),
+                spans: [
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("1234567890abcdef"),
+                    name: "test-span",
+                    kind: Span_SpanKind.INTERNAL,
+                    startTimeUnixNano: BigInt("1640995200000000000"),
+                    endTimeUnixNano: BigInt("1640995201000000000"),
+                    events: [], // Empty events
+                    links: [], // Empty links
+                    attributes: [],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        emptyRequest,
+        createMockOptions()
+      );
+
+      const span = result[0];
+      expect(span.payload.span.events).toEqual([]);
+      expect(span.payload.span.links).toEqual([]);
+    });
+
+    test("should handle missing optional fields", () => {
+      const minimalRequest = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [
+          create(ResourceSpansSchema, {
+            resource: create(ResourceSchema, {
+              attributes: [],
+            }),
+            scopeSpans: [
+              create(ScopeSpansSchema, {
+                spans: [
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("1234567890abcdef"),
+                    parentSpanId: new Uint8Array(), // Empty parent span ID
+                    name: "test-span",
+                    kind: Span_SpanKind.INTERNAL,
+                    startTimeUnixNano: BigInt("1640995200000000000"),
+                    endTimeUnixNano: BigInt("1640995201000000000"),
+                    traceState: "", // Empty trace state
+                    // No status field - should default to UNSET
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        minimalRequest,
+        createMockOptions()
+      );
+
+      const resultSpan = result[0];
+      expect(resultSpan.payload.span.parent_span_id).toBe("");
+      expect(resultSpan.payload.span.trace_state).toBe("");
+      expect(resultSpan.payload.span.status_code).toBe("UNSET");
+      expect(resultSpan.payload.span.status_message).toBe("");
+    });
+
+    test("should handle multiple spans", () => {
+      const multiSpanRequest = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [
+          create(ResourceSpansSchema, {
+            resource: create(ResourceSchema, {
+              attributes: [createMockAttribute("service.name", "test-app")],
+            }),
+            scopeSpans: [
+              create(ScopeSpansSchema, {
+                scope: create(InstrumentationScopeSchema, {
+                  name: "test-instrumentation",
+                  version: "1.0.0",
+                }),
+                spans: [
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("1234567890abcdef"),
+                    name: "first-span",
+                    kind: Span_SpanKind.INTERNAL,
+                    startTimeUnixNano: BigInt("1640995200000000000"),
+                    endTimeUnixNano: BigInt("1640995201000000000"),
+                  }),
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("abcdef1234567890"),
+                    name: "second-span",
+                    kind: Span_SpanKind.SERVER,
+                    startTimeUnixNano: BigInt("1640995201000000000"),
+                    endTimeUnixNano: BigInt("1640995202000000000"),
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        multiSpanRequest,
+        createMockOptions()
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0].payload.span.name).toBe("first-span");
+      expect(result[0].payload.span.kind).toBe("INTERNAL");
+      expect(result[1].payload.span.name).toBe("second-span");
+      expect(result[1].payload.span.kind).toBe("SERVER");
+    });
+
+    test("should handle different span kinds", () => {
+      const spanKinds = [
+        { kind: Span_SpanKind.INTERNAL, expected: "INTERNAL" },
+        { kind: Span_SpanKind.SERVER, expected: "SERVER" },
+        { kind: Span_SpanKind.CLIENT, expected: "CLIENT" },
+        { kind: Span_SpanKind.PRODUCER, expected: "PRODUCER" },
+        { kind: Span_SpanKind.CONSUMER, expected: "CONSUMER" },
+        { kind: Span_SpanKind.UNSPECIFIED, expected: "UNSPECIFIED" },
+      ];
+
+      spanKinds.forEach(({ kind, expected }) => {
+        const request = create(ExportTraceServiceRequestSchema, {
+          resourceSpans: [
+            create(ResourceSpansSchema, {
+              scopeSpans: [
+                create(ScopeSpansSchema, {
+                  spans: [
+                    create(SpanSchema, {
+                      traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                      spanId: createMockId("1234567890abcdef"),
+                      name: "test-span",
+                      kind,
+                      startTimeUnixNano: BigInt("1640995200000000000"),
+                      endTimeUnixNano: BigInt("1640995201000000000"),
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        });
+
+        const result = mapExportTraceServiceRequestToOtelSpans(
+          request,
+          createMockOptions()
+        );
+        expect(result[0].payload.span.kind).toBe(expected);
+      });
+    });
+
+    test("should handle different status codes", () => {
+      const statusCodes = [
+        { code: Status_StatusCode.OK, expected: "OK" },
+        { code: Status_StatusCode.ERROR, expected: "ERROR" },
+        { code: Status_StatusCode.UNSET, expected: "UNSET" },
+      ];
+
+      statusCodes.forEach(({ code, expected }) => {
+        const request = create(ExportTraceServiceRequestSchema, {
+          resourceSpans: [
+            create(ResourceSpansSchema, {
+              scopeSpans: [
+                create(ScopeSpansSchema, {
+                  spans: [
+                    create(SpanSchema, {
+                      traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                      spanId: createMockId("1234567890abcdef"),
+                      name: "test-span",
+                      kind: Span_SpanKind.INTERNAL,
+                      startTimeUnixNano: BigInt("1640995200000000000"),
+                      endTimeUnixNano: BigInt("1640995201000000000"),
+                      status: create(StatusSchema, {
+                        code,
+                        message: "Test message",
+                      }),
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        });
+
+        const result = mapExportTraceServiceRequestToOtelSpans(
+          request,
+          createMockOptions()
+        );
+        expect(result[0].payload.span.status_code).toBe(expected);
+        expect(result[0].payload.span.status_message).toBe("Test message");
+      });
+    });
+
+    test("should handle empty trace request", () => {
+      const emptyRequest = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [],
+      });
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        emptyRequest,
+        createMockOptions()
+      );
+      expect(result).toEqual([]);
+    });
+
+    test("should calculate duration correctly", () => {
+      const request = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [
+          create(ResourceSpansSchema, {
+            scopeSpans: [
+              create(ScopeSpansSchema, {
+                spans: [
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("1234567890abcdef"),
+                    name: "test-span",
+                    startTimeUnixNano: BigInt("1640995200000000000"),
+                    endTimeUnixNano: BigInt("1640995200000000000"), // Same time = 0 duration
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        request,
+        createMockOptions()
+      );
+      expect(result[0].payload.span.duration_ns).toBe("0");
+    });
+
+    test("should handle negative duration by returning 0", () => {
+      const request = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [
+          create(ResourceSpansSchema, {
+            scopeSpans: [
+              create(ScopeSpansSchema, {
+                spans: [
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("1234567890abcdef"),
+                    name: "test-span",
+                    startTimeUnixNano: BigInt("1640995202000000000"), // End before start
+                    endTimeUnixNano: BigInt("1640995200000000000"),
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        request,
+        createMockOptions()
+      );
+      expect(result[0].payload.span.duration_ns).toBe("0");
+    });
+
+    test("should convert different attribute value types correctly", () => {
+      // Helper to create AnyValue with different types
+      const createStringAttr = (key: string, value: string) =>
+        create(KeyValueSchema, {
+          key,
+          value: create(AnyValueSchema, {
+            value: { case: "stringValue", value },
+          }),
+        });
+
+      const createBoolAttr = (key: string, value: boolean) =>
+        create(KeyValueSchema, {
+          key,
+          value: create(AnyValueSchema, {
+            value: { case: "boolValue", value },
+          }),
+        });
+
+      const createIntAttr = (key: string, value: bigint) =>
+        create(KeyValueSchema, {
+          key,
+          value: create(AnyValueSchema, {
+            value: { case: "intValue", value },
+          }),
+        });
+
+      const createDoubleAttr = (key: string, value: number) =>
+        create(KeyValueSchema, {
+          key,
+          value: create(AnyValueSchema, {
+            value: { case: "doubleValue", value },
+          }),
+        });
+
+      const createBytesAttr = (key: string, bytes: Uint8Array) =>
+        create(KeyValueSchema, {
+          key,
+          value: create(AnyValueSchema, {
+            value: { case: "bytesValue", value: bytes },
+          }),
+        });
+
+      const request = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [
+          create(ResourceSpansSchema, {
+            scopeSpans: [
+              create(ScopeSpansSchema, {
+                spans: [
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("1234567890abcdef"),
+                    name: "test-span",
+                    kind: Span_SpanKind.INTERNAL,
+                    startTimeUnixNano: BigInt("1640995200000000000"),
+                    endTimeUnixNano: BigInt("1640995201000000000"),
+                    attributes: [
+                      createStringAttr("str_attr", "hello world"),
+                      createStringAttr("empty_str", ""),
+                      createStringAttr("unicode", "🚀 测试"),
+                      createBoolAttr("bool_true", true),
+                      createBoolAttr("bool_false", false),
+                      createIntAttr("small_int", BigInt(42)),
+                      createIntAttr("large_int", BigInt("9007199254740992")), // Larger than MAX_SAFE_INTEGER
+                      createIntAttr("negative_int", BigInt(-123)),
+                      createDoubleAttr("double_val", 3.14159),
+                      createDoubleAttr("negative_double", -2.718),
+                      createDoubleAttr("zero_double", 0.0),
+                      createDoubleAttr("inf_double", Infinity),
+                      createDoubleAttr("neg_inf_double", -Infinity),
+                      createBytesAttr(
+                        "bytes_attr",
+                        new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f])
+                      ), // "Hello"
+                      createBytesAttr("empty_bytes", new Uint8Array()),
+                      createBytesAttr(
+                        "binary_data",
+                        new Uint8Array([0x00, 0x01, 0xff, 0xab, 0xcd])
+                      ),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        request,
+        createMockOptions()
+      );
+      const attrs = result[0].payload.span.attributes;
+
+      // String values
+      expect(attrs["str_attr"]).toBe("hello world");
+      expect(attrs["empty_str"]).toBe("");
+      expect(attrs["unicode"]).toBe("🚀 测试");
+
+      // Boolean values
+      expect(attrs["bool_true"]).toBe(true);
+      expect(attrs["bool_false"]).toBe(false);
+
+      // Integer values
+      expect(attrs["small_int"]).toBe(42);
+      expect(attrs["large_int"]).toBe("9007199254740992"); // Should be string for large numbers
+      expect(attrs["negative_int"]).toBe(-123);
+
+      // Double values
+      expect(attrs["double_val"]).toBe(3.14159);
+      expect(attrs["negative_double"]).toBe(-2.718);
+      expect(attrs["zero_double"]).toBe(0.0);
+      expect(attrs["inf_double"]).toBe(Infinity);
+      expect(attrs["neg_inf_double"]).toBe(-Infinity);
+
+      // Bytes values (should be base64 encoded)
+      expect(attrs["bytes_attr"]).toBe("SGVsbG8="); // "Hello" in base64
+      expect(attrs["empty_bytes"]).toBe(""); // Empty bytes should be empty string
+      expect(attrs["binary_data"]).toBe("AAH/q80="); // Binary data in base64
+    });
+
+    test("should handle array and nested object attributes", () => {
+      // Create array attribute
+      const createArrayAttr = (key: string, values: any[]) =>
+        create(KeyValueSchema, {
+          key,
+          value: create(AnyValueSchema, {
+            value: {
+              case: "arrayValue",
+              value: create(ArrayValueSchema, {
+                values: values.map((v) =>
+                  typeof v === "string"
+                    ? create(AnyValueSchema, {
+                        value: { case: "stringValue", value: v },
+                      })
+                    : typeof v === "number"
+                      ? create(AnyValueSchema, {
+                          value: { case: "doubleValue", value: v },
+                        })
+                      : typeof v === "boolean"
+                        ? create(AnyValueSchema, {
+                            value: { case: "boolValue", value: v },
+                          })
+                        : create(AnyValueSchema, {
+                            value: { case: "stringValue", value: String(v) },
+                          })
+                ),
+              }),
+            },
+          }),
+        });
+
+      // Create nested object attribute
+      const createObjectAttr = (key: string, obj: Record<string, string>) =>
+        create(KeyValueSchema, {
+          key,
+          value: create(AnyValueSchema, {
+            value: {
+              case: "kvlistValue",
+              value: create(KeyValueListSchema, {
+                values: Object.entries(obj).map(([k, v]) =>
+                  create(KeyValueSchema, {
+                    key: k,
+                    value: create(AnyValueSchema, {
+                      value: { case: "stringValue", value: v },
+                    }),
+                  })
+                ),
+              }),
+            },
+          }),
+        });
+
+      const request = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [
+          create(ResourceSpansSchema, {
+            scopeSpans: [
+              create(ScopeSpansSchema, {
+                spans: [
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("1234567890abcdef"),
+                    name: "test-span",
+                    kind: Span_SpanKind.INTERNAL,
+                    startTimeUnixNano: BigInt("1640995200000000000"),
+                    endTimeUnixNano: BigInt("1640995201000000000"),
+                    attributes: [
+                      createArrayAttr("string_array", ["one", "two", "three"]),
+                      createArrayAttr("mixed_array", ["string", 42, true]),
+                      createArrayAttr("empty_array", []),
+                      createObjectAttr("nested_obj", {
+                        inner_key1: "value1",
+                        inner_key2: "value2",
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        request,
+        createMockOptions()
+      );
+      const attrs = result[0].payload.span.attributes;
+
+      // Array attributes
+      expect(attrs["string_array"]).toEqual(["one", "two", "three"]);
+      expect(attrs["mixed_array"]).toEqual(["string", 42, true]);
+      expect(attrs["empty_array"]).toEqual([]);
+
+      // Nested object attributes
+      expect(attrs["nested_obj"]).toEqual({
+        inner_key1: "value1",
+        inner_key2: "value2",
+      });
+    });
+
+    test("should handle null and undefined attribute values", () => {
+      // Create attribute with undefined value
+      const createNullAttr = (key: string) =>
+        create(KeyValueSchema, {
+          key,
+          value: undefined, // This should result in null
+        });
+
+      const request = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [
+          create(ResourceSpansSchema, {
+            scopeSpans: [
+              create(ScopeSpansSchema, {
+                spans: [
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("1234567890abcdef"),
+                    name: "test-span",
+                    kind: Span_SpanKind.INTERNAL,
+                    startTimeUnixNano: BigInt("1640995200000000000"),
+                    endTimeUnixNano: BigInt("1640995201000000000"),
+                    attributes: [
+                      createNullAttr("null_attr"),
+                      // Empty key should be filtered out
+                      create(KeyValueSchema, {
+                        key: "",
+                        value: create(AnyValueSchema, {
+                          value: {
+                            case: "stringValue",
+                            value: "should_be_filtered",
+                          },
+                        }),
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        request,
+        createMockOptions()
+      );
+      const attrs = result[0].payload.span.attributes;
+
+      // Should handle null/undefined values
+      expect(attrs["null_attr"]).toBe(null);
+
+      // Empty keys should be filtered out
+      expect(attrs[""]).toBeUndefined();
+      expect(Object.keys(attrs)).not.toContain("");
+    });
+
+    test("should handle extremely large numbers and edge cases", () => {
+      const createIntAttr = (key: string, value: bigint) =>
+        create(KeyValueSchema, {
+          key,
+          value: create(AnyValueSchema, {
+            value: { case: "intValue", value },
+          }),
+        });
+
+      const createDoubleAttr = (key: string, value: number) =>
+        create(KeyValueSchema, {
+          key,
+          value: create(AnyValueSchema, {
+            value: { case: "doubleValue", value },
+          }),
+        });
+
+      const request = create(ExportTraceServiceRequestSchema, {
+        resourceSpans: [
+          create(ResourceSpansSchema, {
+            scopeSpans: [
+              create(ScopeSpansSchema, {
+                spans: [
+                  create(SpanSchema, {
+                    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                    spanId: createMockId("1234567890abcdef"),
+                    name: "test-span",
+                    kind: Span_SpanKind.INTERNAL,
+                    startTimeUnixNano: BigInt("1640995200000000000"),
+                    endTimeUnixNano: BigInt("1640995201000000000"),
+                    attributes: [
+                      // Edge cases for integers
+                      createIntAttr(
+                        "max_safe_int",
+                        BigInt(Number.MAX_SAFE_INTEGER)
+                      ),
+                      createIntAttr(
+                        "max_safe_int_plus_one",
+                        BigInt(Number.MAX_SAFE_INTEGER + 1)
+                      ),
+                      createIntAttr(
+                        "min_safe_int",
+                        BigInt(Number.MIN_SAFE_INTEGER)
+                      ),
+                      createIntAttr(
+                        "min_safe_int_minus_one",
+                        BigInt(Number.MIN_SAFE_INTEGER - 1)
+                      ),
+                      createIntAttr(
+                        "very_large_positive",
+                        BigInt("18446744073709551615")
+                      ), // 2^64-1
+                      createIntAttr(
+                        "very_large_negative",
+                        BigInt("-18446744073709551615")
+                      ),
+
+                      // Edge cases for doubles
+                      createDoubleAttr("nan_double", NaN),
+                      createDoubleAttr("max_value", Number.MAX_VALUE),
+                      createDoubleAttr("min_value", Number.MIN_VALUE),
+                      createDoubleAttr("epsilon", Number.EPSILON),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportTraceServiceRequestToOtelSpans(
+        request,
+        createMockOptions()
+      );
+      const attrs = result[0].payload.span.attributes;
+
+      // Safe integers should remain as numbers
+      expect(attrs["max_safe_int"]).toBe(Number.MAX_SAFE_INTEGER);
+      expect(attrs["min_safe_int"]).toBe(Number.MIN_SAFE_INTEGER);
+
+      // Unsafe integers should become strings
+      expect(attrs["max_safe_int_plus_one"]).toBe(
+        (Number.MAX_SAFE_INTEGER + 1).toString()
+      );
+      expect(attrs["min_safe_int_minus_one"]).toBe(
+        (Number.MIN_SAFE_INTEGER - 1).toString()
+      );
+      expect(attrs["very_large_positive"]).toBe("18446744073709551615");
+      expect(attrs["very_large_negative"]).toBe("-18446744073709551615");
+
+      // Special double values
+      expect(Number.isNaN(attrs["nan_double"])).toBe(true);
+      expect(attrs["max_value"]).toBe(Number.MAX_VALUE);
+      expect(attrs["min_value"]).toBe(Number.MIN_VALUE);
+      expect(attrs["epsilon"]).toBe(Number.EPSILON);
+    });
+  });
+});

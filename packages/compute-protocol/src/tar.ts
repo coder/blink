@@ -1,7 +1,7 @@
-import * as tarStream from "tar-stream";
-import * as fs from "node:fs/promises";
 import { createReadStream } from "node:fs";
+import * as fs from "node:fs/promises";
 import { Readable as NodeReadable } from "node:stream";
+import * as tarStream from "tar-stream";
 
 export const createTarFromDirectory = async (
   path: string,

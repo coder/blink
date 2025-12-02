@@ -8,10 +8,10 @@ import {
   select,
   text,
 } from "@clack/prompts";
-import { spawn, exec } from "child_process";
-import { readdir, readFile, writeFile } from "fs/promises";
-import { basename, join } from "path";
+import { exec, spawn } from "child_process";
+import { readdir, writeFile } from "fs/promises";
 import Handlebars from "handlebars";
+import { basename, join } from "path";
 import { templates, type TemplateId } from "./init-templates";
 import { setupSlackApp } from "./setup-slack-app";
 

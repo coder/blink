@@ -1,24 +1,24 @@
 import type { UIMessage } from "ai";
-import chalk from "chalk";
 import { isToolOrDynamicToolUIPart } from "ai";
-import { isToolApprovalOutput } from "../agent/tools";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import chalk from "chalk";
 import { join } from "path";
-import type { Client, CapabilitiesResponse } from "../agent/client";
-import { getDevhookID, createDevhookID, hasDevhook } from "../cli/lib/devhook";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CapabilitiesResponse } from "../agent/client";
+import type { ID, UIOptions, UIOptionsSchema } from "../agent/index.browser";
+import { isToolApprovalOutput } from "../agent/tools";
+import type { BuildLog } from "../build";
+import { createDevhookID, getDevhookID, hasDevhook } from "../cli/lib/devhook";
 import { createLocalServer, type LocalServer } from "../local/server";
 import { isLogMessage, isStoredMessageMetadata } from "../local/types";
-import type { BuildLog } from "../build";
-import type { ID, UIOptions, UIOptionsSchema } from "../agent/index.browser";
-import useOptions from "./use-options";
-import useAgent, { type AgentLog, type Agent } from "./use-agent";
+import useAgent, { type Agent, type AgentLog } from "./use-agent";
+import useAuth, { type UseAuth } from "./use-auth";
 import useBundler, { type BundlerStatus } from "./use-bundler";
 import useChat, { type UseChat } from "./use-chat";
 import useDevhook from "./use-devhook";
 import useDotenv from "./use-dotenv";
 import useEditAgent from "./use-edit-agent";
-import useAuth, { type UseAuth } from "./use-auth";
 import type { Logger } from "./use-logger";
+import useOptions from "./use-options";
 
 export type DevMode = "run" | "edit";
 
@@ -174,7 +174,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     const allEnv = {
       ...process.env,
       ...dotenv,
-    }
+    };
     if (blinkToken) {
       allEnv.BLINK_TOKEN = blinkToken;
     }

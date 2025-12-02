@@ -1,17 +1,17 @@
-import { expect, test, describe, mock, beforeEach, afterEach } from "bun:test";
-import type { UIMessage } from "ai";
-import * as http from "http";
 import { createServerAdapter } from "@whatwg-node/server";
+import type { UIMessage } from "ai";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import * as http from "http";
 import { api as controlApi } from "../control";
-import { Agent, waitUntil, api } from "./agent";
+import { Agent, api, waitUntil } from "./agent";
 import type {
   AgentChat,
   AgentStore,
+  Chat,
   ID,
   NewMessage,
   SendOptions,
   UpsertedChat,
-  Chat,
 } from "./types";
 
 // Create a mock API server similar to createLocalServer

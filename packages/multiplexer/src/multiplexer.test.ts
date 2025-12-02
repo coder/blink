@@ -1,9 +1,9 @@
-import { test, expect, describe, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import Multiplexer, {
-  FrameCodec,
-  Stream,
-  MessageType,
   Flag,
+  FrameCodec,
+  MessageType,
+  Stream,
   type Frame,
 } from "./multiplexer";
 

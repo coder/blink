@@ -1,5 +1,5 @@
-import { expect, test } from "bun:test";
 import type { UIMessage, UIMessageChunk } from "ai";
+import { expect, test } from "bun:test";
 import { Client } from "../agent/client";
 import { runAgent } from "./run-agent";
 

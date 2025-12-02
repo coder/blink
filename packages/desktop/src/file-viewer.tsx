@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import {
-  vscDarkPlus,
   vs,
+  vscDarkPlus,
 } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 declare const require: any;

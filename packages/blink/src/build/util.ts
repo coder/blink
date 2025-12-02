@@ -1,5 +1,5 @@
-import { dirname, join } from "path";
 import { stat } from "fs/promises";
+import { dirname, join } from "path";
 
 /**
  * Finds the nearest entrypoint in the directory tree.

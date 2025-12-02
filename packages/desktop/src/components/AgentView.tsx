@@ -1,8 +1,22 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useDevMode, Logger } from "blink/react";
-import { setEsbuildInstance } from "blink/build";
 import { isToolOrDynamicToolUIPart } from "ai";
-import { useTheme } from "../contexts/ThemeContext";
+import type { ID } from "blink";
+import { setEsbuildInstance } from "blink/build";
+import { Logger, useDevMode } from "blink/react";
+import {
+  ArrowDown,
+  ArrowLeftRight,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  FolderTree,
+  LogOut,
+  Plus,
+  SendHorizonal,
+  Settings,
+  Trash2,
+  User,
+} from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { MessageBubble } from "../components/MessageBubble";
 import SourceBrowser, {
   buildFileTree,
@@ -17,27 +31,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
-import { Tooltip } from "../components/ui/tooltip";
-import { Switch } from "../components/ui/switch";
 import { Select } from "../components/ui/select";
-import {
-  SendHorizonal,
-  Copy,
-  Trash2,
-  ArrowLeftRight,
-  Plus,
-  FolderTree,
-  Settings,
-  Eye,
-  EyeOff,
-  LogOut,
-  User,
-  ExternalLink,
-  ArrowDown,
-} from "lucide-react";
+import { Switch } from "../components/ui/switch";
+import { Tooltip } from "../components/ui/tooltip";
+import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../hooks/useAuth";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
-import type { ID } from "blink";
 
 declare const require: any;
 

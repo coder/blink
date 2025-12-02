@@ -1,0 +1,43 @@
+{
+  "name": "blink-server",
+  "description": "Agents as a Service",
+  "version": "0.0.7",
+  "author": {
+    "name": "Coder",
+    "email": "support@coder.com",
+    "url": "https://coder.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coder/blink"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "blink-server": "dist/cli.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "typecheck": "tsgo --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "@types/ws": "^8.5.13",
+    "chalk": "^5.4.1",
+    "boxen": "^8.0.1",
+    "commander": "^12.1.0",
+    "drizzle-orm": "^0.44.5",
+    "fetch-to-node": "^2.1.0",
+    "pg": "^8.16.0",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

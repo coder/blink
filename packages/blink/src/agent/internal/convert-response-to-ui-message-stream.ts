@@ -2,7 +2,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createXai } from "@ai-sdk/xai";
-import { streamText, type UIMessageChunk, type LanguageModel } from "ai";
+import { streamText, type LanguageModel, type UIMessageChunk } from "ai";
 import { EventSourceParserStream } from "eventsource-parser/stream";
 import { StreamResponseFormatHeader } from "../index.browser";
 

@@ -1,0 +1,5 @@
+Contact: mailto:security@coder.com
+Preferred-Languages: en
+Canonical: https://blink.so/.well-known/security.txt
+Policy: https://coder.com/security/policy
+Hiring: https://coder.com/careers

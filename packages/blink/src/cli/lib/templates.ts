@@ -1,5 +1,4 @@
-import { readdir, readFile, writeFile } from "fs/promises";
-import stringify from "json-stable-stringify";
+import { readdir, readFile } from "fs/promises";
 import { join } from "path";
 
 export async function generateTemplates(): Promise<

@@ -1,4 +1,6 @@
 import Client from "@blink.so/api";
+import { spinner } from "@clack/prompts";
+import chalk from "chalk";
 import {
   existsSync,
   mkdirSync,
@@ -8,9 +10,6 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import XDGAppPaths from "xdg-app-paths";
-import chalk from "chalk";
-import { spinner } from "@clack/prompts";
-import open from "open";
 import { openUrl } from "./util";
 
 /**

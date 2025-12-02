@@ -1,13 +1,13 @@
-import { test, expect, describe } from "bun:test";
-import { z } from "zod";
 import {
-  streamText,
   simulateReadableStream,
+  streamText,
   tool,
   type ModelMessage,
   type ToolSet,
 } from "ai";
 import { MockLanguageModelV2 } from "ai/test";
+import { describe, expect, test } from "bun:test";
+import { z } from "zod";
 import withModelIntent from "./index";
 
 type Properties = { foo: string; bar?: number };

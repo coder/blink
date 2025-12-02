@@ -1,7 +1,7 @@
+import type { Client } from "@blink-sdk/compute-protocol/client";
 import { exec as execChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import util from "node:util";
-import type { Client } from "@blink-sdk/compute-protocol/client";
 import { WebSocket } from "ws";
 import { z } from "zod";
 import { newComputeClient } from "./common";

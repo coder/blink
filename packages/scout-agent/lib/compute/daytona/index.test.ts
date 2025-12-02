@@ -1,10 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { WebSocketServer } from "ws";
 import type { DaytonaClient, DaytonaSandbox } from "./index";
-import {
-  getDaytonaWorkspaceClient,
-  initializeDaytonaWorkspace,
-} from "./index";
+import { getDaytonaWorkspaceClient, initializeDaytonaWorkspace } from "./index";
 
 const noopLogger = {
   info: () => {},
@@ -35,7 +32,8 @@ const createMockWebSocketServer = () => {
   let receivedHeaders: Record<string, string> = {};
   const wss = new WebSocketServer({ port: 0 });
   const address = wss.address();
-  const port = typeof address === "object" && address !== null ? address.port : 0;
+  const port =
+    typeof address === "object" && address !== null ? address.port : 0;
   const url = `ws://localhost:${port}`;
 
   wss.on("connection", (_ws, req) => {

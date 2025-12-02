@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
-import { rename, rm } from "fs/promises";
-import { join } from "path";
 import chalk from "chalk";
+import { existsSync, readFileSync, writeFileSync } from "fs";
+import { rename } from "fs/promises";
+import { join } from "path";
 
 /**
  * Automatically migrates data/ to .blink/ if it exists.

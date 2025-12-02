@@ -1,9 +1,9 @@
-import { describe, test, expect, mock } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import * as esbuild from "esbuild";
-import { aiTelemetryPlugin } from "./ai-telemetry";
-import { readFile, rm, writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { mkdir, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
+import path from "path";
+import { aiTelemetryPlugin } from "./ai-telemetry";
 
 describe("aiTelemetryPlugin", () => {
   const createTestBuild = async (

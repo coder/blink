@@ -1,3 +1,4 @@
+import Client from "@blink.so/api";
 import {
   confirm,
   intro,
@@ -8,15 +9,13 @@ import {
   spinner,
   text,
 } from "@clack/prompts";
-import { access, readFile, readdir, writeFile } from "fs/promises";
-import { basename, join } from "path";
-import { createDevhookID, getDevhookID, hasDevhook } from "./lib/devhook";
-import { createSlackApp } from "../edit/tools/create-slack-app";
-import open from "open";
-import Client from "@blink.so/api";
-import crypto from "crypto";
 import chalk from "chalk";
+import crypto from "crypto";
+import { access, readFile, readdir, writeFile } from "fs/promises";
 import util from "node:util";
+import { basename, join } from "path";
+import { createSlackApp } from "../edit/tools/create-slack-app";
+import { createDevhookID, getDevhookID, hasDevhook } from "./lib/devhook";
 import { openUrl } from "./lib/util";
 
 export async function verifySlackCredentials(

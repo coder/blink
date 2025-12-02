@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import React, { useEffect } from "react";
 import { render } from "ink";
-import useOptions from "./use-options";
+import React, { useEffect } from "react";
 import type { CapabilitiesResponse } from "../agent/client";
+import useOptions from "./use-options";
 
 type OptionsSchema = Record<
   string,

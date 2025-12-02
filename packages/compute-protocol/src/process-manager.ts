@@ -2,8 +2,8 @@ import { Emitter } from "@blink-sdk/events";
 import type * as pty from "@lydell/node-pty";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import xterm from "@xterm/headless";
-import { type ProcessStatus } from "./schema";
 import { spawn as nodeSpawn } from "child_process";
+import { type ProcessStatus } from "./schema";
 
 export interface Disposable {
   dispose(): void;

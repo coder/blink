@@ -1,5 +1,7 @@
 import { isToolOrDynamicToolUIPart, type UIMessage } from "ai";
-import type { Client } from "../agent/client";
+import { stripVTControlCharacters } from "node:util";
+import type { ID } from "../agent/types";
+import type { Agent } from "../react/use-agent";
 import type { Source } from "../react/use-logger";
 import {
   createDiskStore,
@@ -9,15 +11,10 @@ import {
 } from "./disk-store";
 import { runAgent } from "./run-agent";
 import {
-  convertMessage,
   isStoredMessageMetadata,
   type StoredChat,
   type StoredMessage,
 } from "./types";
-import type { ID } from "../agent/types";
-import { stripVTControlCharacters } from "node:util";
-import { RWLock } from "./rw-lock";
-import type { Agent } from "../react/use-agent";
 
 export type ChatStatus = "idle" | "streaming" | "error";
 

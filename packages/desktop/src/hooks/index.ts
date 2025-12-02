@@ -1,2 +1,2 @@
-export { useAuth, getAuthToken, setAuthToken, clearAuthToken } from "./useAuth";
+export { clearAuthToken, getAuthToken, setAuthToken, useAuth } from "./useAuth";
 export type { AuthState, UseAuthReturn } from "./useAuth";

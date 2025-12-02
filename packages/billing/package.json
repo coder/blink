@@ -1,0 +1,18 @@
+{
+  "name": "@blink.so/billing",
+  "type": "module",
+  "exports": {
+    "./ingest-usage-event": {
+      "types": "./src/ingest-usage-event.ts",
+      "import": "./src/ingest-usage-event.ts"
+    },
+    "./metronome": {
+      "types": "./src/metronome.ts",
+      "import": "./src/metronome.ts"
+    },
+    "./money": {
+      "types": "./src/money.ts",
+      "import": "./src/money.ts"
+    }
+  }
+}

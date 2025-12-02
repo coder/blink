@@ -1,23 +1,43 @@
 {
   "private": true,
   "name": "blink-repo",
+  "displayName": "Blink",
   "type": "module",
   "scripts": {
+    "dev:site": "cd packages/site && bun run dev",
+    "dev:db": "bun scripts/db.ts",
+    "build": "cd packages/site && bun run build && cd ../.. && cd packages/server && bun run build",
+    "typecheck": "bun run --filter='*' typecheck",
     "format": "prettier --write --cache .",
+    "format:check": "prettier --check --cache .",
     "test": "bun test",
-    "typecheck": "tsgo --noEmit"
+    "knip": "knip"
   },
   "workspaces": [
     "packages/*"
   ],
   "devDependencies": {
-    "@types/bun": "latest",
-    "@typescript/native-preview": "^7.0.0-dev.20250907.1",
-    "prettier": "^3.6.2",
+    "@ai-sdk/openai": "^2.0.27",
+    "@ai-sdk/provider-utils": "^3.0.8",
+    "@cloudflare/workers-types": "^4.20250509.0",
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "@neondatabase/serverless": "^1.0.0",
+    "@types/bun": "^1.2.12",
+    "@types/node": "^24.10.1",
+    "@typescript/native-preview": "^7.0.0-dev.20250701.1",
+    "@whatwg-node/server": "^0.10.12",
+    "ai": "^5.0.39",
+    "blink": "^1.0.3",
+    "knip": "^5.69.0",
+    "next-auth": "5.0.0-beta.28",
+    "prettier": "^3.4.2",
+    "prettier-plugin-organize-imports": "^4.3.0",
     "tsdown": "^0.15.7",
-    "tsx": "^4.20.5"
+    "tsx": "^4.20.5",
+    "wrangler": "^4.31.0",
+    "zod": "^3.25.28"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }

@@ -1,11 +1,11 @@
-import { expect, test } from "bun:test";
 import { Client } from "@blink-sdk/compute-protocol/client";
 import Multiplexer, { Stream } from "@blink-sdk/multiplexer";
+import { expect, test } from "bun:test";
 import { Buffer } from "node:buffer";
 import type { AddressInfo } from "node:net";
 import { createServer as createNetServer } from "node:net";
-import WebSocket from "ws";
 import type { WebSocketServer } from "ws";
+import WebSocket from "ws";
 import serveCompute from "./compute-server";
 
 type RawData = WebSocket.RawData;

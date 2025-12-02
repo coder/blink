@@ -1,10 +1,10 @@
-import React, { useState, useMemo, memo, useEffect } from "react";
+import { ChevronDown, ExternalLink, File, X } from "lucide-react";
+import React, { memo, useEffect, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import {
-  vscDarkPlus,
   vs,
+  vscDarkPlus,
 } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { ExternalLink, ChevronDown, ChevronRight, File, X } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 
 declare const require: any;

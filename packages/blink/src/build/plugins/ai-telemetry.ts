@@ -18,11 +18,11 @@
  */
 
 import type {
-  Plugin,
-  PluginBuild,
-  OnResolveArgs,
   OnLoadArgs,
   OnLoadResult,
+  OnResolveArgs,
+  Plugin,
+  PluginBuild,
 } from "esbuild";
 
 export interface TelemetryConfig {

@@ -1,10 +1,9 @@
 import type * as esbuild from "esbuild";
-import type { BuildContext } from "./types";
+import { mkdir, rm, writeFile } from "fs/promises";
 import { builtinModules } from "module";
-import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { rm } from "fs/promises";
 import { aiTelemetryPlugin } from "./plugins/ai-telemetry";
+import type { BuildContext } from "./types";
 
 // Global esbuild instance that can be set by consumers (e.g., desktop app)
 let _esbuildInstance: typeof esbuild | undefined;

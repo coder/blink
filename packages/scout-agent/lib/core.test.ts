@@ -1,4 +1,3 @@
-import { describe, expect, mock, test } from "bun:test";
 import { Server as ComputeServer } from "@blink-sdk/compute-protocol/server";
 import {
   readUIMessageStream,
@@ -9,6 +8,7 @@ import {
 import { MockLanguageModelV2 } from "ai/test";
 import * as blink from "blink";
 import { Client } from "blink/client";
+import { describe, expect, mock, test } from "bun:test";
 import { WebSocketServer } from "ws";
 import type { DaytonaClient, DaytonaSandbox } from "./compute/daytona/index";
 import { type Message, Scout } from "./index";

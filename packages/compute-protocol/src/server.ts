@@ -1,6 +1,8 @@
-import Multiplexer, { Stream, FrameCodec } from "@blink-sdk/multiplexer";
+import Multiplexer, { FrameCodec, Stream } from "@blink-sdk/multiplexer";
+import { parse } from "dotenv";
 import { fileTypeFromBuffer } from "file-type";
 import * as fs from "fs/promises";
+import { WebSocket } from "ws";
 import {
   ProcessManager,
   type Disposable,
@@ -22,9 +24,7 @@ import {
   type ResponseSchema,
   type ServerMessage,
 } from "./schema";
-import { WebSocket } from "ws";
 import { createTarFromDirectory } from "./tar";
-import { parse } from "dotenv";
 
 // Helper to trim ANSI output to a safe tail (keep last ~64KB of text)
 const truncateAnsi = (text: string, limit: number): string => {

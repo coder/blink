@@ -1,15 +1,15 @@
-import { describe, it, expect, mock } from "bun:test";
-import { getFilesForTemplate, getAvailablePackageManagers } from "./init";
-import {
-  render,
-  BLINK_COMMAND,
-  makeTmpDir,
-  KEY_CODES,
-  pathToCliEntrypoint,
-} from "./lib/terminal";
-import { join } from "path";
-import { readFile, writeFile, chmod, mkdir } from "fs/promises";
+import { describe, expect, it } from "bun:test";
 import { execSync } from "child_process";
+import { chmod, mkdir, readFile, writeFile } from "fs/promises";
+import { join } from "path";
+import { getFilesForTemplate } from "./init";
+import {
+  BLINK_COMMAND,
+  KEY_CODES,
+  makeTmpDir,
+  pathToCliEntrypoint,
+  render,
+} from "./lib/terminal";
 
 const getFile = (files: Record<string, string>, filename: string): string => {
   const fileContent = files[filename];

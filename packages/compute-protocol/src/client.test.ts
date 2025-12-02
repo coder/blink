@@ -1,3 +1,4 @@
+import * as pty from "@lydell/node-pty";
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -5,7 +6,6 @@ import { test } from "node:test";
 import path from "path";
 import { runAsNodeTest } from "../../../scripts/runAsNodeTest";
 import { createInMemoryClientServer } from "./transport";
-import * as pty from "@lydell/node-pty";
 
 if (typeof Bun !== "undefined") {
   // Unfortunately, these tests have to use Node.

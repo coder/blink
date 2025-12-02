@@ -8,11 +8,10 @@ import type { EventSourceMessage } from "eventsource-parser/stream";
 import { EventSourceParserStream } from "eventsource-parser/stream";
 import { hc } from "hono/client";
 import type { api } from "../agent";
+import { APIServerURLEnvironmentVariable } from "../constants";
 import { convertResponseToUIMessageStream } from "../internal/convert-response-to-ui-message-stream";
 import type { ID } from "../types";
 import type { UIOptions, UIOptionsSchema } from "../ui";
-import { APIServerURLEnvironmentVariable } from "../constants";
-import { RWLock } from "../../local/rw-lock";
 
 export { APIServerURLEnvironmentVariable };
 

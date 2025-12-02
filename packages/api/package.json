@@ -1,0 +1,55 @@
+{
+  "name": "@blink.so/api",
+  "description": "The internal module for the Blink API.",
+  "private": true,
+  "type": "module",
+  "main": "./src/client.node.ts",
+  "browser": "./src/client.browser.ts",
+  "exports": {
+    ".": {
+      "browser": "./src/client.browser.ts",
+      "default": "./src/client.node.ts"
+    },
+    "./react": {
+      "browser": "./src/react/index.ts",
+      "default": "./src/react/index.ts"
+    },
+    "./server": "./src/server.ts",
+    "./test": "./src/test.ts",
+    "./agents/me": "./src/routes/agents/me/me.client.ts",
+    "./agents/me/server": "./src/routes/agents/me/me.server.ts",
+    "./util/chat": "./src/util/chat.ts"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "pack": "bun run build && cd dist && npm pack",
+    "typecheck": "tsgo --noEmit",
+    "publish": "bun run pack && cd dist && npm publish"
+  },
+  "devDependencies": {
+    "@bufbuild/protobuf": "^2.9.0",
+    "eventsource-parser": "^3.0.6",
+    "hono": "^4.9.7",
+    "msw": "^2.12.1",
+    "tsdown": "^0.15.1",
+    "zod": "^4.1.9",
+    "zod-validation-error": "^4.0.1"
+  },
+  "peerDependencies": {
+    "ai": ">= 5",
+    "zod": ">= 4",
+    "react": ">= 18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "@blink-sdk/compute-protocol": ">= 0.0.2"
+  },
+  "dependencies": {
+    "bcrypt-ts": "^7.1.0",
+    "next-auth": "5.0.0-beta.28"
+  }
+}

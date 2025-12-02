@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from "react";
+import { Logger, useDevMode } from "blink/react";
+import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { useDevMode, Logger } from "blink/react";
 import { useAuth } from "./hooks/useAuth";
-import { existsSync } from "fs";
-import { join } from "path";
 
 // Declare electron API available via nodeIntegration
 declare const require: any;

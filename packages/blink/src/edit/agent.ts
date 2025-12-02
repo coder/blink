@@ -1,31 +1,30 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
 import { createGatewayProvider } from "@ai-sdk/gateway";
+import { createOpenAI } from "@ai-sdk/openai";
 import * as compute from "@blink-sdk/compute";
 import {
   convertToModelMessages,
   readUIMessageStream,
   streamText,
   tool,
-  type UIMessage,
   type LanguageModel,
+  type UIMessage,
 } from "ai";
 import { spawn } from "child_process";
 import { readFile, writeFile } from "fs/promises";
-import open from "open";
 import { join } from "path";
 import { z } from "zod";
 import { Agent } from "../agent/agent";
 import { Client } from "../agent/client";
 import * as blink from "../agent/index.node";
 import { templates } from "../cli/init-templates";
+import { openUrl } from "../cli/lib/util";
 import {
   createGithubApp,
   createGithubAppSchema,
 } from "./tools/create-github-app";
 import { createSlackApp, createSlackAppSchema } from "./tools/create-slack-app";
 import { TSServer } from "./tsserver";
-import { openUrl } from "../cli/lib/util";
 
 export interface EditAgent {
   agent: Agent<UIMessage>;

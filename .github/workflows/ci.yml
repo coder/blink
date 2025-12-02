@@ -32,12 +32,14 @@ jobs:
           bun run --cwd packages/slack build
           bun run --cwd packages/model-intent build
           bun run --cwd packages/blink build
+          bun run --cwd packages/api build
+          bun run --cwd packages/server build
 
       - name: Run formatter check
-        run: bun run format --check
+        run: bun run format:check
 
       - name: Run type checking
         run: bun run typecheck
 
       - name: Run tests
-        run: bun test
+        run: bun test --timeout 30000

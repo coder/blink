@@ -1,6 +1,5 @@
-import { test, expect } from "bun:test";
-import { render } from "./terminal";
-import { BLINK_COMMAND } from "./terminal";
+import { test } from "bun:test";
+import { BLINK_COMMAND, render } from "./terminal";
 
 test("escape codes are rendered", async () => {
   using term = render(

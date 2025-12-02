@@ -1,9 +1,8 @@
 import type { UIMessage } from "ai";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Client } from "../agent/client";
+import type { ID } from "../agent/types";
 import { ChatManager, type ChatState } from "../local/chat-manager";
 import type { StoredMessage } from "../local/types";
-import type { ID } from "../agent/types";
 import type { Agent } from "./use-agent";
 
 export type { ChatStatus } from "../local/chat-manager";

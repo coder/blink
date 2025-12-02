@@ -1,7 +1,7 @@
-import { defineConfig, type CopyEntry } from "tsdown";
+import { mkdir, readFile, stat, writeFile } from "fs/promises";
 import { dirname, join } from "path";
-import { stat, readFile, writeFile, mkdir } from "fs/promises";
 import Sonda from "sonda/rolldown";
+import { defineConfig, type CopyEntry } from "tsdown";
 
 const copies: CopyEntry[] = [];
 const lydellNodePtyCopiedPaths: Record<string, string> = {};

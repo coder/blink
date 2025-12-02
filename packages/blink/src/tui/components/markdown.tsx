@@ -1,5 +1,5 @@
 import { Text } from "ink";
-import { Lexer, Parser, setOptions, marked } from "marked";
+import { Lexer, marked, Parser, setOptions } from "marked";
 import TerminalRenderer from "marked-terminal";
 import { memo, useMemo, useRef } from "react";
 

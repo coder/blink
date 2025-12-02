@@ -1,15 +1,9 @@
 import { Client } from "@blink-sdk/compute-protocol/client";
 import { createInMemoryClientServer } from "@blink-sdk/compute-protocol/transport";
-import {
-  tool,
-  type JSONValue,
-  type Tool,
-  type UIMessage,
-  type UIMessageStreamWriter,
-} from "ai";
-import { z } from "zod";
-import { structuredPatch } from "diff";
+import { tool, type JSONValue, type Tool } from "ai";
 import type { ToolWithContext } from "blink";
+import { structuredPatch } from "diff";
+import { z } from "zod";
 
 const limits = {
   readLineLimit: 2000,

@@ -1,6 +1,6 @@
+import filenamify from "filenamify";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import filenamify from "filenamify";
 import * as lockfile from "./lockfile";
 
 export interface FileStore {

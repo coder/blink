@@ -1,3 +1,9 @@
+import type {
+  EmitterWebhookEvent,
+  EmitterWebhookEventName,
+} from "@octokit/webhooks";
+import type { UIMessage } from "ai";
+import * as blink from "blink";
 import {
   afterAll,
   afterEach,
@@ -6,15 +12,9 @@ import {
   expect,
   test,
 } from "bun:test";
-import * as crypto from "node:crypto";
-import type {
-  EmitterWebhookEvent,
-  EmitterWebhookEventName,
-} from "@octokit/webhooks";
-import type { UIMessage } from "ai";
-import * as blink from "blink";
 import { HttpResponse, http as mswHttp } from "msw";
 import { setupServer } from "msw/node";
+import * as crypto from "node:crypto";
 import {
   createGitHubTools,
   githubAppContextFactory,

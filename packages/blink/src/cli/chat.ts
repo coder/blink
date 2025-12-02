@@ -1,4 +1,3 @@
-import open from "open";
 import { WebSocket } from "ws";
 import { WorkspaceConnect } from "./connect";
 import { openUrl } from "./lib/util";

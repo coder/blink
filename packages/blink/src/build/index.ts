@@ -1,7 +1,7 @@
-import path from "path";
 import { existsSync } from "fs";
-import type { BuildContext } from "./types";
+import path from "path";
 import { buildWithEsbuild } from "./esbuild";
+import type { BuildContext } from "./types";
 
 export * from "./types";
 

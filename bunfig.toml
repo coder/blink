@@ -1,0 +1,7 @@
+[test]
+root = "./packages"
+
+[install]
+# Use hardlink backend instead of default symlink to prevent .bun directory in Next.js standalone builds
+# This creates a more traditional node_modules structure compatible with Next.js tracing
+backend = "hardlink"

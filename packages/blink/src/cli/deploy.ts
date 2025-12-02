@@ -1,22 +1,19 @@
-import Client, {
-  type AgentDeploymentUploadFile,
-  type ListAgentsRequest,
-} from "@blink.so/api";
-import { stat, readFile } from "node:fs/promises";
-import { basename, dirname, join, relative } from "node:path";
-import { loginIfNeeded } from "./lib/auth";
-import { migrateDataToBlink } from "./lib/migrate";
-import { existsSync } from "node:fs";
-import { mkdir, writeFile, readdir } from "fs/promises";
-import { select, confirm, isCancel, spinner } from "@clack/prompts";
-import { parse } from "dotenv";
+import Client, { type AgentDeploymentUploadFile } from "@blink.so/api";
+import { confirm, isCancel, select, spinner } from "@clack/prompts";
 import chalk from "chalk";
-import { findNearestEntry } from "../build/util";
-import { resolveConfig, type BuildResult } from "../build";
-import { version } from "../../package.json";
+import { parse } from "dotenv";
+import { mkdir, readdir, writeFile } from "fs/promises";
 import ignore from "ignore";
+import { existsSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
+import { basename, dirname, join, relative } from "node:path";
 import { inspect } from "node:util";
+import { version } from "../../package.json";
+import { resolveConfig, type BuildResult } from "../build";
+import { findNearestEntry } from "../build/util";
+import { loginIfNeeded } from "./lib/auth";
 import { getDevhookID, resetDevhookID } from "./lib/devhook";
+import { migrateDataToBlink } from "./lib/migrate";
 
 export default async function deploy(
   directory?: string,

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import Client from "@blink.so/api";
-import { getAuthToken, setAuthToken, deleteAuthToken } from "../cli/lib/auth";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { deleteAuthToken, getAuthToken, setAuthToken } from "../cli/lib/auth";
 
 export interface UseAuthOptions {
   /**

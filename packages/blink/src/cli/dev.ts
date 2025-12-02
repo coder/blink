@@ -4,7 +4,6 @@ import { inspect } from "util";
 import { resolveConfig } from "../build/index";
 import { findNearestEntry } from "../build/util";
 import { startDev } from "../tui/dev";
-import { getAuthToken } from "./lib/auth";
 import { migrateDataToBlink } from "./lib/migrate";
 
 export default async function dev(directory?: string): Promise<void> {

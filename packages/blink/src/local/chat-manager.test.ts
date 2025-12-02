@@ -1,13 +1,13 @@
-import { expect, test, beforeEach, afterEach, mock } from "bun:test";
+import type { UIMessage, UIMessageChunk } from "ai";
+import { afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { UIMessage, UIMessageChunk } from "ai";
+import type { Client } from "../agent/client";
 import { ChatManager, type ChatStatus } from "./chat-manager";
 import { createDiskStore } from "./disk-store";
 import { RWLock } from "./rw-lock";
 import type { StoredChat, StoredMessage } from "./types";
-import type { Client } from "../agent/client";
 
 // Helper to create a mock agent
 function createMockAgent(responseText: string = "Assistant response"): {

@@ -1,4 +1,3 @@
-import util from "node:util";
 import type { ModelMessage, ProviderOptions } from "@ai-sdk/provider-utils";
 import type * as github from "@blink-sdk/github";
 import withModelIntent from "@blink-sdk/model-intent";
@@ -6,6 +5,7 @@ import * as slack from "@blink-sdk/slack";
 import type { App } from "@slack/bolt";
 import { convertToModelMessages, type LanguageModel, type Tool } from "ai";
 import type * as blink from "blink";
+import util from "node:util";
 import {
   type DaytonaClient,
   type DaytonaWorkspaceInfo,

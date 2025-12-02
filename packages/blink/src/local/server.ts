@@ -3,14 +3,13 @@ import type { JSONValue, UIMessage } from "ai";
 import { createServer as createHTTPServer } from "http";
 import * as fs from "node:fs";
 import { join } from "node:path";
-import type { Client } from "../agent/client";
+import { v5 as uuidv5 } from "uuid";
 import type { AgentChat, AgentStore, ID } from "../agent/index.node";
 import { api } from "../control";
+import type { Agent } from "../react/use-agent";
 import { ChatManager } from "./chat-manager";
 import { createDiskStore } from "./disk-store";
 import { convertMessage, type StoredChat } from "./types";
-import { v5 as uuidv5 } from "uuid";
-import type { Agent } from "../react/use-agent";
 
 export interface CreateLocalServerOptions {
   readonly dataDirectory: string;

@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { createRoot } from "react-dom/client";
-import { useDevMode, Logger } from "blink/react";
 import { setEsbuildInstance } from "blink/build";
+import { Logger, useDevMode } from "blink/react";
+import { Copy } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { createRoot } from "react-dom/client";
 import { MessageBubble } from "./components/MessageBubble";
 import SourceBrowser, {
   buildFileTree,
   type TreeNode,
 } from "./components/SourceBrowser";
 import { Button } from "./components/ui/button";
-import { Copy } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 
 // Declare electron API
 declare const require: any;

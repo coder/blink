@@ -1,14 +1,14 @@
-import React, { useMemo, useState } from "react";
+import {
+  Config,
+  InputPrompt,
+  type InputPromptProps,
+  KeypressProvider as KeypressProviderBase,
+  useBracketedPaste,
+  useTextBuffer,
+} from "@jaaydenh/gemini-cli/ui";
 import fs from "fs";
 import { Box, useStdout } from "ink";
-import {
-  InputPrompt,
-  useTextBuffer,
-  KeypressProvider as KeypressProviderBase,
-  Config,
-  type InputPromptProps,
-  useBracketedPaste,
-} from "@jaaydenh/gemini-cli/ui";
+import React, { useMemo, useState } from "react";
 
 function createMinimalConfig(): Config {
   return new Config({

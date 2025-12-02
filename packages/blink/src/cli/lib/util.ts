@@ -1,5 +1,5 @@
-import open from "open";
 import chalk from "chalk";
+import open from "open";
 
 export async function openUrl(
   url: string,

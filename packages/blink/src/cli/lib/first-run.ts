@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 
 /**

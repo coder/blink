@@ -1,13 +1,13 @@
 import {
   app,
   BrowserWindow,
-  ipcMain,
-  nativeImage,
-  Menu,
   dialog,
+  ipcMain,
+  Menu,
+  nativeImage,
 } from "electron";
-import { join } from "path";
 import { readFileSync } from "fs";
+import { join } from "path";
 
 // esbuild injects __dirname for CJS
 declare const __dirname: string;

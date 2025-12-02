@@ -1,7 +1,7 @@
-import * as http from "node:http";
 import { createServerAdapter } from "@whatwg-node/server";
 import type * as blink from "blink";
 import { api as controlApi } from "blink/control";
+import * as http from "node:http";
 
 /**
  * Creates a mock Blink API server for integration tests.

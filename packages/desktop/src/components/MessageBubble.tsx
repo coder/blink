@@ -1,8 +1,8 @@
+import type { UIMessage } from "ai";
+import { getToolOrDynamicToolName, isToolOrDynamicToolUIPart } from "ai";
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
-import type { UIMessage } from "ai";
-import { getToolOrDynamicToolName, isToolOrDynamicToolUIPart } from "ai";
 
 // Declare electron API for opening external links
 declare const require: any;

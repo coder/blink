@@ -1,12 +1,12 @@
 import { spawn } from "child_process";
 import { createServer } from "http";
 import { useEffect, useMemo, useState } from "react";
-import type { BuildResult } from "../build";
 import {
+  APIServerURLEnvironmentVariable,
   Client,
   type CapabilitiesResponse,
-  APIServerURLEnvironmentVariable,
 } from "../agent/client";
+import type { BuildResult } from "../build";
 import { RWLock } from "../local/rw-lock";
 
 export interface AgentLog {

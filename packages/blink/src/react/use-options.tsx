@@ -1,11 +1,11 @@
 import type { UIMessage } from "ai";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { CapabilitiesResponse, Client } from "../agent/client";
 import {
   lastUIOptions,
   type UIOptions,
   type UIOptionsSchema,
 } from "../agent/index.browser";
-import type { CapabilitiesResponse, Client } from "../agent/client";
 
 /**
  * useOptions is a hook that provides the selectable and selected options

@@ -1,8 +1,19 @@
 import type { DynamicToolUIPart, ToolUIPart, UIMessage } from "ai";
 import { getToolOrDynamicToolName, isToolOrDynamicToolUIPart } from "ai";
+import { clearTerminal as clearTerminalEscape } from "ansi-escapes";
 import chalk from "chalk";
-import { Box, Spacer, Static, Text, useApp, useInput, useStdout } from "ink";
+import {
+  Box,
+  render,
+  Spacer,
+  Static,
+  Text,
+  useApp,
+  useInput,
+  useStdout,
+} from "ink";
 import Spinner from "ink-spinner";
+import util from "node:util";
 import { relative } from "path";
 import React, {
   useCallback,
@@ -11,23 +22,18 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { clearTerminal as clearTerminalEscape } from "ansi-escapes";
 import { isToolApprovalOutput } from "../agent/tools";
-import useDevMode, { type TokenUsage } from "../react/use-dev-mode";
+import type { ID } from "../agent/types";
+import { checkAndMarkFirstRun } from "../cli/lib/first-run";
+import { isLogMessage, type StoredMessage } from "../local/types";
+import useDevMode from "../react/use-dev-mode";
+import { Logger, LoggerContext, useLogger } from "../react/use-logger";
 import Markdown from "./components/markdown";
 import TextInput, {
   KeypressProvider,
   type SlashCommand,
 } from "./components/text-input";
 import useTerminalSize from "./hooks/use-terminal-size";
-import { render } from "ink";
-import { isLogMessage, type StoredMessage } from "../local/types";
-import type { ID } from "../agent/types";
-import { checkAndMarkFirstRun } from "../cli/lib/first-run";
-import type { UseChat } from "../react/use-chat";
-import util from "node:util";
-import { type Source, useLogger } from "../react/use-logger";
-import { Logger, LoggerContext } from "../react/use-logger";
 
 const colors = {
   run: "#1f86ed",

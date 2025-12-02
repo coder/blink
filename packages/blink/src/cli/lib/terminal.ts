@@ -1,12 +1,12 @@
+import { Terminal } from "@xterm/headless";
+import { mkdtemp, rm } from "fs/promises";
 import {
   spawn,
   spawnSync,
   type ChildProcessWithoutNullStreams,
 } from "node:child_process";
-import { Terminal } from "@xterm/headless";
-import { join } from "path";
-import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
+import { join } from "path";
 
 export interface RenderOptions {
   cols?: number;
