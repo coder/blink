@@ -36,7 +36,7 @@ agent.on("request", async (request) => {
 });
 
 agent.on("chat", async ({ id, messages }) => {
-  const params = scout.buildStreamTextParams({
+  const params = await scout.buildStreamTextParams({
     messages,
     chatID: id,
     model: "anthropic/claude-sonnet-4.5",

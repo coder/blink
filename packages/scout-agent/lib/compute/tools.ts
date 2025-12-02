@@ -9,7 +9,7 @@ import { WORKSPACE_INFO_KEY } from "./common";
 
 export const createComputeTools = <T>({
   agent,
-  getGithubAppContext,
+  githubAppContext,
   initializeWorkspace,
   createWorkspaceClient,
 }: {
@@ -19,10 +19,10 @@ export const createComputeTools = <T>({
   ) => Promise<{ workspaceInfo: T; message: string }>;
   createWorkspaceClient: (workspaceInfo: T) => Promise<Client>;
   /**
-   * A function that returns the GitHub auth context for Git authentication.
+   * The GitHub auth context for Git authentication.
    * If provided, the workspace_authenticate_git tool will be available.
    */
-  getGithubAppContext?: () => Promise<github.AppAuthOptions>;
+  githubAppContext?: github.AppAuthOptions;
 }): Record<string, Tool> => {
   const newClient = async () => {
     const workspaceInfo = await agent.store.get(WORKSPACE_INFO_KEY);
@@ -56,7 +56,7 @@ export const createComputeTools = <T>({
       },
     }),
 
-    ...(getGithubAppContext
+    ...(githubAppContext
       ? {
           workspace_authenticate_git: tool({
             description: `Authenticate with Git repositories for push/pull operations. Call this before any Git operations that require authentication.
@@ -74,13 +74,6 @@ It's safe to call this multiple times - re-authenticating is perfectly fine and 
             execute: async (args, _opts) => {
               const client = await newClient();
 
-              // Here we generate a GitHub token scoped to the repositories.
-              const githubAppContext = await getGithubAppContext();
-              if (!githubAppContext) {
-                throw new Error(
-                  "You can only use public repositories in this context."
-                );
-              }
               const token = await github.authenticateApp({
                 ...githubAppContext,
                 // TODO: We obviously need to handle owner at some point.

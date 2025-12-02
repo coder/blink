@@ -187,13 +187,12 @@ const withGitHubBotLogin = (login: string) => {
   return withEnvVariable("GITHUB_BOT_LOGIN", login);
 };
 
-const getGithubAppContextFactory =
-  (args: { appId: string; privateKey: string }) => async () => {
-    return {
-      appId: args.appId,
-      privateKey: Buffer.from(args.privateKey, "base64").toString("utf-8"),
-    };
+const makeGithubAppContext = (args: { appId: string; privateKey: string }) => {
+  return {
+    appId: args.appId,
+    privateKey: Buffer.from(args.privateKey, "base64").toString("utf-8"),
   };
+};
 
 describe("defaultGetGithubAppContextFactory", () => {
   test("decodes base64 private key", async () => {
@@ -248,7 +247,7 @@ describe("createGitHubTools", () => {
     const tools = createGitHubTools({
       agent,
       chatID: "test-chat-id" as blink.ID,
-      getGithubAppContext: getGithubAppContextFactory({
+      githubAppContext: makeGithubAppContext({
         appId: "app-id",
         privateKey: Buffer.from("key").toString("base64"),
       }),
@@ -317,7 +316,7 @@ describe("createGitHubTools", () => {
     const tools = createGitHubTools({
       agent,
       chatID,
-      getGithubAppContext: getGithubAppContextFactory({
+      githubAppContext: makeGithubAppContext({
         appId: "12345",
         privateKey: TEST_RSA_PRIVATE_KEY_BASE64,
       }),
@@ -407,7 +406,7 @@ describe("createGitHubTools", () => {
     const tools = createGitHubTools({
       agent,
       chatID: "chat-id" as blink.ID,
-      getGithubAppContext: getGithubAppContextFactory({
+      githubAppContext: makeGithubAppContext({
         appId: "12345",
         privateKey: TEST_RSA_PRIVATE_KEY_BASE64,
       }),
@@ -508,7 +507,7 @@ describe("createGitHubTools", () => {
     const tools = createGitHubTools({
       agent,
       chatID: "chat" as blink.ID,
-      getGithubAppContext: getGithubAppContextFactory({
+      githubAppContext: makeGithubAppContext({
         appId: "12345",
         privateKey: TEST_RSA_PRIVATE_KEY_BASE64,
       }),

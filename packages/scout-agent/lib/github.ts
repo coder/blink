@@ -22,17 +22,19 @@ export const githubAppContextFactory = ({
 export const createGitHubTools = ({
   agent,
   chatID,
-  getGithubAppContext,
+  githubAppContext,
 }: {
   agent: blink.Agent<UIMessage>;
   chatID: blink.ID;
-  getGithubAppContext: () => Promise<github.AppAuthOptions>;
+  githubAppContext: github.AppAuthOptions | undefined;
 }): Record<string, Tool> => {
   return {
     ...blink.tools.prefix(
-      blink.tools.withContext(github.tools, {
-        appAuth: getGithubAppContext,
-      }),
+      githubAppContext
+        ? blink.tools.withContext(github.tools, {
+            appAuth: githubAppContext,
+          })
+        : github.tools,
       "github_"
     ),
 
@@ -40,7 +42,6 @@ export const createGitHubTools = ({
       description: github.tools.create_pull_request.description,
       inputSchema: github.tools.create_pull_request.inputSchema,
       execute: async (args, { abortSignal }) => {
-        const githubAppContext = await getGithubAppContext();
         if (!githubAppContext) {
           throw new Error(
             "You are not authorized to use this tool in this context."

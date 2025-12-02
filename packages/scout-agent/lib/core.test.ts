@@ -67,7 +67,7 @@ const newAgent = (options: {
     return new Response("Hello, world!", { status: 200 });
   });
   agent.on("chat", async ({ messages }) => {
-    const params = core.buildStreamTextParams({
+    const params = await core.buildStreamTextParams({
       model: options.model,
       messages,
       chatID: "b485db32-3d53-45fb-b980-6f4672fc66a6",
@@ -363,7 +363,7 @@ test("buildStreamTextParams honors getGithubAppContext param", async () => {
     },
   });
 
-  const params = scout.buildStreamTextParams({
+  const params = await scout.buildStreamTextParams({
     chatID: "test-chat-id" as blink.ID,
     messages: [],
     model: newMockModel({ textResponse: "test" }),
@@ -576,7 +576,7 @@ describe("daytona integration", () => {
       },
     });
 
-    const params = scout.buildStreamTextParams({
+    const params = await scout.buildStreamTextParams({
       chatID: "test-chat-id" as blink.ID,
       messages: [],
       model: newMockModel({ textResponse: "test" }),
@@ -643,7 +643,7 @@ describe("daytona integration", () => {
       },
     });
 
-    const params = scout.buildStreamTextParams({
+    const params = await scout.buildStreamTextParams({
       chatID: "test-chat-id" as blink.ID,
       messages: [],
       model: newMockModel({ textResponse: "test" }),
@@ -735,7 +735,7 @@ describe("daytona integration", () => {
       },
     });
 
-    const params = scout.buildStreamTextParams({
+    const params = await scout.buildStreamTextParams({
       chatID: "test-chat-id" as blink.ID,
       messages: [],
       model: newMockModel({ textResponse: "test" }),
