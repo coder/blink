@@ -9,23 +9,23 @@ import Client from "../../client.browser";
 export const schemaAgentPermissionLevel = z.enum(["read", "write", "admin"]);
 
 export const schemaAgentPermission = z.object({
-  user_id: z.string().uuid().nullable(),
-  agent_id: z.string().uuid(),
+  user_id: z.uuid().nullable(),
+  agent_id: z.uuid(),
   permission: schemaAgentPermissionLevel,
   created_at: z.date(),
   updated_at: z.date(),
-  created_by: z.string().uuid(),
+  created_by: z.uuid(),
 });
 
 export type AgentPermission = z.infer<typeof schemaAgentPermission>;
 
 export const schemaAgentUser = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   created_at: z.date(),
   updated_at: z.date(),
   display_name: z.string().nullable(),
-  email: z.string().email(),
-  avatar_url: z.string().url().nullable(),
+  email: z.email(),
+  avatar_url: z.url().nullable(),
   username: z.string(),
 });
 
@@ -36,7 +36,7 @@ export const schemaAgentMember = schemaAgentPermission.extend({
 export type AgentMember = z.infer<typeof schemaAgentMember>;
 
 export const schemaListAgentMembersRequest = schemaPaginatedRequest.extend({
-  agent_id: z.string().uuid(),
+  agent_id: z.uuid(),
 });
 
 export type ListAgentMembersRequest = z.infer<
@@ -51,13 +51,13 @@ export type ListAgentMembersResponse = z.infer<
 >;
 
 export const schemaGrantAgentPermissionRequestBody = z.object({
-  user_id: z.string().uuid().nullable(),
+  user_id: z.uuid().nullable(),
   permission: schemaAgentPermissionLevel,
 });
 
 export const schemaGrantAgentPermissionRequest =
   schemaGrantAgentPermissionRequestBody.extend({
-    agent_id: z.string().uuid(),
+    agent_id: z.uuid(),
   });
 
 export type GrantAgentPermissionRequest = z.infer<
@@ -65,8 +65,8 @@ export type GrantAgentPermissionRequest = z.infer<
 >;
 
 export const schemaRevokeAgentPermissionRequest = z.object({
-  agent_id: z.string().uuid(),
-  user_id: z.string().uuid().nullable(),
+  agent_id: z.uuid(),
+  user_id: z.uuid().nullable(),
 });
 
 export type RevokeAgentPermissionRequest = z.infer<

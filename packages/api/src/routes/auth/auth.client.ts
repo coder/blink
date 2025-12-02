@@ -15,7 +15,7 @@ export const SESSION_COOKIE_NAME = "blink_session_token";
 export const SESSION_SECURE = false;
 
 export const schemaSignInWithCredentialsRequest = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(8),
 });
 
@@ -42,7 +42,7 @@ export const schemaResetPasswordResponse = z.object({
 
 export const schemaRequestEmailChangeRequest = z.object({
   currentPassword: z.string(),
-  newEmail: z.string().email(),
+  newEmail: z.email(),
 });
 
 export const schemaRequestEmailChangeResponse = z.object({
@@ -73,7 +73,7 @@ export const schemaResendEmailVerificationResponse = z.object({
 });
 
 export const schemaRequestPasswordResetRequest = z.object({
-  email: z.string().email(),
+  email: z.email(),
 });
 
 export const schemaRequestPasswordResetResponse = z.object({

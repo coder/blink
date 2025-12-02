@@ -17,8 +17,8 @@ export const FieldFilterGroupSchema = z.object({
 });
 
 export const SpansRequestSchema = z.object({
-  start_time: z.string().datetime().pipe(z.coerce.date()),
-  end_time: z.string().datetime().pipe(z.coerce.date()),
+  start_time: z.iso.datetime().pipe(z.coerce.date()),
+  end_time: z.iso.datetime().pipe(z.coerce.date()),
   filters: z
     .string()
     .transform((val) => JSON.parse(val))

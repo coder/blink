@@ -82,7 +82,7 @@
     "usehooks-ts": "^3.1.1",
     "vite-plugin-inspect": "^11.1.0",
     "vite-plugin-node-polyfills": "^0.24.0",
-    "zod": "^3.25.23"
+    "zod": "^4.0.0"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.9.0",

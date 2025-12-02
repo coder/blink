@@ -8,11 +8,11 @@ import Client from "../../client.browser";
 
 export const schemaGetAgentDeploymentRequest = z.union([
   z.object({
-    agent_id: z.string().uuid(),
-    deployment_id: z.string().uuid(),
+    agent_id: z.uuid(),
+    deployment_id: z.uuid(),
   }),
   z.object({
-    agent_id: z.string().uuid(),
+    agent_id: z.uuid(),
     deployment_number: z.number().int().positive(),
   }),
 ]);
@@ -22,8 +22,8 @@ export type GetAgentDeploymentRequest = z.infer<
 >;
 
 export const schemaDeleteAgentDeploymentRequest = z.object({
-  agent_id: z.string().uuid(),
-  deployment_id: z.string().uuid(),
+  agent_id: z.uuid(),
+  deployment_id: z.uuid(),
 });
 
 export type DeleteAgentDeploymentRequest = z.infer<
@@ -32,11 +32,11 @@ export type DeleteAgentDeploymentRequest = z.infer<
 
 export const schemaRedeployAgentDeploymentRequest = z.union([
   z.object({
-    agent_id: z.string().uuid(),
-    deployment_id: z.string().uuid(),
+    agent_id: z.uuid(),
+    deployment_id: z.uuid(),
   }),
   z.object({
-    agent_id: z.string().uuid(),
+    agent_id: z.uuid(),
     deployment_number: z.number().int().positive(),
   }),
 ]);
@@ -47,7 +47,7 @@ export type RedeployAgentDeploymentRequest = z.infer<
 
 export const schemaAgentDeploymentFile = z.object({
   path: z.string(),
-  id: z.string().uuid(),
+  id: z.uuid(),
 });
 
 export type AgentDeploymentFile = z.infer<typeof schemaAgentDeploymentFile>;
@@ -70,7 +70,7 @@ export type AgentDeploymentTarget = z.infer<typeof schemaAgentDeploymentTarget>;
 
 export const schemaCreateAgentDeploymentRequest = z
   .object({
-    agent_id: z.string().uuid(),
+    agent_id: z.uuid(),
     output_files: z.array(schemaAgentDeploymentUploadFile).optional(),
     source_files: z.array(schemaAgentDeploymentUploadFile).optional(),
     // Legacy field for backwards compatibility
@@ -96,13 +96,13 @@ export type CreateAgentDeploymentRequest = z.infer<
 >;
 
 export const schemaAgentDeployment = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   number: z.number().int().positive(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-  created_by: z.string().uuid().nullable(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+  created_by: z.uuid().nullable(),
   created_from: z.enum(["cli"]),
-  agent_id: z.string().uuid(),
+  agent_id: z.uuid(),
   source_files: z.array(schemaAgentDeploymentFile),
   output_files: z.array(schemaAgentDeploymentFile),
   status: z.enum(["success", "failed", "deploying", "pending"]),
@@ -117,11 +117,11 @@ export const schemaAgentDeployment = z.object({
 export type AgentDeployment = z.infer<typeof schemaAgentDeployment>;
 
 export const schemaAgentDeploymentLog = z.object({
-  id: z.string().uuid(),
-  created_at: z.string().datetime(),
-  updated_at: z.string().datetime(),
-  agent_id: z.string().uuid(),
-  deployment_id: z.string().uuid(),
+  id: z.uuid(),
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime(),
+  agent_id: z.uuid(),
+  deployment_id: z.uuid(),
   level: z.enum(["log", "info", "warning", "error"]),
   message: z.string(),
 });
@@ -129,7 +129,7 @@ export const schemaAgentDeploymentLog = z.object({
 export type AgentDeploymentLog = z.infer<typeof schemaAgentDeploymentLog>;
 
 export const schemaListAgentDeploymentsRequest = schemaPaginatedRequest.extend({
-  agent_id: z.string().uuid(),
+  agent_id: z.uuid(),
   order: z.enum(["asc", "desc"]).default("asc").optional(),
 });
 

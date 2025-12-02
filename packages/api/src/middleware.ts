@@ -300,7 +300,7 @@ export const withAgentURLParam: MiddlewareHandler<{
   if (!id) {
     return c.json({ message: "Agent ID is required" }, 400);
   }
-  const parsed = await z.string().uuid().safeParseAsync(id);
+  const parsed = await z.uuid().safeParseAsync(id);
   if (!parsed.success) {
     return c.json({ message: "Invalid agent ID" }, 400);
   }

@@ -30,7 +30,7 @@ export default function mountAgentRuns(app: APIServer) {
       const agent_deployment_id = value["agent_deployment_id"];
       if (
         agent_deployment_id &&
-        !z.string().uuid().safeParse(agent_deployment_id).success
+        !z.uuid().safeParse(agent_deployment_id).success
       ) {
         throw new HTTPException(400, {
           message: "agent_deployment_id must be a valid UUID",

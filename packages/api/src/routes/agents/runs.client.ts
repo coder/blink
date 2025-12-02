@@ -9,8 +9,8 @@ import type { ChatRun } from "../chats/runs.client";
 import { schemaChatRun } from "../chats/runs.client";
 
 export const schemaListAgentRunsRequest = schemaCursorPaginatedRequest.extend({
-  agent_id: z.string().uuid(),
-  agent_deployment_id: z.string().uuid().optional(),
+  agent_id: z.uuid(),
+  agent_deployment_id: z.uuid().optional(),
 });
 
 export type ListAgentRunsRequest = z.infer<typeof schemaListAgentRunsRequest>;
@@ -25,8 +25,8 @@ export const schemaListAgentRunsResponse =
 export type ListAgentRunsResponse = z.infer<typeof schemaListAgentRunsResponse>;
 
 export const schemaGetAgentRunRequest = z.object({
-  agent_id: z.string().uuid(),
-  run_id: z.string().uuid(),
+  agent_id: z.uuid(),
+  run_id: z.uuid(),
 });
 
 export type GetAgentRunRequest = z.infer<typeof schemaGetAgentRunRequest>;

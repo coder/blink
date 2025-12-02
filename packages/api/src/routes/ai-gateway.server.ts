@@ -1,6 +1,21 @@
-import { ingestUsageEvent } from "@blink.so/billing/ingest-usage-event";
-import type { EnvLike } from "@blink.so/billing/metronome";
-import { Money } from "@blink.so/billing/money";
+// Billing stubs - OSS version doesn't track usage
+class Money {
+  private constructor(private value: string) {}
+  static from(value: string | number): Money {
+    return new Money(String(value));
+  }
+  toString(): string {
+    return this.value;
+  }
+}
+type EnvLike = unknown;
+async function ingestUsageEvent(
+  _env: EnvLike,
+  _querier: unknown,
+  _opts: unknown
+): Promise<void> {
+  // No-op in OSS version
+}
 import type Querier from "@blink.so/database/querier";
 import { createParser, type EventSourceMessage } from "eventsource-parser";
 import { z } from "zod";

@@ -8,17 +8,17 @@ import Client from "../../client.browser";
 import { schemaChatRunStepStatus } from "./steps.client";
 
 const schemaListChatRunsRequest = schemaCursorPaginatedRequest.extend({
-  chat_id: z.string().uuid(),
+  chat_id: z.uuid(),
 });
 
 export type ListChatRunsRequest = z.infer<typeof schemaListChatRunsRequest>;
 
 export const schemaChatRun = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   started_at: z.date(),
-  agent_id: z.string().uuid(),
-  agent_deployment_id: z.string().uuid().nullable(),
-  chat_id: z.string().uuid(),
+  agent_id: z.uuid(),
+  agent_deployment_id: z.uuid().nullable(),
+  chat_id: z.uuid(),
   step_count: z.number().int().positive(),
   status: schemaChatRunStepStatus.nullable(),
   error: z.string().nullable(),

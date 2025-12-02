@@ -10,15 +10,15 @@ import OrganizationMembers, {
 export type { OrganizationMember } from "./members.client";
 
 export const schemaOrganization = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string(),
   created_at: z.date(),
   updated_at: z.date(),
   membership: schemaOrganizationMembership.nullable(),
 
-  members_url: z.string().url(),
-  invites_url: z.string().url(),
-  avatar_url: z.string().url().nullable(),
+  members_url: z.url(),
+  invites_url: z.url(),
+  avatar_url: z.url().nullable(),
 });
 
 export type Organization = z.infer<typeof schemaOrganization>;
@@ -34,7 +34,7 @@ export type CreateOrganizationRequest = z.infer<
 export const schemaUpdateOrganizationRequest = z.object({
   name: z.string().max(100).optional(),
   avatar_file_id: z.string().nullable().optional(),
-  avatar_url: z.string().url().nullable().optional(),
+  avatar_url: z.url().nullable().optional(),
 });
 
 export type UpdateOrganizationRequest = z.infer<

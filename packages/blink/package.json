@@ -135,7 +135,7 @@
     "esbuild": "^0.25.9"
   },
   "peerDependencies": {
-    "zod": ">= 3.24",
+    "zod": ">= 4",
     "ai": ">= 5",
     "react": ">= 18"
   },

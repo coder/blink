@@ -488,7 +488,7 @@ export const createSlackAppSchema = z.object({
   oauth_config: z
     .object({
       redirect_urls: z
-        .array(z.string().url())
+        .array(z.url())
         .optional()
         .describe("OAuth redirect URLs."),
       scopes: z
