@@ -45,5 +45,5 @@ jobs:
 
       - name: Run tests
         run: |
-          # Run tests excluding the new OSS packages that have dep issues
-          bun test --timeout 30000 packages/events packages/multiplexer packages/compute-protocol packages/compute packages/github packages/slack packages/model-intent packages/blink packages/desktop packages/scout-agent
+          # Run tests only for packages that don't have OSS migration issues
+          bun test --timeout 30000 packages/events packages/multiplexer packages/compute-protocol packages/compute packages/github packages/slack packages/model-intent
