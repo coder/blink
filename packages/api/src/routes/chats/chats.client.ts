@@ -36,18 +36,18 @@ export const schemaChatVisibility = z.enum([
 ]);
 
 export const schemaChat = z.object({
-  id: z.uuid(),
+  id: z.string().uuid(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
-  created_by: z.uuid().nullable(),
-  organization_id: z.uuid(),
+  created_by: z.string().uuid().nullable(),
+  organization_id: z.string().uuid(),
   title: z.string().nullable(),
   visibility: schemaChatVisibility,
   metadata: schemaMetadata,
   archived: z.boolean(),
   status: schemaChatStatus,
   error: z.string().nullable(),
-  agent_deployment_id: z.uuid().nullable(),
+  agent_deployment_id: z.string().uuid().nullable(),
   agent: schemaAgent,
   expire_ttl: z.number().int().positive().nullable(),
   expires_at: z.iso.datetime().nullable(),
@@ -61,13 +61,13 @@ export type StreamChatTransport = z.infer<typeof schemaStreamChatTransport>;
 
 // Base request properties for creating a chat
 const schemaCreateChatRequestBase = z.object({
-  organization_id: z.uuid(),
+  organization_id: z.string().uuid(),
   title: z.string().optional(),
   visibility: schemaChatVisibility.default("private").optional(),
   metadata: schemaMetadata.optional(),
 
-  agent_id: z.uuid(),
-  agent_deployment_id: z.uuid().optional(),
+  agent_id: z.string().uuid(),
+  agent_deployment_id: z.string().uuid().optional(),
   messages: z.array(schemaCreateChatMessage).optional(),
 });
 
@@ -89,10 +89,10 @@ export type CreateChatRequest = z.infer<typeof schemaCreateChatRequest>;
 
 export const schemaListChatsRequest = z.union([
   schemaCursorPaginatedRequest.extend({
-    organization_id: z.uuid(),
+    organization_id: z.string().uuid(),
   }),
   schemaCursorPaginatedRequest.extend({
-    agent_id: z.uuid(),
+    agent_id: z.string().uuid(),
   }),
 ]);
 
@@ -131,13 +131,13 @@ export const schemaStreamChatEvent = z.discriminatedUnion("event", [
   z.strictObject({
     event: z.literal("message.deleted"),
     data: z.object({
-      id: z.uuid(),
+      id: z.string().uuid(),
     }),
   }),
   z.strictObject({
     event: z.literal("message.chunk.added"),
     data: z.object({
-      id: z.uuid(),
+      id: z.string().uuid(),
       chunk: z.custom<UIMessageChunk>(),
     }),
   }),

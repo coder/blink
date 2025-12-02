@@ -183,7 +183,7 @@ const withInviteIDParam: MiddlewareHandler<{
   if (!inviteID) {
     return c.json({ message: "Invite ID is required" }, 400);
   }
-  const parsed = await z.uuid().safeParseAsync(inviteID);
+  const parsed = await z.string().uuid().safeParseAsync(inviteID);
   if (!parsed.success) {
     return c.json({ message: "Invalid invite ID" }, 400);
   }
