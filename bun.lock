@@ -41,7 +41,7 @@
         "hono": "^4.9.7",
         "msw": "^2.12.1",
         "tsdown": "^0.15.1",
-        "zod": "^4.1.9",
+        "zod": "^3.24.0",
         "zod-validation-error": "^4.0.1",
       },
       "optionalDependencies": {
@@ -50,7 +50,7 @@
       "peerDependencies": {
         "ai": ">= 5",
         "react": ">= 18",
-        "zod": ">= 4",
+        "zod": ">= 3.24",
       },
       "optionalPeers": [
         "react",
@@ -4181,8 +4181,6 @@
     "@blink-sdk/scout-agent/tsdown": ["tsdown@0.3.1", "", { "dependencies": { "cac": "^6.7.14", "chokidar": "^4.0.1", "consola": "^3.2.3", "debug": "^4.3.7", "picocolors": "^1.1.1", "pkg-types": "^1.2.1", "rolldown": "nightly", "tinyglobby": "^0.2.10", "unconfig": "^0.6.0", "unplugin-isolated-decl": "^0.7.2", "unplugin-unused": "^0.2.3" }, "bin": { "tsdown": "bin/tsdown.js" } }, "sha512-5WLFU7f2NRnsez0jxi7m2lEQNPvBOdos0W8vHvKDnS6tYTfOfmZ5D2z/G9pFTQSjeBhoi6BFRMybc4LzCOKR8A=="],
 
     "@blink-sdk/scout-agent/zod": ["zod@4.1.13", "", {}, "sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig=="],
-
-    "@blink.so/api/zod": ["zod@4.1.13", "", {}, "sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig=="],
 
     "@blink.so/site/dotenv": ["dotenv@16.6.1", "", {}, "sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow=="],
 
