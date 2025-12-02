@@ -18,10 +18,10 @@ export type AgentRunStep = ChatRunStep;
 
 export const schemaListAgentRunStepsRequest =
   schemaCursorPaginatedRequest.extend({
-    agent_id: z.string().uuid(),
-    agent_deployment_id: z.string().uuid().optional(),
-    chat_id: z.string().uuid().optional(),
-    run_id: z.string().uuid().optional(),
+    agent_id: z.uuid(),
+    agent_deployment_id: z.uuid().optional(),
+    chat_id: z.uuid().optional(),
+    run_id: z.uuid().optional(),
     status: schemaChatRunStepStatus.optional(),
   });
 

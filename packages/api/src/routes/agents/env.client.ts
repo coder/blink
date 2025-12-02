@@ -4,18 +4,18 @@ import Client from "../../client.browser";
 import { schemaAgentDeploymentTarget } from "./deployments.client";
 
 const schemaListAgentEnvRequest = z.object({
-  agent_id: z.string().uuid(),
+  agent_id: z.uuid(),
   target: schemaAgentDeploymentTarget.array().optional(),
 });
 
 export type ListAgentEnvRequest = z.infer<typeof schemaListAgentEnvRequest>;
 
 const schemaAgentEnvironmentVariable = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   created_at: z.date(),
   updated_at: z.date(),
-  created_by: z.string().uuid(),
-  updated_by: z.string().uuid(),
+  created_by: z.uuid(),
+  updated_by: z.uuid(),
   key: z.string(),
   value: z.string().nullable(),
   secret: z.boolean(),
@@ -35,21 +35,21 @@ export const schemaCreateAgentEnv = z.object({
 });
 
 export const schemaCreateAgentEnvRequest = schemaCreateAgentEnv.extend({
-  agent_id: z.string().uuid(),
+  agent_id: z.uuid(),
 });
 
 export type CreateAgentEnvRequest = z.infer<typeof schemaCreateAgentEnvRequest>;
 
 const schemaDeleteAgentEnvRequest = z.object({
-  agent_id: z.string().uuid(),
-  id: z.string().uuid(),
+  agent_id: z.uuid(),
+  id: z.uuid(),
 });
 
 export type DeleteAgentEnvRequest = z.infer<typeof schemaDeleteAgentEnvRequest>;
 
 export const schemaUpdateAgentEnvRequest = z.object({
-  agent_id: z.string().uuid(),
-  id: z.string().uuid(),
+  agent_id: z.uuid(),
+  id: z.uuid(),
   key: z.string().optional(),
   value: z.string().optional(),
   secret: z.boolean().optional(),

@@ -10,7 +10,7 @@ import OrganizationMembers, {
 export type { OrganizationMember } from "./members.client";
 
 export const schemaOrganization = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string(),
   created_at: z.date(),
   updated_at: z.date(),

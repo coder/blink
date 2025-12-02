@@ -18,9 +18,9 @@ export type AISDKMessageParts = z.infer<typeof schemaAISDKMessageParts>;
 export type ChatMessageFormat = z.infer<typeof schemaChatMessageFormat>;
 
 const schemaChatMessageBase = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   created_at: z.string().datetime(),
-  chat_id: z.string().uuid(),
+  chat_id: z.uuid(),
   metadata: schemaMetadata,
 });
 
@@ -39,7 +39,7 @@ export type ChatMessage = z.infer<typeof schemaChatMessage>;
 
 export const schemaListChatMessagesRequest =
   schemaCursorPaginatedRequest.extend({
-    chat_id: z.string().uuid(),
+    chat_id: z.uuid(),
     format: schemaChatMessageFormat.default("ai-sdk").optional(),
   });
 
@@ -55,8 +55,8 @@ export type ListChatMessagesResponse = z.infer<
 >;
 
 export const schemaDeleteChatMessageRequest = z.object({
-  chat_id: z.string().uuid(),
-  message_id: z.string().uuid(),
+  chat_id: z.uuid(),
+  message_id: z.uuid(),
 });
 
 export type DeleteChatMessageRequest = z.infer<
@@ -64,7 +64,7 @@ export type DeleteChatMessageRequest = z.infer<
 >;
 
 export const schemaCreateChatMessage = z.object({
-  id: z.string().uuid().optional(),
+  id: z.uuid().optional(),
   role: schemaChatMessageRole,
   parts: schemaAISDKMessageParts,
   metadata: schemaMetadata.optional(),
@@ -74,7 +74,7 @@ export const schemaCreateChatMessage = z.object({
 export type CreateChatMessage = z.infer<typeof schemaCreateChatMessage>;
 
 export const schemaUpdateMessageRequest = z.object({
-  message_id: z.string().uuid(),
+  message_id: z.uuid(),
   metadata: schemaMetadata.optional(),
   role: schemaChatMessageRole.optional(),
   parts: schemaAISDKMessageParts.optional(),
@@ -96,7 +96,7 @@ export const schemaSendMessagesBehavior = z.enum([
 export type SendMessagesBehavior = z.infer<typeof schemaSendMessagesBehavior>;
 
 export const schemaSendMessagesRequest = z.object({
-  chat_id: z.string().uuid(),
+  chat_id: z.uuid(),
   behavior: schemaSendMessagesBehavior.optional(),
   messages: z.array(schemaCreateChatMessage).min(1),
 });

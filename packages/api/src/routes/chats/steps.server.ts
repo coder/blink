@@ -25,7 +25,7 @@ export default function mountChatSteps(app: APIServer) {
         });
       }
       const run_id = value["run_id"];
-      if (run_id && !z.string().uuid().safeParse(run_id).success) {
+      if (run_id && !z.uuid().safeParse(run_id).success) {
         throw new HTTPException(400, {
           message: "run_id must be a valid UUID",
         });
@@ -53,7 +53,7 @@ export default function mountChatSteps(app: APIServer) {
   // Get a step for a chat.
   app.get("/:step_id", withAuth, withChatURLParam, async (c) => {
     const id = c.req.param("step_id");
-    if (!z.string().uuid().safeParse(id).success) {
+    if (!z.uuid().safeParse(id).success) {
       throw new HTTPException(400, {
         message: "step_id must be a valid UUID",
       });

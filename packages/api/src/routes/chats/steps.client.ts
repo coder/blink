@@ -20,19 +20,19 @@ const schemaChatRunStepContinuationReason = z.enum([
 ]);
 
 export const schemaChatRunStepSummary = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   number: z.number().int().positive(),
-  chat_id: z.string().uuid(),
-  chat_run_id: z.string().uuid(),
-  agent_id: z.string().uuid(),
-  agent_deployment_id: z.string().uuid(),
+  chat_id: z.uuid(),
+  chat_run_id: z.uuid(),
+  agent_id: z.uuid(),
+  agent_deployment_id: z.uuid(),
   started_at: z.string().datetime(),
   status: schemaChatRunStepStatus,
 
   error: z.string().nullable(),
   continuation_reason: schemaChatRunStepContinuationReason.nullable(),
   response_status: z.number().nullable(),
-  response_message_id: z.string().uuid().nullable(),
+  response_message_id: z.uuid().nullable(),
   time_to_first_token_micros: z.number().nullable(),
 });
 
@@ -42,8 +42,8 @@ const schemaChatRunStep = schemaChatRunStepSummary.extend({
   heartbeat_at: z.date(),
   completed_at: z.date().nullable(),
   interrupted_at: z.date().nullable(),
-  first_message_id: z.string().uuid().nullable(),
-  last_message_id: z.string().uuid().nullable(),
+  first_message_id: z.uuid().nullable(),
+  last_message_id: z.uuid().nullable(),
   response_headers: z.record(z.string(), z.string()).nullable(),
   response_headers_redacted: z.boolean(),
   response_body: z.string().nullable(),
@@ -59,8 +59,8 @@ const schemaChatRunStep = schemaChatRunStepSummary.extend({
 export type ChatRunStep = z.infer<typeof schemaChatRunStep>;
 
 const schemaListChatRunStepsRequest = schemaCursorPaginatedRequest.extend({
-  chat_id: z.string().uuid(),
-  run_id: z.string().uuid().optional(),
+  chat_id: z.uuid(),
+  run_id: z.uuid().optional(),
 });
 
 export type ListChatRunStepsRequest = z.infer<

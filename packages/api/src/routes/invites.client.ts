@@ -7,10 +7,10 @@ import {
 } from "./organizations/members.client";
 
 export const schemaOrganizationInvite = z.object({
-  id: z.string().uuid(),
-  organization_id: z.string().uuid(),
+  id: z.uuid(),
+  organization_id: z.uuid(),
   role: schemaOrganizationRole,
-  invited_by: z.string().uuid(),
+  invited_by: z.uuid(),
   expires_at: z.date(),
   created_at: z.date(),
   updated_at: z.date(),
@@ -26,7 +26,7 @@ export type OrganizationInviteWithCode = OrganizationInvite & {
 };
 
 export const schemaCreateOrganizationInviteRequest = z.object({
-  organization_id: z.string().uuid(),
+  organization_id: z.uuid(),
   role: schemaOrganizationRole,
   email: z.string().email().optional(),
   reusable: z.boolean().optional(),
@@ -37,7 +37,7 @@ export type CreateOrganizationInviteRequest = z.infer<
 >;
 
 export const schemaListOrganizationInvitesRequest = z.object({
-  organization_id: z.string().uuid(),
+  organization_id: z.uuid(),
 });
 
 export type ListOrganizationInvitesRequest = z.infer<
@@ -45,8 +45,8 @@ export type ListOrganizationInvitesRequest = z.infer<
 >;
 
 export const schemaDeleteOrganizationInviteRequest = z.object({
-  organization_id: z.string().uuid(),
-  invite_id: z.string().uuid(),
+  organization_id: z.uuid(),
+  invite_id: z.uuid(),
 });
 
 export type DeleteOrganizationInviteRequest = z.infer<
@@ -59,7 +59,7 @@ export const schemaAcceptOrganizationInviteRequestBody = z.object({
 
 export const schemaAcceptOrganizationInviteRequest =
   schemaAcceptOrganizationInviteRequestBody.extend({
-    invite_id: z.string().uuid(),
+    invite_id: z.uuid(),
   });
 
 export type AcceptOrganizationInviteRequest = z.infer<

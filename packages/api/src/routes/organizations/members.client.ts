@@ -14,8 +14,8 @@ export const schemaOrganizationRole = z.enum([
 ]);
 
 export const schemaOrganizationMembership = z.object({
-  user_id: z.string().uuid(),
-  organization_id: z.string().uuid(),
+  user_id: z.uuid(),
+  organization_id: z.uuid(),
   role: schemaOrganizationRole,
   created_at: z.date(),
   updated_at: z.date(),
@@ -26,14 +26,14 @@ export type OrganizationMembership = z.infer<
 >;
 
 const schemaOrganizationUser = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   created_at: z.date(),
   updated_at: z.date(),
   display_name: z.string().nullable(),
   email: z.email(),
   avatar_url: z.url().nullable(),
   username: z.string(),
-  organization_id: z.string().uuid(),
+  organization_id: z.uuid(),
 });
 
 const schemaOrganizationMember = schemaOrganizationMembership.extend({
@@ -43,7 +43,7 @@ const schemaOrganizationMember = schemaOrganizationMembership.extend({
 export type OrganizationMember = z.infer<typeof schemaOrganizationMember>;
 
 const schemaListOrganizationMembersRequest = schemaPaginatedRequest.extend({
-  organization_id: z.string().uuid(),
+  organization_id: z.uuid(),
   query: z.string().optional(),
 });
 
@@ -60,8 +60,8 @@ export type ListOrganizationMembersResponse = z.infer<
 >;
 
 const schemaDeleteOrganizationMemberRequest = z.object({
-  organization_id: z.string().uuid(),
-  user_id: z.string().uuid(),
+  organization_id: z.uuid(),
+  user_id: z.uuid(),
 });
 
 export type DeleteOrganizationMemberRequest = z.infer<
@@ -74,8 +74,8 @@ export const schemaUpdateOrganizationMemberRequestBody = z.object({
 
 const schemaUpdateOrganizationMemberRequest =
   schemaUpdateOrganizationMemberRequestBody.extend({
-    organization_id: z.string().uuid(),
-    user_id: z.string().uuid(),
+    organization_id: z.uuid(),
+    user_id: z.uuid(),
   });
 
 export type UpdateOrganizationMemberRequest = z.infer<
