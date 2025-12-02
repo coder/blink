@@ -1,3 +1,4 @@
+import type { KnownEventFromType } from "@slack/bolt";
 import type {
   AnyBlock,
   // AppMentionEvent,
@@ -8,7 +9,6 @@ import type {
   RichTextUserMention,
 } from "@slack/types";
 import type {
-  ConversationsHistoryResponse,
   ConversationsInfoResponse,
   TeamInfoResponse,
   UsersInfoResponse,
@@ -16,7 +16,6 @@ import type {
 } from "@slack/web-api";
 import type { AssistantAppThreadBlock } from "@slack/web-api/dist/types/response/ChatPostMessageResponse";
 import type { UIMessage } from "ai";
-import type { KnownEventFromType } from "@slack/bolt";
 
 /**
  * Helps LLMs format messages for Slack.
