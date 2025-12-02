@@ -24,7 +24,7 @@ export const schemaAgentUser = z.object({
   created_at: z.date(),
   updated_at: z.date(),
   display_name: z.string().nullable(),
-  email: z.email(),
+  email: z.string().email(),
   avatar_url: z.string().url().nullable(),
   username: z.string(),
 });
