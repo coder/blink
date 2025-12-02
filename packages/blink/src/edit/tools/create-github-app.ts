@@ -251,14 +251,14 @@ export const createGithubAppSchema = z.object({
   // Webhook config
   hook_attributes: z
     .object({
-      url: z.url(),
+      url: z.string().url(),
       active: z.boolean().optional().default(true),
     })
     .optional()
     .describe("The webhook configuration for the GitHub App."),
 
   callback_urls: z
-    .array(z.url())
+    .array(z.string().url())
     .max(10)
     .optional()
     .describe(
