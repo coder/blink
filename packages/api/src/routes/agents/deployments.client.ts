@@ -98,8 +98,8 @@ export type CreateAgentDeploymentRequest = z.infer<
 export const schemaAgentDeployment = z.object({
   id: z.string().uuid(),
   number: z.number().int().positive(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
   created_by: z.string().uuid().nullable(),
   created_from: z.enum(["cli"]),
   agent_id: z.string().uuid(),

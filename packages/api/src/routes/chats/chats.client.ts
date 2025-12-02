@@ -37,8 +37,8 @@ export const schemaChatVisibility = z.enum([
 
 export const schemaChat = z.object({
   id: z.string().uuid(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
   created_by: z.string().uuid().nullable(),
   organization_id: z.string().uuid(),
   title: z.string().nullable(),
@@ -50,7 +50,7 @@ export const schemaChat = z.object({
   agent_deployment_id: z.string().uuid().nullable(),
   agent: schemaAgent,
   expire_ttl: z.number().int().positive().nullable(),
-  expires_at: z.iso.datetime().nullable(),
+  expires_at: z.string().datetime().nullable(),
 });
 
 export type Chat = z.infer<typeof schemaChat>;

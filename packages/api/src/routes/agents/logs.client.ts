@@ -4,8 +4,8 @@ import Client from "../../client.browser";
 import { FieldFilterGroupSchema } from "../agents/traces.client";
 
 export const schemaGetAgentLogsRequest = z.object({
-  start_time: z.iso.datetime().pipe(z.coerce.date()),
-  end_time: z.iso.datetime().pipe(z.coerce.date()),
+  start_time: z.string().datetime().pipe(z.coerce.date()),
+  end_time: z.string().datetime().pipe(z.coerce.date()),
   // Simple filter - supports wildcard matching with *
   message_pattern: z.string().optional(),
   // Advanced filters - same as traces filtering
@@ -25,7 +25,7 @@ export const schemaGetAgentLogsRequest = z.object({
 export type GetAgentLogsRequest = z.infer<typeof schemaGetAgentLogsRequest>;
 
 const schemaAgentLog = z.object({
-  timestamp: z.iso.datetime().pipe(z.coerce.date()),
+  timestamp: z.string().datetime().pipe(z.coerce.date()),
   message: z.string(),
   level: z.enum(["info", "error", "warn"]),
 });

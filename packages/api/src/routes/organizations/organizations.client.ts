@@ -16,9 +16,9 @@ export const schemaOrganization = z.object({
   updated_at: z.date(),
   membership: schemaOrganizationMembership.nullable(),
 
-  members_url: z.url(),
-  invites_url: z.url(),
-  avatar_url: z.url().nullable(),
+  members_url: z.string().url(),
+  invites_url: z.string().url(),
+  avatar_url: z.string().url().nullable(),
 });
 
 export type Organization = z.infer<typeof schemaOrganization>;

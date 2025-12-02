@@ -55,8 +55,8 @@ export type CreateAgentRequest = z.infer<typeof schemaCreateAgentRequest>;
 export const schemaAgent = z.object({
   id: z.string().uuid(),
   organization_id: z.string().uuid(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.string().datetime(),
+  updated_at: z.string().datetime(),
   created_by: z.string().uuid(),
   name: z.string().regex(nameFormat),
   description: z.string().nullable(),
@@ -140,8 +140,8 @@ export type AgentUIOptionsRequest = z.infer<typeof schemaAgentUIOptionsRequest>;
 
 export const schemaAgentRuntimeUsageRequest = z.object({
   agent_id: z.string().uuid(),
-  start_time: z.iso.datetime().pipe(z.coerce.date()),
-  end_time: z.iso.datetime().pipe(z.coerce.date()),
+  start_time: z.string().datetime().pipe(z.coerce.date()),
+  end_time: z.string().datetime().pipe(z.coerce.date()),
 });
 
 export type AgentRuntimeUsageRequest = z.infer<
