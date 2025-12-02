@@ -11,11 +11,10 @@ import {
   type MessageMetadata,
 } from "./message";
 
-export interface CreateToolsOptions
-  extends Pick<
-    ExtractMessagesMetadataOptions<any>,
-    "supportedFileTypes" | "maxFileSize"
-  > {
+export interface CreateToolsOptions extends Pick<
+  ExtractMessagesMetadataOptions<any>,
+  "supportedFileTypes" | "maxFileSize"
+> {
   readonly client: WebClient;
 
   /**

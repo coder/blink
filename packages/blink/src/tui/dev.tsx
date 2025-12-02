@@ -94,10 +94,7 @@ const App = ({ directory }: { directory: string }) => {
       logger.log("system", chalk.gray("⚙ Loaded .env.local:"), keysText);
     },
     onDevhookConnected: (url) => {
-      logger.log(
-        "system",
-        chalk.gray(`⚙ Send webhooks from anywhere: ${url}`)
-      );
+      logger.log("system", chalk.gray(`⚙ Send webhooks from anywhere: ${url}`));
     },
     onAgentLog: (log) => {
       if (log.level === "error") {

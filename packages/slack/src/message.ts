@@ -96,8 +96,10 @@ type SlackEventType =
  * It exists so we can add options in the future.
  * Feel free to use `extractMessageDetailsFromEvent` to construct your own message.
  */
-export interface CreateMessageFromEventOptions
-  extends Omit<ExtractMessagesMetadataOptions<SlackEventType>, "messages"> {
+export interface CreateMessageFromEventOptions extends Omit<
+  ExtractMessagesMetadataOptions<SlackEventType>,
+  "messages"
+> {
   event: KnownEventFromType<SlackEventType>;
 }
 

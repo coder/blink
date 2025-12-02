@@ -147,9 +147,8 @@ export async function runChat({
       },
     });
 
-    const { generateAgentInvocationToken } = await import(
-      "@blink.so/api/agents/me/server"
-    );
+    const { generateAgentInvocationToken } =
+      await import("@blink.so/api/agents/me/server");
     const headers = {
       [BlinkInvocationTokenHeader]: await generateAgentInvocationToken(
         env.AUTH_SECRET,

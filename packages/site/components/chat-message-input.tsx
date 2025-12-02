@@ -378,8 +378,10 @@ const ValueSyncPlugin = React.memo(function ValueSyncPlugin({
 });
 
 // Props
-interface ChatMessageInputProps
-  extends Omit<React.ComponentProps<"div">, "onChange" | "role"> {
+interface ChatMessageInputProps extends Omit<
+  React.ComponentProps<"div">,
+  "onChange" | "role"
+> {
   placeholder?: string;
   initialValue?: string;
   onChange?: (event: { target: { value: string } }) => void;

@@ -28,8 +28,8 @@ export type UIOptionSelectValue<ID extends string = string> = {
 };
 
 export type UIOptionSelect<
-  Values extends
-    readonly UIOptionSelectValue[] = readonly UIOptionSelectValue[],
+  Values extends readonly UIOptionSelectValue[] =
+    readonly UIOptionSelectValue[],
 > = {
   readonly type: "select";
   /**

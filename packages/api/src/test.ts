@@ -8,20 +8,19 @@ import server, { type Bindings } from "./server";
 
 import type { AgentStore } from "blink";
 
-export interface PartialBindings
-  extends Partial<
-    Omit<
-      Bindings,
-      | "auth"
-      | "chat"
-      | "files"
-      | "logs"
-      | "traces"
-      | "runtime"
-      | "sendEmail"
-      | "sendTelemetryEvent"
-    >
-  > {
+export interface PartialBindings extends Partial<
+  Omit<
+    Bindings,
+    | "auth"
+    | "chat"
+    | "files"
+    | "logs"
+    | "traces"
+    | "runtime"
+    | "sendEmail"
+    | "sendTelemetryEvent"
+  >
+> {
   auth?: Partial<Bindings["auth"]>;
   chat?: Partial<Bindings["chat"]>;
   files?: Partial<Bindings["files"]>;

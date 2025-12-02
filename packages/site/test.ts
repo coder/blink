@@ -35,9 +35,8 @@ export const setupNextAuth = async () => {
     GOOGLE_CLIENT_SECRET: "test-google-client-secret",
   };
   // @ts-ignore - We add the query param to force a fresh import,
-  const auth = (await import(
-    "@/app/(auth)/auth"
-  )) as typeof import("@/app/(auth)/auth");
+  const auth =
+    (await import("@/app/(auth)/auth")) as typeof import("@/app/(auth)/auth");
   return auth;
 };
 
