@@ -3,7 +3,7 @@ import type { KnownEventFromType } from "@slack/bolt";
 import { App } from "@slack/bolt";
 import type { Tool, UIMessage } from "ai";
 import * as blink from "blink";
-import type { Message } from "./types";
+import type { Message, SlackMessageMetadata } from "./types";
 
 export const createSlackApp = ({
   agent,
@@ -82,7 +82,7 @@ const handleSlackEvent = async ({
           ext_shared_channel: metadata.channel?.is_ext_shared ?? false,
           type: "slack",
           channel_name: metadata.channel?.name ?? "",
-        },
+        } satisfies SlackMessageMetadata,
       },
     ]);
   } catch (error) {
