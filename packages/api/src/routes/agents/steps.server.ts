@@ -47,7 +47,10 @@ export default function mountSteps(app: APIServer) {
       }
 
       const deployment_id = value["deployment_id"];
-      if (deployment_id && !z.string().uuid().safeParse(deployment_id).success) {
+      if (
+        deployment_id &&
+        !z.string().uuid().safeParse(deployment_id).success
+      ) {
         throw new HTTPException(400, {
           message: "deployment_id must be a valid UUID",
         });
