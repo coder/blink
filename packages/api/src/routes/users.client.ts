@@ -7,14 +7,14 @@ import {
 import Client from "../client.browser";
 
 export const schemaUser = z.object({
-  id: z.uuid(),
+  id: z.string().uuid(),
   created_at: z.date(),
   updated_at: z.date(),
   email: z.string().email(),
   email_verified: z.boolean(),
   display_name: z.string(),
   username: z.string(),
-  organization_id: z.uuid(),
+  organization_id: z.string().uuid(),
   avatar_url: z.string().url().nullable(),
 });
 
@@ -43,8 +43,8 @@ export const schemaUserAccounts = z.object({
 export type UserAccounts = z.infer<typeof schemaUserAccounts>;
 
 export const schemaApiKey = z.object({
-  id: z.uuid(),
-  user_id: z.uuid(),
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
   name: z.string().nullable(),
   key_lookup: z.string(),
   key_prefix: z.string(),
@@ -55,7 +55,7 @@ export const schemaApiKey = z.object({
   created_at: z.coerce.date(),
   updated_at: z.coerce.date(),
   revoked_at: z.coerce.date().nullable(),
-  revoked_by: z.uuid().nullable(),
+  revoked_by: z.string().uuid().nullable(),
 });
 
 export type ApiKey = z.infer<typeof schemaApiKey>;
@@ -82,7 +82,7 @@ export type CreateApiKeyResponse = z.infer<typeof schemaCreateApiKeyResponse>;
 export type CreateApiKeyRequest = z.infer<typeof schemaCreateApiKeyRequest>;
 
 export const schemaRevokeApiKeyRequest = z.object({
-  key_id: z.uuid(),
+  key_id: z.string().uuid(),
 });
 
 export type RevokeApiKeyRequest = z.infer<typeof schemaRevokeApiKeyRequest>;

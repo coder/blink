@@ -257,7 +257,7 @@ export default function mountUsers(server: APIServer) {
   server.delete("/me/api-keys/:key_id", withAuth, async (c) => {
     const keyId = c.req.param("key_id");
     const { z } = await import("zod");
-    const parsed = await z.uuid().safeParseAsync(keyId);
+    const parsed = await z.string().uuid().safeParseAsync(keyId);
     if (!parsed.success) {
       return c.json({ message: "Invalid API Key ID" }, 400);
     }

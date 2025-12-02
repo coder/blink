@@ -29,7 +29,7 @@ export const schemaAgentVisibility = z.enum([
 ]);
 
 export const schemaCreateAgentRequest = z.object({
-  organization_id: z.uuid(),
+  organization_id: z.string().uuid(),
   name: z.string().regex(nameFormat),
 
   description: z.string().optional(),
@@ -47,22 +47,22 @@ export const schemaCreateAgentRequest = z.object({
 
   // Optional: Specify the request_id for the production deployment target.
   // This is useful for setting up webhooks before the agent is fully deployed.
-  request_id: z.uuid().optional(),
+  request_id: z.string().uuid().optional(),
 });
 
 export type CreateAgentRequest = z.infer<typeof schemaCreateAgentRequest>;
 
 export const schemaAgent = z.object({
-  id: z.uuid(),
-  organization_id: z.uuid(),
+  id: z.string().uuid(),
+  organization_id: z.string().uuid(),
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime(),
-  created_by: z.uuid(),
+  created_by: z.string().uuid(),
   name: z.string().regex(nameFormat),
   description: z.string().nullable(),
   avatar_url: z.string().nullable(),
   visibility: schemaAgentVisibility,
-  active_deployment_id: z.uuid().nullable(),
+  active_deployment_id: z.string().uuid().nullable(),
   pinned: z.boolean().default(false),
   request_url: z
     .url()
@@ -73,12 +73,12 @@ export const schemaAgent = z.object({
 });
 
 export const schemaUpdateAgentRequest = z.object({
-  id: z.uuid(),
+  id: z.string().uuid(),
   name: z.string().regex(nameFormat).optional(),
   description: z.string().optional(),
   visibility: schemaAgentVisibility.optional(),
-  active_deployment_id: z.uuid().optional(),
-  avatar_file_id: z.uuid().nullable().optional(),
+  active_deployment_id: z.string().uuid().optional(),
+  avatar_file_id: z.string().uuid().nullable().optional(),
   chat_expire_ttl: z.number().int().positive().nullable().optional(),
 });
 
@@ -87,7 +87,7 @@ export type UpdateAgentRequest = z.infer<typeof schemaUpdateAgentRequest>;
 export type Agent = z.infer<typeof schemaAgent>;
 
 export const schemaListAgentsRequest = schemaPaginatedRequest.extend({
-  organization_id: z.uuid().optional(),
+  organization_id: z.string().uuid().optional(),
   pinned: z.boolean().optional(),
 });
 
@@ -98,13 +98,13 @@ export const schemaListAgentsResponse = schemaPaginatedResponse(schemaAgent);
 export type ListAgentsResponse = z.infer<typeof schemaListAgentsResponse>;
 
 export const schemaAgentCompletionRequest = z.object({
-  agent_id: z.uuid(),
+  agent_id: z.string().uuid(),
   input: z.string(),
   caret: z.number().optional(),
   selection: z.tuple([z.number(), z.number()]).optional(),
 
-  chat_id: z.uuid().optional(),
-  agent_deployment_id: z.uuid().optional(),
+  chat_id: z.string().uuid().optional(),
+  agent_deployment_id: z.string().uuid().optional(),
 });
 
 export type AgentCompletionRequest = z.infer<
@@ -131,15 +131,15 @@ export type AgentCompletion =
     };
 
 export const schemaAgentUIOptionsRequest = z.object({
-  agent_id: z.uuid(),
-  agent_deployment_id: z.uuid().optional(),
+  agent_id: z.string().uuid(),
+  agent_deployment_id: z.string().uuid().optional(),
   selected: z.record(z.string(), z.string()).optional(),
 });
 
 export type AgentUIOptionsRequest = z.infer<typeof schemaAgentUIOptionsRequest>;
 
 export const schemaAgentRuntimeUsageRequest = z.object({
-  agent_id: z.uuid(),
+  agent_id: z.string().uuid(),
   start_time: z.iso.datetime().pipe(z.coerce.date()),
   end_time: z.iso.datetime().pipe(z.coerce.date()),
 });

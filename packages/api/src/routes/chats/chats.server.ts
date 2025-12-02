@@ -321,7 +321,7 @@ export const authorizeChat = async <
   chat: ChatWithStatusAndAgent;
   organization: OrganizationWithMembership;
 }> => {
-  const parsed = await z.uuid().safeParseAsync(id);
+  const parsed = await z.string().uuid().safeParseAsync(id);
   if (!parsed.success) {
     throw new HTTPException(400, {
       message: "Invalid chat ID",

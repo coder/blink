@@ -47,19 +47,19 @@ export default function mountSteps(app: APIServer) {
       }
 
       const deployment_id = value["deployment_id"];
-      if (deployment_id && !z.uuid().safeParse(deployment_id).success) {
+      if (deployment_id && !z.string().uuid().safeParse(deployment_id).success) {
         throw new HTTPException(400, {
           message: "deployment_id must be a valid UUID",
         });
       }
       const chat_id = value["chat_id"];
-      if (chat_id && !z.uuid().safeParse(chat_id).success) {
+      if (chat_id && !z.string().uuid().safeParse(chat_id).success) {
         throw new HTTPException(400, {
           message: "chat_id must be a valid UUID",
         });
       }
       const run_id = value["run_id"];
-      if (run_id && !z.uuid().safeParse(run_id).success) {
+      if (run_id && !z.string().uuid().safeParse(run_id).success) {
         throw new HTTPException(400, {
           message: "run_id must be a valid UUID",
         });
@@ -123,7 +123,7 @@ export default function mountSteps(app: APIServer) {
     withAgentPermission("read"),
     async (c) => {
       const id = c.req.param("step_id");
-      if (!z.uuid().safeParse(id).success) {
+      if (!z.string().uuid().safeParse(id).success) {
         throw new HTTPException(400, {
           message: "step_id must be a valid UUID",
         });
