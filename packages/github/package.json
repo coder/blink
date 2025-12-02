@@ -1,6 +1,6 @@
 {
   "name": "@blink-sdk/github",
-  "version": "0.0.22",
+  "version": "0.1.0",
   "description": "Blink SDK for GitHub tools.",
   "keywords": [
     "blink",

@@ -933,9 +933,9 @@ export const tools = {
         repo: z.string(),
         page: z.number(),
         per_page: z.number(),
-        include_body_and_assets: z.boolean(),
       }),
-      description: "List releases for a repository.",
+      description:
+        "List releases for a repository. Returns lightweight metadata only. Use get_release to fetch full details for a specific release.",
       execute: async (args, opts) => {
         const response = await (
           await octokit()
@@ -953,25 +953,83 @@ export const tools = {
             id: release.id,
             name: release.name ?? undefined,
             tag_name: release.tag_name,
-            body: args.include_body_and_assets
-              ? (release.body ?? undefined)
-              : undefined,
             draft: release.draft,
             prerelease: release.prerelease,
             created_at: release.created_at,
             published_at: release.published_at ?? undefined,
             target_commitish: release.target_commitish,
             citation_id: crypto.randomUUID(),
-            assets: args.include_body_and_assets
-              ? release.assets.map((asset) => ({
-                  id: asset.id,
-                  name: asset.name,
-                  browser_download_url: asset.browser_download_url,
-                  download_count: asset.download_count,
-                  content_type: asset.content_type,
-                  size: asset.size,
-                }))
-              : undefined,
+          })),
+        };
+      },
+    })
+  ),
+
+  get_release: toolWithOctokit(({ octokit }) =>
+    tool({
+      inputSchema: z.object({
+        owner: z.string(),
+        repo: z.string(),
+        release_id: z
+          .number()
+          .optional()
+          .describe("The release ID. Either release_id or tag must be provided."),
+        tag: z
+          .string()
+          .optional()
+          .describe(
+            "The release tag (e.g. 'v1.0.0'). Either release_id or tag must be provided."
+          ),
+      }),
+      description:
+        "Get a single release with full details including body and assets.",
+      execute: async (args, opts) => {
+        if (!args.release_id && !args.tag) {
+          throw new Error("Either release_id or tag must be provided");
+        }
+
+        const response = args.release_id
+          ? await (
+              await octokit()
+            ).request("GET /repos/{owner}/{repo}/releases/{release_id}", {
+              owner: args.owner,
+              repo: args.repo,
+              release_id: args.release_id,
+              request: {
+                signal: opts.abortSignal,
+              },
+            })
+          : await (
+              await octokit()
+            ).request("GET /repos/{owner}/{repo}/releases/tags/{tag}", {
+              owner: args.owner,
+              repo: args.repo,
+              tag: args.tag!,
+              request: {
+                signal: opts.abortSignal,
+              },
+            });
+
+        const release = response.data;
+        return {
+          id: release.id,
+          name: release.name ?? undefined,
+          tag_name: release.tag_name,
+          body: release.body ?? undefined,
+          draft: release.draft,
+          prerelease: release.prerelease,
+          created_at: release.created_at,
+          published_at: release.published_at ?? undefined,
+          target_commitish: release.target_commitish,
+          html_url: release.html_url,
+          citation_id: crypto.randomUUID(),
+          assets: release.assets.map((asset) => ({
+            id: asset.id,
+            name: asset.name,
+            browser_download_url: asset.browser_download_url,
+            download_count: asset.download_count,
+            content_type: asset.content_type,
+            size: asset.size,
           })),
         };
       },
