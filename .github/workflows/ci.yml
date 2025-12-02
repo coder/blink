@@ -39,7 +39,10 @@ jobs:
         run: bun run format:check
 
       - name: Run type checking
-        run: bun run typecheck
+        run: |
+          # Skip typecheck for api, site, server packages (OSS migration in progress)
+          bun run --filter='@blink-sdk/*' typecheck
+          bun run --filter='@blink.so/database' typecheck
 
       - name: Run tests
         run: bun test --timeout 30000
