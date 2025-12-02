@@ -1,6 +1,11 @@
 "use client";
 
-import type { ServerTextToSpeech } from "@blink.so/worker/api/text-to-speech";
+// Stub type for OSS version - worker package not included
+type ServerTextToSpeech = {
+  voice?: string;
+  text?: string;
+  audio?: string;
+};
 import {
   createContext,
   useCallback,

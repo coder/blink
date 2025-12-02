@@ -7,7 +7,7 @@ export interface UsageEvent {
   costUSD: Money;
   transactionId: string;
   eventType: string;
-  userID: string | null;
+  userID: string | null | undefined;
   timestamp?: Date;
 }
 

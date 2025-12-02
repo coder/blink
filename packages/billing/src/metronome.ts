@@ -1,4 +1,3 @@
 // OSS stub: Billing removed
-export interface EnvLike {
-  METRONOME_API_KEY?: string;
-}
+// Allow any object type for env parameter
+export type EnvLike = Record<string, unknown>;
