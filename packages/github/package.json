@@ -36,7 +36,7 @@
   },
   "peerDependencies": {
     "@octokit/core": "^7.0.4",
-    "zod": ">=4",
+    "zod": ">= 3.24",
     "ai": ">=5",
     "blink": ">= 0.1.46"
   },

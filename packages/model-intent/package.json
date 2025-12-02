@@ -35,7 +35,7 @@
     }
   },
   "peerDependencies": {
-    "zod": ">=4",
+    "zod": ">= 3.24",
     "ai": ">=5"
   },
   "devDependencies": {
