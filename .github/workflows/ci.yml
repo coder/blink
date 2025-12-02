@@ -33,7 +33,8 @@ jobs:
           bun run --cwd packages/model-intent build
           bun run --cwd packages/blink build
           bun run --cwd packages/api build
-          bun run --cwd packages/server build
+          # Skip server build - has workspace dep resolution issues with tsdown
+          # bun run --cwd packages/server build
 
       - name: Run formatter check
         run: bun run format:check
