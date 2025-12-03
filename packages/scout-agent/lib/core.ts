@@ -7,6 +7,11 @@ import type { App } from "@slack/bolt";
 import { convertToModelMessages, type LanguageModel, type Tool } from "ai";
 import type * as blink from "blink";
 import {
+  type CoderWorkspaceInfo,
+  getCoderWorkspaceClient,
+  initializeCoderWorkspace,
+} from "./compute/coder/index";
+import {
   type DaytonaClient,
   type DaytonaWorkspaceInfo,
   getDaytonaWorkspaceClient,
@@ -71,6 +76,42 @@ interface WebSearchConfig {
   exaApiKey: string;
 }
 
+export interface CoderConfig {
+  /** Coder deployment URL (e.g., https://coder.example.com) */
+  url: string;
+  /** Session token for authentication */
+  sessionToken: string;
+  /** Port the blink compute server will listen on inside the workspace. Default: 22137 */
+  computeServerPort?: number;
+  /**
+   * Template name to create workspace from.
+   * Required if creating a new workspace.
+   */
+  template?: string;
+  /**
+   * Workspace name to use. If not provided and no existing workspace,
+   * a unique name will be generated.
+   */
+  workspaceName?: string;
+  /**
+   * Owner of the workspace. Defaults to the authenticated user.
+   */
+  owner?: string;
+  /**
+   * Agent name to connect to. If workspace has multiple agents, this specifies which one.
+   * If not provided, uses the first available agent.
+   */
+  agentName?: string;
+  /**
+   * Rich template parameters for workspace creation.
+   */
+  richParameters?: Array<{ name: string; value: string }>;
+  /**
+   * Time to wait for workspace to start (in seconds). Default is 300 (5 minutes).
+   */
+  startTimeoutSeconds?: number;
+}
+
 export interface DaytonaConfig {
   apiKey: string;
   computeServerPort: number;
@@ -86,6 +127,7 @@ export interface DaytonaConfig {
 
 type ComputeConfig =
   | { type: "docker" }
+  | { type: "coder"; options: CoderConfig }
   | { type: "daytona"; options: DaytonaConfig };
 
 const loadConfig = <K extends readonly string[]>(
@@ -306,6 +348,40 @@ export class Scout {
           initializeWorkspace: initializeDockerWorkspace,
           createWorkspaceClient: getDockerWorkspaceClient,
           chatID,
+        });
+        break;
+      }
+      case "coder": {
+        const opts = computeConfig.options;
+        const computeServerPort = opts.computeServerPort ?? 22137;
+        computeTools = createComputeTools<CoderWorkspaceInfo>({
+          agent: this.agent,
+          githubAppContext,
+          initializeWorkspace: (info) =>
+            initializeCoderWorkspace(
+              this.logger,
+              {
+                coderUrl: opts.url,
+                sessionToken: opts.sessionToken,
+                computeServerPort,
+                template: opts.template,
+                workspaceName: opts.workspaceName,
+                owner: opts.owner,
+                agentName: opts.agentName,
+                richParameters: opts.richParameters,
+                startTimeoutSeconds: opts.startTimeoutSeconds,
+              },
+              info
+            ),
+          createWorkspaceClient: (info) =>
+            getCoderWorkspaceClient(
+              {
+                coderUrl: opts.url,
+                sessionToken: opts.sessionToken,
+                computeServerPort,
+              },
+              info
+            ),
         });
         break;
       }
