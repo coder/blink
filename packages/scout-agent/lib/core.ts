@@ -7,6 +7,7 @@ import type { App } from "@slack/bolt";
 import { convertToModelMessages, type LanguageModel, type Tool } from "ai";
 import type * as blink from "blink";
 import {
+  type CoderApiClient,
   type CoderWorkspaceInfo,
   getCoderWorkspaceClient,
   initializeCoderWorkspace,
@@ -103,6 +104,11 @@ export interface CoderConfig {
    */
   agentName?: string;
   /**
+   * Preset name for workspace creation. The preset must exist on the template version.
+   * Presets provide pre-configured parameter values.
+   */
+  presetName?: string;
+  /**
    * Rich template parameters for workspace creation.
    */
   richParameters?: Array<{ name: string; value: string }>;
@@ -110,6 +116,12 @@ export interface CoderConfig {
    * Time to wait for workspace to start (in seconds). Default is 300 (5 minutes).
    */
   startTimeoutSeconds?: number;
+  /** Optional CoderApiClient instance for testing. If not provided, a real client is created. */
+  coderClient?: CoderApiClient;
+  /** Polling interval in milliseconds for workspace state. Default is 2000. */
+  pollingIntervalMs?: number;
+  /** Polling interval in milliseconds for compute server readiness. Default is 3000. */
+  computeServerPollingIntervalMs?: number;
 }
 
 export interface DaytonaConfig {
@@ -357,6 +369,7 @@ export class Scout {
         computeTools = createComputeTools<CoderWorkspaceInfo>({
           agent: this.agent,
           githubAppContext,
+          chatID,
           initializeWorkspace: (info) =>
             initializeCoderWorkspace(
               this.logger,
@@ -366,10 +379,13 @@ export class Scout {
                 computeServerPort,
                 template: opts.template,
                 workspaceName: opts.workspaceName,
-                owner: opts.owner,
-                agentName: opts.agentName,
+                presetName: opts.presetName,
                 richParameters: opts.richParameters,
                 startTimeoutSeconds: opts.startTimeoutSeconds,
+                client: opts.coderClient,
+                pollingIntervalMs: opts.pollingIntervalMs,
+                computeServerPollingIntervalMs:
+                  opts.computeServerPollingIntervalMs,
               },
               info
             ),
@@ -379,6 +395,7 @@ export class Scout {
                 coderUrl: opts.url,
                 sessionToken: opts.sessionToken,
                 computeServerPort,
+                client: opts.coderClient,
               },
               info
             ),

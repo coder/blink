@@ -1,167 +1,675 @@
-import { describe, expect, test } from "bun:test";
-import type { CoderWorkspaceInfo } from "./index";
+import { describe, expect, mock, test } from "bun:test";
+import {
+  baseCoderTestOptions,
+  createMockCoderClient,
+  createMockComputeServer,
+  mockCoderPreset,
+  mockCoderWorkspace,
+  mockCoderWorkspaceBuild,
+  noopLogger,
+} from "../test-utils";
+import { getCoderWorkspaceClient, initializeCoderWorkspace } from "./index";
 
-// Note: Full integration tests for the Coder compute provider require:
-// 1. A running Coder deployment
-// 2. Valid credentials (session token)
-// 3. A template configured for workspace creation
-//
-// These unit tests focus on type definitions and basic structure.
+describe("initializeCoderWorkspace", () => {
+  describe("existing workspace - running state", () => {
+    test("reuses running workspace with connected agent", async () => {
+      using computeServer = createMockComputeServer();
 
-describe("CoderWorkspaceInfo", () => {
-  test("workspace info has required fields", () => {
-    const info: CoderWorkspaceInfo = {
-      workspaceId: "123e4567-e89b-12d3-a456-426614174000",
-      workspaceName: "my-workspace",
-      ownerName: "testuser",
-      agentId: "123e4567-e89b-12d3-a456-426614174001",
-      agentName: "main",
-    };
+      const mockClient = createMockCoderClient({
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
 
-    expect(info.workspaceId).toBe("123e4567-e89b-12d3-a456-426614174000");
-    expect(info.workspaceName).toBe("my-workspace");
-    expect(info.ownerName).toBe("testuser");
-    expect(info.agentId).toBeDefined();
-    expect(info.agentName).toBe("main");
+      const result = await initializeCoderWorkspace(
+        noopLogger,
+        { ...baseCoderTestOptions, client: mockClient },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "main",
+        }
+      );
+
+      expect(result.message).toContain("already initialized");
+      expect(result.workspaceInfo.workspaceId).toBe("ws-123");
+      expect(result.workspaceInfo.agentName).toBe("main");
+      expect(mockClient.createWorkspaceBuild).not.toHaveBeenCalled();
+      expect(mockClient.createWorkspace).not.toHaveBeenCalled();
+    });
+
+    test("falls through to create new when agent not connected", async () => {
+      using computeServer = createMockComputeServer();
+
+      let getWorkspaceCallCount = 0;
+      const mockClient = createMockCoderClient({
+        getWorkspace: mock(() => {
+          getWorkspaceCallCount++;
+          // First call: existing workspace with disconnected agent
+          if (getWorkspaceCallCount === 1) {
+            return Promise.resolve(
+              mockCoderWorkspace({
+                latest_build: mockCoderWorkspaceBuild({
+                  status: "running",
+                  resources: [
+                    {
+                      id: "res-123",
+                      name: "main",
+                      type: "docker_container",
+                      agents: [
+                        {
+                          id: "agent-123",
+                          name: "main",
+                          status: "disconnected",
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              })
+            );
+          }
+          // Subsequent calls: newly created workspace is running with connected agent
+          return Promise.resolve(mockCoderWorkspace({ id: "ws-new" }));
+        }),
+        createWorkspace: mock(() =>
+          Promise.resolve(mockCoderWorkspace({ id: "ws-new" }))
+        ),
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
+
+      const result = await initializeCoderWorkspace(
+        noopLogger,
+        {
+          ...baseCoderTestOptions,
+          template: "test-template",
+          client: mockClient,
+        },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "main",
+        }
+      );
+
+      expect(result.message).toBe(
+        'Workspace "testuser/test-workspace" initialized.'
+      );
+      expect(mockClient.createWorkspace).toHaveBeenCalled();
+    });
+  });
+
+  describe("existing workspace - stopped/stopping state", () => {
+    test("starts stopped workspace", async () => {
+      using computeServer = createMockComputeServer();
+
+      let getWorkspaceCallCount = 0;
+      const mockClient = createMockCoderClient({
+        getWorkspace: mock(() => {
+          getWorkspaceCallCount++;
+          // First call returns stopped, subsequent calls return running
+          if (getWorkspaceCallCount === 1) {
+            return Promise.resolve(
+              mockCoderWorkspace({
+                latest_build: mockCoderWorkspaceBuild({ status: "stopped" }),
+              })
+            );
+          }
+          return Promise.resolve(mockCoderWorkspace());
+        }),
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
+
+      const result = await initializeCoderWorkspace(
+        noopLogger,
+        { ...baseCoderTestOptions, client: mockClient },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "main",
+        }
+      );
+
+      expect(result.message).toBe(
+        'Workspace "testuser/test-workspace" started and initialized.'
+      );
+      expect(mockClient.createWorkspaceBuild).toHaveBeenCalledWith("ws-123", {
+        transition: "start",
+      });
+    });
+
+    test("starts stopping workspace", async () => {
+      using computeServer = createMockComputeServer();
+
+      let getWorkspaceCallCount = 0;
+      const mockClient = createMockCoderClient({
+        getWorkspace: mock(() => {
+          getWorkspaceCallCount++;
+          if (getWorkspaceCallCount === 1) {
+            return Promise.resolve(
+              mockCoderWorkspace({
+                latest_build: mockCoderWorkspaceBuild({ status: "stopping" }),
+              })
+            );
+          }
+          return Promise.resolve(mockCoderWorkspace());
+        }),
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
+
+      const result = await initializeCoderWorkspace(
+        noopLogger,
+        { ...baseCoderTestOptions, client: mockClient },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "main",
+        }
+      );
+
+      expect(result.message).toBe(
+        'Workspace "testuser/test-workspace" started and initialized.'
+      );
+      expect(mockClient.createWorkspaceBuild).toHaveBeenCalled();
+    });
+  });
+
+  describe("existing workspace - starting/pending state", () => {
+    test("waits for starting workspace", async () => {
+      using computeServer = createMockComputeServer();
+
+      let getWorkspaceCallCount = 0;
+      const mockClient = createMockCoderClient({
+        getWorkspace: mock(() => {
+          getWorkspaceCallCount++;
+          if (getWorkspaceCallCount === 1) {
+            return Promise.resolve(
+              mockCoderWorkspace({
+                latest_build: mockCoderWorkspaceBuild({ status: "starting" }),
+              })
+            );
+          }
+          return Promise.resolve(mockCoderWorkspace());
+        }),
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
+
+      const result = await initializeCoderWorkspace(
+        noopLogger,
+        { ...baseCoderTestOptions, client: mockClient },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "main",
+        }
+      );
+
+      expect(result.message).toBe(
+        'Workspace "testuser/test-workspace" initialized.'
+      );
+      expect(mockClient.createWorkspaceBuild).not.toHaveBeenCalled();
+    });
+
+    test("waits for pending workspace", async () => {
+      using computeServer = createMockComputeServer();
+
+      let getWorkspaceCallCount = 0;
+      const mockClient = createMockCoderClient({
+        getWorkspace: mock(() => {
+          getWorkspaceCallCount++;
+          if (getWorkspaceCallCount === 1) {
+            return Promise.resolve(
+              mockCoderWorkspace({
+                latest_build: mockCoderWorkspaceBuild({ status: "pending" }),
+              })
+            );
+          }
+          return Promise.resolve(mockCoderWorkspace());
+        }),
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
+
+      const result = await initializeCoderWorkspace(
+        noopLogger,
+        { ...baseCoderTestOptions, client: mockClient },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "main",
+        }
+      );
+
+      expect(result.message).toBe(
+        'Workspace "testuser/test-workspace" initialized.'
+      );
+      expect(mockClient.createWorkspaceBuild).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("existing workspace - terminal states (fall through to create new)", () => {
+    test.each([
+      "failed",
+      "canceled",
+      "canceling",
+      "deleted",
+      "deleting",
+    ] as const)("creates new workspace when existing is %s", async (status) => {
+      using computeServer = createMockComputeServer();
+
+      let getWorkspaceCallCount = 0;
+      const mockClient = createMockCoderClient({
+        getWorkspace: mock(() => {
+          getWorkspaceCallCount++;
+          // First call: existing workspace in terminal state
+          if (getWorkspaceCallCount === 1) {
+            return Promise.resolve(
+              mockCoderWorkspace({
+                latest_build: mockCoderWorkspaceBuild({ status }),
+              })
+            );
+          }
+          // Subsequent calls: newly created workspace is running
+          return Promise.resolve(mockCoderWorkspace({ id: "ws-new" }));
+        }),
+        createWorkspace: mock(() =>
+          Promise.resolve(mockCoderWorkspace({ id: "ws-new" }))
+        ),
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
+
+      const result = await initializeCoderWorkspace(
+        noopLogger,
+        {
+          ...baseCoderTestOptions,
+          template: "test-template",
+          client: mockClient,
+        },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "main",
+        }
+      );
+
+      expect(result.message).toBe(
+        'Workspace "testuser/test-workspace" initialized.'
+      );
+      expect(mockClient.createWorkspace).toHaveBeenCalled();
+    });
+  });
+
+  describe("existing workspace - error handling", () => {
+    test("creates new workspace when getWorkspace throws", async () => {
+      using computeServer = createMockComputeServer();
+
+      const warnLogs: unknown[] = [];
+      const logger = {
+        ...noopLogger,
+        warn: (...args: unknown[]) => warnLogs.push(args),
+      };
+
+      let getWorkspaceCallCount = 0;
+      const mockClient = createMockCoderClient({
+        getWorkspace: mock(() => {
+          getWorkspaceCallCount++;
+          // First call: throws error (existing workspace check fails)
+          if (getWorkspaceCallCount === 1) {
+            return Promise.reject(new Error("Workspace not found"));
+          }
+          // Subsequent calls: newly created workspace is running
+          return Promise.resolve(mockCoderWorkspace({ id: "ws-new" }));
+        }),
+        createWorkspace: mock(() =>
+          Promise.resolve(mockCoderWorkspace({ id: "ws-new" }))
+        ),
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
+
+      const result = await initializeCoderWorkspace(
+        logger,
+        {
+          ...baseCoderTestOptions,
+          template: "test-template",
+          client: mockClient,
+        },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "main",
+        }
+      );
+
+      expect(result.message).toBe(
+        'Workspace "testuser/test-workspace" initialized.'
+      );
+      expect(mockClient.createWorkspace).toHaveBeenCalled();
+      expect(warnLogs.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("new workspace creation", () => {
+    test("creates new workspace when no existing workspace", async () => {
+      using computeServer = createMockComputeServer();
+
+      const mockClient = createMockCoderClient({
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
+
+      const result = await initializeCoderWorkspace(
+        noopLogger,
+        {
+          ...baseCoderTestOptions,
+          template: "test-template",
+          client: mockClient,
+        },
+        undefined
+      );
+
+      expect(result.message).toBe(
+        'Workspace "testuser/test-workspace" initialized.'
+      );
+      expect(mockClient.createWorkspace).toHaveBeenCalled();
+      expect(mockClient.getTemplateByName).toHaveBeenCalledWith(
+        "org-123",
+        "test-template"
+      );
+    });
+
+    test("throws error when template option is missing", async () => {
+      const mockClient = createMockCoderClient();
+
+      await expect(
+        initializeCoderWorkspace(
+          noopLogger,
+          { ...baseCoderTestOptions, client: mockClient },
+          undefined
+        )
+      ).rejects.toThrow("Template is required");
+    });
+
+    test("throws error when template not found", async () => {
+      const mockClient = createMockCoderClient({
+        getTemplateByName: mock(() => Promise.resolve(undefined)),
+      });
+
+      await expect(
+        initializeCoderWorkspace(
+          noopLogger,
+          {
+            ...baseCoderTestOptions,
+            template: "nonexistent-template",
+            client: mockClient,
+          },
+          undefined
+        )
+      ).rejects.toThrow("not found");
+    });
+
+    test("creates workspace with preset", async () => {
+      using computeServer = createMockComputeServer();
+
+      const mockClient = createMockCoderClient({
+        getTemplateVersionPresets: mock(() =>
+          Promise.resolve([
+            mockCoderPreset({ ID: "preset-abc", Name: "my-preset" }),
+            mockCoderPreset({ ID: "preset-def", Name: "other-preset" }),
+          ])
+        ),
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
+
+      await initializeCoderWorkspace(
+        noopLogger,
+        {
+          ...baseCoderTestOptions,
+          template: "test-template",
+          presetName: "my-preset",
+          client: mockClient,
+        },
+        undefined
+      );
+
+      expect(mockClient.createWorkspace).toHaveBeenCalledWith(
+        "org-123",
+        expect.objectContaining({
+          template_version_preset_id: "preset-abc",
+        })
+      );
+    });
+
+    test("throws error when preset not found", async () => {
+      const mockClient = createMockCoderClient({
+        getTemplateVersionPresets: mock(() =>
+          Promise.resolve([mockCoderPreset({ Name: "other-preset" })])
+        ),
+      });
+
+      await expect(
+        initializeCoderWorkspace(
+          noopLogger,
+          {
+            ...baseCoderTestOptions,
+            template: "test-template",
+            presetName: "nonexistent-preset",
+            client: mockClient,
+          },
+          undefined
+        )
+      ).rejects.toThrow("Preset 'nonexistent-preset' not found");
+    });
+
+    test("passes rich parameters to createWorkspace", async () => {
+      using computeServer = createMockComputeServer();
+
+      const mockClient = createMockCoderClient({
+        getAppHost: mock(() =>
+          Promise.resolve(`localhost:${computeServer.port}`)
+        ),
+      });
+
+      await initializeCoderWorkspace(
+        noopLogger,
+        {
+          ...baseCoderTestOptions,
+          template: "test-template",
+          richParameters: [
+            { name: "cpu", value: "4" },
+            { name: "memory", value: "8GB" },
+          ],
+          client: mockClient,
+        },
+        undefined
+      );
+
+      expect(mockClient.createWorkspace).toHaveBeenCalledWith(
+        "org-123",
+        expect.objectContaining({
+          rich_parameter_values: [
+            { name: "cpu", value: "4" },
+            { name: "memory", value: "8GB" },
+          ],
+        })
+      );
+    });
   });
 });
 
-describe("configuration validation", () => {
-  test("minimal config requires url and sessionToken", () => {
-    const config = {
-      coderUrl: "https://coder.example.com",
-      sessionToken: "session-token",
-      computeServerPort: 22137,
-    };
+describe("getCoderWorkspaceClient", () => {
+  test("throws when workspace not running", async () => {
+    const mockClient = createMockCoderClient({
+      getWorkspace: mock(() =>
+        Promise.resolve(
+          mockCoderWorkspace({
+            latest_build: mockCoderWorkspaceBuild({ status: "stopped" }),
+          })
+        )
+      ),
+    });
 
-    expect(config.coderUrl).toBeDefined();
-    expect(config.sessionToken).toBeDefined();
-    expect(config.computeServerPort).toBe(22137);
+    await expect(
+      getCoderWorkspaceClient(
+        { ...baseCoderTestOptions, client: mockClient },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "main",
+        }
+      )
+    ).rejects.toThrow("not running");
   });
 
-  test("full config with all optional fields", () => {
-    const config = {
-      coderUrl: "https://coder.example.com",
-      sessionToken: "session-token",
-      computeServerPort: 22137,
-      template: "my-template",
-      workspaceName: "my-workspace",
-      agentName: "main",
-      richParameters: [
-        { name: "cpu", value: "4" },
-        { name: "memory", value: "8" },
-      ],
-      startTimeoutSeconds: 600,
-    };
+  test("throws when agent not found", async () => {
+    const mockClient = createMockCoderClient({
+      getWorkspace: mock(() =>
+        Promise.resolve(
+          mockCoderWorkspace({
+            latest_build: mockCoderWorkspaceBuild({
+              resources: [
+                {
+                  id: "res-123",
+                  name: "main",
+                  type: "docker_container",
+                  agents: [
+                    {
+                      id: "agent-other",
+                      name: "other-agent",
+                      status: "connected",
+                    },
+                  ],
+                },
+              ],
+            }),
+          })
+        )
+      ),
+    });
 
-    expect(config.template).toBe("my-template");
-    expect(config.workspaceName).toBe("my-workspace");
-    expect(config.agentName).toBe("main");
-    expect(config.richParameters).toHaveLength(2);
-    expect(config.startTimeoutSeconds).toBe(600);
-  });
-});
-
-describe("API URL construction", () => {
-  test("handles URLs with and without trailing slash", () => {
-    const withSlash = "https://coder.example.com/";
-    const withoutSlash = "https://coder.example.com";
-
-    // Both should work - the implementation strips trailing slashes
-    expect(withSlash.replace(/\/$/, "")).toBe(withoutSlash);
-    expect(withoutSlash.replace(/\/$/, "")).toBe(withoutSlash);
-  });
-
-  test("WebSocket URL conversion", () => {
-    const httpUrl = "https://coder.example.com";
-    const wsUrl = httpUrl.replace(/^http/, "ws");
-    expect(wsUrl).toBe("wss://coder.example.com");
-
-    const httpUrlNoSsl = "http://localhost:3000";
-    const wsUrlNoSsl = httpUrlNoSsl.replace(/^http/, "ws");
-    expect(wsUrlNoSsl).toBe("ws://localhost:3000");
-  });
-});
-
-// Integration test examples (skipped by default - require real Coder deployment)
-describe.skip("integration tests", () => {
-  // These tests require:
-  // - CODER_URL environment variable set to your Coder deployment
-  // - CODER_SESSION_TOKEN environment variable with a valid token
-  // - A template available for workspace creation
-
-  const getEnvConfig = () => ({
-    coderUrl: process.env.CODER_URL || "",
-    sessionToken: process.env.CODER_SESSION_TOKEN || "",
-    computeServerPort: 22137,
-    template: process.env.CODER_TEMPLATE || "default",
-    startTimeoutSeconds: 300,
+    await expect(
+      getCoderWorkspaceClient(
+        { ...baseCoderTestOptions, client: mockClient },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "nonexistent-agent",
+        }
+      )
+    ).rejects.toThrow("Agent not found");
   });
 
-  test("can initialize a new workspace", async () => {
-    const { initializeCoderWorkspace } = await import("./index");
-    const config = getEnvConfig();
+  test("throws when agent not connected", async () => {
+    const mockClient = createMockCoderClient({
+      getWorkspace: mock(() =>
+        Promise.resolve(
+          mockCoderWorkspace({
+            latest_build: mockCoderWorkspaceBuild({
+              resources: [
+                {
+                  id: "res-123",
+                  name: "main",
+                  type: "docker_container",
+                  agents: [
+                    {
+                      id: "agent-123",
+                      name: "main",
+                      status: "disconnected",
+                    },
+                  ],
+                },
+              ],
+            }),
+          })
+        )
+      ),
+    });
 
-    if (!config.coderUrl || !config.sessionToken) {
-      console.log("Skipping: CODER_URL or CODER_SESSION_TOKEN not set");
-      return;
-    }
-
-    const noopLogger = {
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-    };
-
-    const result = await initializeCoderWorkspace(
-      noopLogger,
-      config,
-      undefined
-    );
-
-    expect(result.workspaceInfo.workspaceId).toBeDefined();
-    expect(result.workspaceInfo.workspaceName).toBeDefined();
-    expect(result.workspaceInfo.agentId).toBeDefined();
-    expect(result.message).toInclude("initialized");
+    await expect(
+      getCoderWorkspaceClient(
+        { ...baseCoderTestOptions, client: mockClient },
+        {
+          workspaceId: "ws-123",
+          workspaceName: "test-workspace",
+          ownerName: "testuser",
+          agentName: "main",
+        }
+      )
+    ).rejects.toThrow("not connected");
   });
 
-  test("can connect to an existing workspace", async () => {
-    const { initializeCoderWorkspace, getCoderWorkspaceClient } = await import(
-      "./index"
-    );
-    const config = getEnvConfig();
+  test("connects to running workspace via WebSocket", async () => {
+    using wsServer = createMockComputeServer();
 
-    if (!config.coderUrl || !config.sessionToken) {
-      console.log("Skipping: CODER_URL or CODER_SESSION_TOKEN not set");
-      return;
-    }
+    const mockClient = createMockCoderClient({
+      getAppHost: mock(() => Promise.resolve(`localhost:${wsServer.port}`)),
+    });
 
-    const noopLogger = {
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-    };
-
-    // First initialize
-    const initResult = await initializeCoderWorkspace(
-      noopLogger,
-      config,
-      undefined
-    );
-
-    // Then get client
     const client = await getCoderWorkspaceClient(
       {
-        coderUrl: config.coderUrl,
-        sessionToken: config.sessionToken,
-        computeServerPort: config.computeServerPort,
+        ...baseCoderTestOptions,
+        client: mockClient,
       },
-      initResult.workspaceInfo
+      {
+        workspaceId: "ws-123",
+        workspaceName: "test-workspace",
+        ownerName: "testuser",
+        agentName: "main",
+      }
     );
 
     expect(client).toBeDefined();
+  });
 
-    // Clean up
-    client.dispose();
+  test("sends auth headers in WebSocket connection", async () => {
+    using wsServer = createMockComputeServer();
+
+    const mockClient = createMockCoderClient({
+      getAppHost: mock(() => Promise.resolve(`localhost:${wsServer.port}`)),
+    });
+
+    await getCoderWorkspaceClient(
+      {
+        coderUrl: "http://coder.example.com",
+        sessionToken: "my-secret-token",
+        computeServerPort: 22137,
+        client: mockClient,
+      },
+      {
+        workspaceId: "ws-123",
+        workspaceName: "test-workspace",
+        ownerName: "testuser",
+        agentName: "main",
+      }
+    );
+
+    const headers = wsServer.getReceivedHeaders();
+    expect(headers["coder-session-token"]).toBe("my-secret-token");
+    expect(headers.cookie).toContain("coder_session_token=my-secret-token");
   });
 });

@@ -1,11 +1,92 @@
 import type { Client } from "@blink-sdk/compute-protocol/client";
 import { WebSocket } from "ws";
+import { z } from "zod";
 import type { Logger } from "../../types";
 import { newComputeClient } from "../common";
 
-// ============================================================================
-// Coder API Types (based on codersdk)
-// ============================================================================
+const WorkspaceStatusSchema = z.enum([
+  "pending",
+  "starting",
+  "running",
+  "stopping",
+  "stopped",
+  "failed",
+  "canceling",
+  "canceled",
+  "deleting",
+  "deleted",
+]);
+
+const AgentStatusSchema = z.enum([
+  "connecting",
+  "connected",
+  "disconnected",
+  "timeout",
+]);
+
+const WorkspaceAgentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: AgentStatusSchema,
+});
+
+const WorkspaceResourceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  agents: z.array(WorkspaceAgentSchema).optional(),
+});
+
+const WorkspaceBuildSchema = z.object({
+  id: z.string(),
+  status: WorkspaceStatusSchema,
+  resources: z.array(WorkspaceResourceSchema),
+});
+
+const WorkspaceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  owner_name: z.string(),
+  template_id: z.string(),
+  template_name: z.string(),
+  latest_build: WorkspaceBuildSchema,
+});
+
+const TemplateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  organization_id: z.string(),
+  active_version_id: z.string(),
+});
+
+const PresetSchema = z.object({
+  ID: z.string(),
+  Name: z.string(),
+  Default: z.boolean(),
+  Description: z.string().optional(),
+  Icon: z.string().optional(),
+});
+
+const UserSchema = z.object({
+  id: z.string(),
+  username: z.string(),
+});
+
+const OrganizationSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
+const AppHostSchema = z.object({
+  host: z.string(),
+});
+
+const CoderApiErrorSchema = z.object({
+  message: z.string(),
+  detail: z.string().optional(),
+});
+
+// The types below are not inferred from the schemas above due to typescript's isolatedDeclarations feature.
 
 type WorkspaceStatus =
   | "pending"
@@ -58,6 +139,25 @@ interface Template {
   active_version_id: string;
 }
 
+interface Preset {
+  ID: string;
+  Name: string;
+  Default: boolean;
+  Description?: string;
+  Icon?: string;
+}
+
+interface User {
+  id: string;
+  username: string;
+}
+
+interface Organization {
+  id: string;
+  name: string;
+}
+
+// Request types (not validated, these are what we send)
 interface WorkspaceBuildParameter {
   name: string;
   value: string;
@@ -68,6 +168,7 @@ interface CreateWorkspaceRequest {
   template_version_id?: string;
   name: string;
   rich_parameter_values?: WorkspaceBuildParameter[];
+  template_version_preset_id?: string;
 }
 
 interface CreateWorkspaceBuildRequest {
@@ -75,18 +176,9 @@ interface CreateWorkspaceBuildRequest {
   rich_parameter_values?: WorkspaceBuildParameter[];
 }
 
-interface CoderApiError {
-  message: string;
-  detail?: string;
-}
-
-// ============================================================================
-// Coder HTTP API Client
-// ============================================================================
-
-class CoderApiClient {
+export class CoderApiClient {
   private readonly baseUrl: string;
-  private readonly sessionToken: string;
+  readonly sessionToken: string;
 
   constructor(baseUrl: string, sessionToken: string) {
     // Remove trailing slash if present
@@ -97,6 +189,7 @@ class CoderApiClient {
   private async request<T>(
     method: string,
     path: string,
+    schema: z.ZodType<T>,
     body?: unknown
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
@@ -118,10 +211,12 @@ class CoderApiClient {
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
       try {
-        const errorBody = (await response.json()) as CoderApiError;
-        errorMessage = errorBody.message || errorMessage;
-        if (errorBody.detail) {
-          errorMessage += ` - ${errorBody.detail}`;
+        const errorBody = CoderApiErrorSchema.safeParse(await response.json());
+        if (errorBody.success) {
+          errorMessage = errorBody.data.message || errorMessage;
+          if (errorBody.data.detail) {
+            errorMessage += ` - ${errorBody.data.detail}`;
+          }
         }
       } catch {
         // Ignore JSON parse errors, use default message
@@ -131,19 +226,17 @@ class CoderApiClient {
 
     // Handle empty responses (204 No Content, etc.)
     const contentType = response.headers.get("content-type");
-    if (
-      response.status === 204 ||
-      !contentType?.includes("application/json")
-    ) {
-      return {} as T;
+    if (response.status === 204 || !contentType?.includes("application/json")) {
+      return schema.parse({});
     }
 
-    return response.json() as Promise<T>;
+    const json = await response.json();
+    return schema.parse(json);
   }
 
   // Get current authenticated user
-  async getMe(): Promise<{ id: string; username: string }> {
-    return this.request("GET", "/api/v2/users/me");
+  async getMe(): Promise<User> {
+    return this.request("GET", "/api/v2/users/me", UserSchema);
   }
 
   // Get workspace by owner and name
@@ -152,9 +245,10 @@ class CoderApiClient {
     name: string
   ): Promise<Workspace | undefined> {
     try {
-      return await this.request<Workspace>(
+      return await this.request(
         "GET",
-        `/api/v2/users/${encodeURIComponent(owner)}/workspace/${encodeURIComponent(name)}`
+        `/api/v2/users/${encodeURIComponent(owner)}/workspace/${encodeURIComponent(name)}`,
+        WorkspaceSchema
       );
     } catch (err) {
       if (err instanceof Error && err.message.includes("404")) {
@@ -166,9 +260,10 @@ class CoderApiClient {
 
   // Get workspace by ID
   async getWorkspace(workspaceId: string): Promise<Workspace> {
-    return this.request<Workspace>(
+    return this.request(
       "GET",
-      `/api/v2/workspaces/${encodeURIComponent(workspaceId)}`
+      `/api/v2/workspaces/${encodeURIComponent(workspaceId)}`,
+      WorkspaceSchema
     );
   }
 
@@ -178,9 +273,10 @@ class CoderApiClient {
     templateName: string
   ): Promise<Template | undefined> {
     try {
-      return await this.request<Template>(
+      return await this.request(
         "GET",
-        `/api/v2/organizations/${encodeURIComponent(organizationId)}/templates/${encodeURIComponent(templateName)}`
+        `/api/v2/organizations/${encodeURIComponent(organizationId)}/templates/${encodeURIComponent(templateName)}`,
+        TemplateSchema
       );
     } catch (err) {
       if (err instanceof Error && err.message.includes("404")) {
@@ -191,8 +287,12 @@ class CoderApiClient {
   }
 
   // Get default organization
-  async getDefaultOrganization(): Promise<{ id: string; name: string }> {
-    return this.request("GET", "/api/v2/organizations/default");
+  async getDefaultOrganization(): Promise<Organization> {
+    return this.request(
+      "GET",
+      "/api/v2/organizations/default",
+      OrganizationSchema
+    );
   }
 
   // Create workspace in organization
@@ -200,9 +300,10 @@ class CoderApiClient {
     organizationId: string,
     request: CreateWorkspaceRequest
   ): Promise<Workspace> {
-    return this.request<Workspace>(
+    return this.request(
       "POST",
       `/api/v2/organizations/${encodeURIComponent(organizationId)}/members/me/workspaces`,
+      WorkspaceSchema,
       request
     );
   }
@@ -212,37 +313,43 @@ class CoderApiClient {
     workspaceId: string,
     request: CreateWorkspaceBuildRequest
   ): Promise<WorkspaceBuild> {
-    return this.request<WorkspaceBuild>(
+    return this.request(
       "POST",
       `/api/v2/workspaces/${encodeURIComponent(workspaceId)}/builds`,
+      WorkspaceBuildSchema,
       request
     );
   }
 
-  // Get the WebSocket URL for the terminal/reconnecting PTY
-  getReconnectingPtyUrl(
-    agentId: string,
-    reconnect: string,
-    width: number,
-    height: number,
-    command?: string
-  ): string {
-    const baseWsUrl = this.baseUrl.replace(/^http/, "ws");
-    const params = new URLSearchParams({
-      reconnect,
-      width: String(width),
-      height: String(height),
-    });
-    if (command) {
-      params.set("command", command);
+  // Get the wildcard hostname for workspace applications
+  async getAppHost(): Promise<string> {
+    const response = await this.request(
+      "GET",
+      "/api/v2/applications/host",
+      AppHostSchema
+    );
+    // The response is an empty string if no wildcard access URL is configured
+    // https://github.com/coder/coder/blob/5d66aa95376d9df46371e2cbb3d6beaf1a0666cf/coderd/workspaceapps.go#L34
+    // https://github.com/coder/coder/blob/5d66aa95376d9df46371e2cbb3d6beaf1a0666cf/coderd/workspaceapps/appurl/appurl.go#L42
+    if (response.host === "") {
+      throw new Error(
+        "Coder deployment does not have a wildcard access URL configured. This is required for workspace support. See https://coder.com/docs/admin/networking/wildcard-access-url for configuration instructions."
+      );
     }
-    return `${baseWsUrl}/api/v2/workspaceagents/${agentId}/pty?${params.toString()}`;
+    return response.host;
+  }
+
+  // Get presets for a template version
+  async getTemplateVersionPresets(
+    templateVersionId: string
+  ): Promise<Preset[]> {
+    return this.request(
+      "GET",
+      `/api/v2/templateversions/${encodeURIComponent(templateVersionId)}/presets`,
+      z.array(PresetSchema)
+    );
   }
 }
-
-// ============================================================================
-// Exported Types and Functions
-// ============================================================================
 
 export interface CoderWorkspaceInfo {
   /** Workspace ID (UUID) */
@@ -252,7 +359,7 @@ export interface CoderWorkspaceInfo {
   /** Owner username */
   ownerName: string;
   /** Agent ID to connect to */
-  agentId: string;
+  agentId?: string;
   /** Agent name */
   agentName: string;
 }
@@ -262,8 +369,10 @@ export interface InitializeCoderWorkspaceOptions {
   coderUrl: string;
   /** Session token for authentication */
   sessionToken: string;
-  /** Port the blink compute server will listen on inside the workspace */
-  computeServerPort: number;
+  /** Port the blink compute server will listen on inside the workspace (default: 22137) */
+  computeServerPort?: number;
+  /** Optional CoderApiClient instance (for testing) */
+  client?: CoderApiClient;
   /**
    * Template name to create workspace from.
    * Required if creating a new workspace.
@@ -284,20 +393,27 @@ export interface InitializeCoderWorkspaceOptions {
    */
   richParameters?: Array<{ name: string; value: string }>;
   /**
+   * Preset name for workspace creation. The preset must exist on the template version.
+   * Presets provide pre-configured parameter values.
+   */
+  presetName?: string;
+  /**
    * Time to wait for workspace to start (in seconds). Default is 300 (5 minutes).
    */
   startTimeoutSeconds?: number;
+  /**
+   * Polling interval for workspace status checks in ms (default: 2000).
+   * Useful for testing.
+   */
+  pollingIntervalMs?: number;
+  /**
+   * Polling interval for compute server reachability checks in ms (default: 3000).
+   * Useful for testing.
+   */
+  computeServerPollingIntervalMs?: number;
 }
 
 const COMPUTE_SERVER_PORT = 22137;
-
-const BOOTSTRAP_SCRIPT = `
-set -e
-echo "Installing blink..."
-npm install -g blink@latest 2>&1 || { echo "Failed to install blink"; exit 1; }
-echo "Starting compute server..."
-HOST=0.0.0.0 PORT=$BLINK_PORT blink compute server
-`.trim();
 
 /**
  * Extracts agents from workspace resources.
@@ -312,23 +428,37 @@ function getAgentsFromWorkspace(workspace: Workspace): WorkspaceAgent[] {
   return agents;
 }
 
+interface WaitForWorkspaceReadyOptions {
+  client: CoderApiClient;
+  workspaceId: string;
+  agentName: string | undefined;
+  timeoutSeconds: number;
+  computeServerPort: number;
+  /** Polling interval in ms (default: 2000) */
+  pollingIntervalMs?: number;
+  /** Compute server polling interval in ms (default: 3000) */
+  computeServerPollingIntervalMs?: number;
+  /** Use http:// instead of https:// (for local development) */
+  useHttp?: boolean;
+}
+
 /**
  * Waits for workspace to be running and agent to be connected.
  */
 async function waitForWorkspaceReady(
-  client: CoderApiClient,
-  workspaceId: string,
-  agentName: string | undefined,
-  timeoutSeconds: number,
-  logger: Logger
+  opts: WaitForWorkspaceReadyOptions
 ): Promise<{ workspace: Workspace; agent: WorkspaceAgent }> {
+  const { client, workspaceId, agentName, timeoutSeconds } = opts;
+  const pollingIntervalMs = opts.pollingIntervalMs ?? 2000;
+  const computeServerPollingIntervalMs =
+    opts.computeServerPollingIntervalMs ?? 3000;
   const startTime = Date.now();
   const timeoutMs = timeoutSeconds * 1000;
+  const appHostname = await client.getAppHost();
 
   while (Date.now() - startTime < timeoutMs) {
     const workspace = await client.getWorkspace(workspaceId);
     const status = workspace.latest_build.status;
-    logger.info(`Workspace ${workspace.name} status: ${status}`);
 
     if (status === "failed" || status === "canceled" || status === "deleted") {
       throw new Error(
@@ -339,8 +469,7 @@ async function waitForWorkspaceReady(
     if (status === "running") {
       const agents = getAgentsFromWorkspace(workspace);
       if (agents.length === 0) {
-        logger.info("Waiting for agents to be available...");
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, pollingIntervalMs));
         continue;
       }
 
@@ -356,16 +485,21 @@ async function waitForWorkspaceReady(
       }
 
       if (agent.status === "connected") {
-        logger.info(`Agent '${agent.name}' is connected`);
+        await ensureComputeServer({
+          agentName: agent.name,
+          workspaceName: workspace.name,
+          ownerName: workspace.owner_name,
+          computeServerPort: opts.computeServerPort,
+          appHostname: appHostname,
+          sessionToken: client.sessionToken,
+          pollingIntervalMs: computeServerPollingIntervalMs,
+          useHttp: opts.useHttp,
+        });
         return { workspace, agent };
       }
-
-      logger.info(
-        `Waiting for agent '${agent.name}' to connect (status: ${agent.status})...`
-      );
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, pollingIntervalMs));
   }
 
   throw new Error(
@@ -373,173 +507,94 @@ async function waitForWorkspaceReady(
   );
 }
 
-/**
- * Executes a command in the workspace via the reconnecting PTY API.
- */
-async function executeInWorkspace(
-  client: CoderApiClient,
-  agentId: string,
-  command: string,
-  sessionToken: string,
-  logger: Logger
-): Promise<{ output: string; exitCode: number }> {
-  return new Promise((resolve, reject) => {
-    const reconnectId = crypto.randomUUID();
-    const ptyUrl = client.getReconnectingPtyUrl(
-      agentId,
-      reconnectId,
-      80,
-      24,
-      command
-    );
-
-    const ws = new WebSocket(ptyUrl, {
-      headers: {
-        "Coder-Session-Token": sessionToken,
-      },
-    });
-
-    let output = "";
-    let resolved = false;
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        ws.close();
-        // For long-running commands, we consider timeout as success if we got output
-        resolve({
-          output,
-          exitCode: output.includes("Compute server running") ? 0 : 1,
-        });
-      }
-    }, 120000); // 2 minute timeout
-
-    ws.on("open", () => {
-      logger.info(`Executing command in workspace: ${command.slice(0, 50)}...`);
-    });
-
-    ws.on("message", (data: Buffer) => {
-      const message = data.toString();
-      output += message;
-      // Check for success indicators
-      if (message.includes("Compute server running")) {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timeout);
-          // Don't close immediately - the server should keep running
-          resolve({ output, exitCode: 0 });
-        }
-      }
-    });
-
-    ws.on("close", () => {
-      clearTimeout(timeout);
-      if (!resolved) {
-        resolved = true;
-        // Check output for success/failure indicators
-        const exitCode =
-          output.includes("Failed") || output.includes("error") ? 1 : 0;
-        resolve({ output, exitCode });
-      }
-    });
-
-    ws.on("error", (err) => {
-      clearTimeout(timeout);
-      if (!resolved) {
-        resolved = true;
-        reject(err);
-      }
-    });
-  });
+interface ComputeServerConnectionInfo {
+  appHostname: string;
+  workspaceName: string;
+  ownerName: string;
+  agentName: string;
+  computeServerPort: number;
+  sessionToken: string;
+  /** Use http:// instead of https:// (for local development) */
+  useHttp?: boolean;
 }
 
 /**
- * Checks if the blink compute server is running in the workspace.
+ * Checks if the compute server is reachable via the subdomain proxy.
  */
-async function isComputeServerRunning(
-  client: CoderApiClient,
-  agentId: string,
-  sessionToken: string,
-  logger: Logger
+async function isComputeServerReachable(
+  opts: ComputeServerConnectionInfo
 ): Promise<boolean> {
+  const {
+    appHostname,
+    workspaceName,
+    ownerName,
+    agentName,
+    computeServerPort,
+    sessionToken,
+    useHttp,
+  } = opts;
+  const appSubdomain = `${computeServerPort}--${agentName}--${workspaceName}--${ownerName}`;
+  const appHost = appHostname.replace("*", appSubdomain);
+  const protocol = useHttp ? "http" : "https";
+  const proxyUrl = `${protocol}://${appHost}/`;
+
   try {
-    const { output } = await executeInWorkspace(
-      client,
-      agentId,
-      "pgrep -f 'blink compute server' || echo 'NOT_RUNNING'",
-      sessionToken,
-      logger
-    );
-    return !output.includes("NOT_RUNNING");
+    const response = await fetch(proxyUrl, {
+      method: "GET",
+      headers: {
+        "Coder-Session-Token": sessionToken,
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    // Any response (even error) from the compute server means it's running
+    // The proxy returns 502/503 if the backend is not reachable
+    return response.status !== 502 && response.status !== 503;
   } catch {
     return false;
   }
 }
 
+interface EnsureComputeServerOptions {
+  agentName: string;
+  workspaceName: string;
+  ownerName: string;
+  computeServerPort: number;
+  appHostname: string;
+  sessionToken: string;
+  /** Polling interval in ms (default: 3000) */
+  pollingIntervalMs?: number;
+  /** Use http:// instead of https:// (for local development) */
+  useHttp?: boolean;
+}
+
 /**
- * Installs and starts the blink compute server in the workspace.
+ * Ensures the blink compute server is running in the workspace.
+ * Polls the subdomain proxy until the compute server responds.
  */
-async function installComputeServer(
-  client: CoderApiClient,
-  agentId: string,
-  computeServerPort: number,
-  sessionToken: string,
-  logger: Logger
+async function ensureComputeServer(
+  opts: EnsureComputeServerOptions
 ): Promise<void> {
-  // Check if already running
-  if (await isComputeServerRunning(client, agentId, sessionToken, logger)) {
-    logger.info("Blink compute server is already running");
-    return;
-  }
+  const pollingIntervalMs = opts.pollingIntervalMs ?? 3000;
+  const connectionInfo: ComputeServerConnectionInfo = {
+    appHostname: opts.appHostname,
+    workspaceName: opts.workspaceName,
+    ownerName: opts.ownerName,
+    agentName: opts.agentName,
+    computeServerPort: opts.computeServerPort,
+    sessionToken: opts.sessionToken,
+    useHttp: opts.useHttp,
+  };
 
-  logger.info("Installing and starting blink compute server...");
-
-  // Create the startup script
-  const script = BOOTSTRAP_SCRIPT.replace(
-    "$BLINK_PORT",
-    String(computeServerPort)
-  );
-
-  // Execute in background using nohup
-  const command = `nohup bash -c '${script.replace(/'/g, "'\\''")}' > /tmp/blink-compute.log 2>&1 &`;
-
-  const { output, exitCode } = await executeInWorkspace(
-    client,
-    agentId,
-    command,
-    sessionToken,
-    logger
-  );
-
-  if (exitCode !== 0) {
-    throw new Error(`Failed to start compute server: ${output}`);
-  }
-
-  // Wait for server to start by checking logs
+  // Poll the subdomain proxy until the compute server responds
   const startTime = Date.now();
-  const timeout = 60000; // 60 seconds
+  const timeout = 120000; // 2 minutes for install + start
 
   while (Date.now() - startTime < timeout) {
-    const { output: logs } = await executeInWorkspace(
-      client,
-      agentId,
-      "cat /tmp/blink-compute.log 2>/dev/null || echo 'LOG_NOT_FOUND'",
-      sessionToken,
-      logger
-    );
+    await new Promise((resolve) => setTimeout(resolve, pollingIntervalMs));
 
-    if (logs.includes("Compute server running")) {
-      logger.info("Blink compute server started successfully");
+    if (await isComputeServerReachable(connectionInfo)) {
       return;
     }
-
-    if (
-      logs.includes("Failed to install blink") ||
-      logs.includes("npm ERR!")
-    ) {
-      throw new Error(`Failed to install blink: ${logs}`);
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
   throw new Error("Timeout waiting for blink compute server to start");
@@ -553,12 +608,15 @@ export const initializeCoderWorkspace = async (
   options: InitializeCoderWorkspaceOptions,
   existingWorkspaceInfo: CoderWorkspaceInfo | undefined
 ): Promise<{ workspaceInfo: CoderWorkspaceInfo; message: string }> => {
-  const client = new CoderApiClient(options.coderUrl, options.sessionToken);
+  const client =
+    options.client ??
+    new CoderApiClient(options.coderUrl, options.sessionToken);
   const computeServerPort = options.computeServerPort || COMPUTE_SERVER_PORT;
   const timeoutSeconds = options.startTimeoutSeconds || 300;
 
   // Get current user for owner name
   const me = await client.getMe();
+  const appHostname = await client.getAppHost();
 
   // Check if we have an existing workspace
   if (existingWorkspaceInfo) {
@@ -577,13 +635,16 @@ export const initializeCoderWorkspace = async (
 
         if (agent?.status === "connected") {
           // Ensure compute server is running
-          await installComputeServer(
-            client,
-            agent.id,
+          await ensureComputeServer({
+            agentName: agent.name,
+            workspaceName: workspace.name,
+            ownerName: workspace.owner_name,
             computeServerPort,
-            options.sessionToken,
-            logger
-          );
+            appHostname,
+            sessionToken: options.sessionToken,
+            pollingIntervalMs: options.computeServerPollingIntervalMs,
+            useHttp: options.coderUrl.startsWith("http://"),
+          });
 
           return {
             workspaceInfo: {
@@ -593,7 +654,7 @@ export const initializeCoderWorkspace = async (
               agentId: agent.id,
               agentName: agent.name,
             },
-            message: "Workspace already initialized and running.",
+            message: `Workspace "${workspace.owner_name}/${workspace.name}" already initialized and running.`,
           };
         }
       }
@@ -604,21 +665,18 @@ export const initializeCoderWorkspace = async (
           transition: "start",
         });
 
-        const { workspace: readyWorkspace, agent } = await waitForWorkspaceReady(
-          client,
-          workspace.id,
-          existingWorkspaceInfo.agentName,
-          timeoutSeconds,
-          logger
-        );
-
-        await installComputeServer(
-          client,
-          agent.id,
-          computeServerPort,
-          options.sessionToken,
-          logger
-        );
+        const { workspace: readyWorkspace, agent } =
+          await waitForWorkspaceReady({
+            client,
+            workspaceId: workspace.id,
+            agentName: existingWorkspaceInfo.agentName,
+            timeoutSeconds,
+            computeServerPort,
+            pollingIntervalMs: options.pollingIntervalMs,
+            computeServerPollingIntervalMs:
+              options.computeServerPollingIntervalMs,
+            useHttp: options.coderUrl.startsWith("http://"),
+          });
 
         return {
           workspaceInfo: {
@@ -628,26 +686,23 @@ export const initializeCoderWorkspace = async (
             agentId: agent.id,
             agentName: agent.name,
           },
-          message: "Workspace started and initialized.",
+          message: `Workspace "${readyWorkspace.owner_name}/${readyWorkspace.name}" started and initialized.`,
         };
       }
 
       if (status === "starting" || status === "pending") {
-        const { workspace: readyWorkspace, agent } = await waitForWorkspaceReady(
-          client,
-          workspace.id,
-          existingWorkspaceInfo.agentName,
-          timeoutSeconds,
-          logger
-        );
-
-        await installComputeServer(
-          client,
-          agent.id,
-          computeServerPort,
-          options.sessionToken,
-          logger
-        );
+        const { workspace: readyWorkspace, agent } =
+          await waitForWorkspaceReady({
+            client,
+            workspaceId: workspace.id,
+            agentName: existingWorkspaceInfo.agentName,
+            timeoutSeconds,
+            computeServerPort,
+            pollingIntervalMs: options.pollingIntervalMs,
+            computeServerPollingIntervalMs:
+              options.computeServerPollingIntervalMs,
+            useHttp: options.coderUrl.startsWith("http://"),
+          });
 
         return {
           workspaceInfo: {
@@ -657,7 +712,7 @@ export const initializeCoderWorkspace = async (
             agentId: agent.id,
             agentName: agent.name,
           },
-          message: "Workspace initialized.",
+          message: `Workspace "${readyWorkspace.owner_name}/${readyWorkspace.name}" initialized.`,
         };
       }
     } catch (err: unknown) {
@@ -675,8 +730,6 @@ export const initializeCoderWorkspace = async (
     );
   }
 
-  logger.info("Creating new Coder workspace...");
-
   // Get default organization and template
   const org = await client.getDefaultOrganization();
   const template = await client.getTemplateByName(org.id, options.template);
@@ -686,6 +739,22 @@ export const initializeCoderWorkspace = async (
     );
   }
 
+  // Look up preset if specified
+  let presetId: string | undefined;
+  if (options.presetName) {
+    const presets = await client.getTemplateVersionPresets(
+      template.active_version_id
+    );
+    const preset = presets.find((p) => p.Name === options.presetName);
+    if (!preset) {
+      const availablePresets = presets.map((p) => p.Name).join(", ");
+      throw new Error(
+        `Preset '${options.presetName}' not found. Available presets: ${availablePresets || "(none)"}`
+      );
+    }
+    presetId = preset.ID;
+  }
+
   const workspaceName =
     options.workspaceName || `blink-${Date.now().toString(36)}`;
 
@@ -693,23 +762,19 @@ export const initializeCoderWorkspace = async (
     template_id: template.id,
     name: workspaceName,
     rich_parameter_values: options.richParameters,
+    template_version_preset_id: presetId,
   });
 
-  const { workspace: readyWorkspace, agent } = await waitForWorkspaceReady(
+  const { workspace: readyWorkspace, agent } = await waitForWorkspaceReady({
     client,
-    workspace.id,
-    options.agentName,
+    workspaceId: workspace.id,
+    agentName: options.agentName,
     timeoutSeconds,
-    logger
-  );
-
-  await installComputeServer(
-    client,
-    agent.id,
     computeServerPort,
-    options.sessionToken,
-    logger
-  );
+    pollingIntervalMs: options.pollingIntervalMs,
+    computeServerPollingIntervalMs: options.computeServerPollingIntervalMs,
+    useHttp: options.coderUrl.startsWith("http://"),
+  });
 
   return {
     workspaceInfo: {
@@ -719,7 +784,7 @@ export const initializeCoderWorkspace = async (
       agentId: agent.id,
       agentName: agent.name,
     },
-    message: "Workspace initialized.",
+    message: `Workspace "${me.username}/${readyWorkspace.name}" initialized.`,
   };
 };
 
@@ -728,19 +793,33 @@ export interface GetCoderWorkspaceClientOptions {
   coderUrl: string;
   /** Session token for authentication */
   sessionToken: string;
-  /** Port the blink compute server is listening on */
-  computeServerPort: number;
+  /** Port the blink compute server is listening on (default: 22137) */
+  computeServerPort?: number;
+  /** Optional CoderApiClient instance (for testing) */
+  client?: CoderApiClient;
 }
 
 /**
  * Creates a compute client connected to a Coder workspace.
- * Uses WebSocket via the reconnecting PTY API to tunnel to the compute server.
+ * Uses WebSocket via the Coder app proxy to connect directly to the compute server port.
  */
 export const getCoderWorkspaceClient = async (
   options: GetCoderWorkspaceClientOptions,
   workspaceInfo: CoderWorkspaceInfo
 ): Promise<Client> => {
-  const client = new CoderApiClient(options.coderUrl, options.sessionToken);
+  const computeServerPort = options.computeServerPort ?? COMPUTE_SERVER_PORT;
+  const client =
+    options.client ??
+    new CoderApiClient(options.coderUrl, options.sessionToken);
+
+  // Get app hostname for subdomain proxy
+  const appHostname = await client.getAppHost();
+  if (!appHostname) {
+    throw new Error(
+      "Coder deployment does not have a wildcard app hostname configured. " +
+        "This is required for workspace app access."
+    );
+  }
 
   // Verify workspace exists and is running
   const workspace = await client.getWorkspace(workspaceInfo.workspaceId);
@@ -769,18 +848,24 @@ export const getCoderWorkspaceClient = async (
     );
   }
 
-  // Connect via PTY with netcat to tunnel to the compute server
-  // This bridges WebSocket -> PTY -> netcat -> TCP to compute server
-  const baseWsUrl = options.coderUrl.replace(/^http/, "ws");
-  const reconnectId = crypto.randomUUID();
-  const ncCommand = `nc -q0 127.0.0.1 ${options.computeServerPort}`;
+  // Connect via the Coder app proxy using subdomain format
+  // For ports, agent name is REQUIRED
+  const appSubdomain = `${computeServerPort}--${agent.name}--${workspaceInfo.workspaceName}--${workspaceInfo.ownerName}`;
 
-  const ptyUrl = `${baseWsUrl}/api/v2/workspaceagents/${workspaceInfo.agentId}/pty?reconnect=${encodeURIComponent(reconnectId)}&width=80&height=24&command=${encodeURIComponent(ncCommand)}`;
+  // Replace the wildcard in appHostname with the subdomain
+  // e.g., "*.apps.coder.com" -> "22137--dev--main--hugo.apps.coder.com"
+  const appHost = appHostname.replace("*", appSubdomain);
+
+  // Use ws:// for http:// URLs (e.g., local development), wss:// otherwise
+  const wsProtocol = options.coderUrl.startsWith("http://") ? "ws" : "wss";
+  const proxyUrl = `${wsProtocol}://${appHost}/`;
 
   try {
-    const ws = new WebSocket(ptyUrl, {
+    const ws = new WebSocket(proxyUrl, {
       headers: {
+        // Coder supports multiple auth methods - using both for compatibility
         "Coder-Session-Token": options.sessionToken,
+        Cookie: `coder_session_token=${options.sessionToken}`,
       },
     });
 

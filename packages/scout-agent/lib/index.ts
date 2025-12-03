@@ -1,4 +1,4 @@
-export type { CoderWorkspaceInfo } from "./compute/coder/index";
+export type { CoderApiClient, CoderWorkspaceInfo } from "./compute/coder/index";
 export type { DaytonaClient, DaytonaSandbox } from "./compute/daytona/index";
 export * from "./core";
 export * from "./slack";

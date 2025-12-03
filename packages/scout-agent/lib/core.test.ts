@@ -1,5 +1,4 @@
 import { describe, expect, mock, test } from "bun:test";
-import { Server as ComputeServer } from "@blink-sdk/compute-protocol/server";
 import {
   readUIMessageStream,
   simulateReadableStream,
@@ -9,15 +8,17 @@ import {
 import { MockLanguageModelV2 } from "ai/test";
 import * as blink from "blink";
 import { Client } from "blink/client";
-import { WebSocketServer } from "ws";
 import { getWorkspaceInfoKey } from "./compute/common";
-import type { DaytonaClient, DaytonaSandbox } from "./compute/daytona/index";
-import { type Message, Scout } from "./index";
 import {
-  createMockBlinkApiServer,
+  createMockCoderClient,
+  createMockComputeServer,
+  createMockDaytonaSandbox,
+  createMockDaytonaSdk,
+  mockCoderWorkspace,
   noopLogger,
-  withBlinkApiUrl,
-} from "./test-helpers";
+} from "./compute/test-utils";
+import { type Message, Scout } from "./index";
+import { createMockBlinkApiServer, withBlinkApiUrl } from "./test-helpers";
 
 // Add async iterator support to ReadableStream for testing
 declare global {
@@ -463,55 +464,6 @@ test("respond in slack", async () => {
   );
 });
 
-// Daytona integration test helpers
-const createMockDaytonaSandbox = (
-  overrides: Partial<DaytonaSandbox> = {}
-): DaytonaSandbox => ({
-  id: "test-workspace-id",
-  state: "started",
-  start: mock(() => Promise.resolve()),
-  getPreviewLink: mock(() =>
-    Promise.resolve({ url: "ws://localhost:9999", token: "test-token" })
-  ),
-  ...overrides,
-});
-
-const createMockDaytonaSdk = (
-  sandbox: DaytonaSandbox = createMockDaytonaSandbox()
-): DaytonaClient => ({
-  get: mock(() => Promise.resolve(sandbox)),
-  create: mock(() => Promise.resolve(sandbox)),
-});
-
-const createMockComputeServer = () => {
-  const wss = new WebSocketServer({ port: 0 });
-  const address = wss.address();
-  const port =
-    typeof address === "object" && address !== null ? address.port : 0;
-  const url = `ws://localhost:${port}`;
-
-  wss.on("connection", (ws) => {
-    // Create the compute protocol server that sends responses via WebSocket
-    const computeServer = new ComputeServer({
-      send: (message: Uint8Array) => {
-        ws.send(message);
-      },
-    });
-
-    // Forward WebSocket messages to the compute server
-    ws.on("message", (data: Buffer) => {
-      computeServer.handleMessage(new Uint8Array(data));
-    });
-  });
-
-  return {
-    url,
-    [Symbol.dispose]: () => {
-      wss.close();
-    },
-  };
-};
-
 describe("daytona integration", () => {
   test("Scout creates compute tools for daytona config", async () => {
     const { promise: doStreamOptionsPromise, resolve } =
@@ -787,5 +739,212 @@ describe("daytona integration", () => {
 
     // Verify our custom getGithubAppContext was called, not the default factory
     expect(mockGetGithubAppContext).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("coder integration", () => {
+  test("Scout creates compute tools for coder config", async () => {
+    const { promise: doStreamOptionsPromise, resolve } =
+      newPromise<DoStreamOptions>();
+
+    const mockClient = createMockCoderClient();
+
+    await using setupResult = await setup({
+      core: {
+        logger: noopLogger,
+        compute: {
+          type: "coder",
+          options: {
+            url: "http://coder.example.com",
+            sessionToken: "test-session-token",
+            computeServerPort: 22137,
+            template: "test-template",
+            coderClient: mockClient,
+          },
+        },
+      },
+      model: newMockModel({
+        textResponse: "coder test",
+        onDoStream: (options) => {
+          resolve(options);
+        },
+      }),
+    });
+    const { client } = setupResult;
+
+    const stream = await sendUserMessage(client, "hello");
+    for await (const _message of stream) {
+      // consume the stream
+    }
+
+    const callOptions = await doStreamOptionsPromise;
+    expect(callOptions.tools).toBeDefined();
+    expect(
+      callOptions.tools?.find((tool) => tool.name === "initialize_workspace")
+    ).toBeDefined();
+  });
+
+  test("initialize_workspace tool triggers coder client", async () => {
+    using apiServer = createMockBlinkApiServer();
+    using computeServer = createMockComputeServer();
+    using _env = withBlinkApiUrl(apiServer.url);
+
+    const mockClient = createMockCoderClient({
+      getWorkspaceByOwnerAndName: mock(() => Promise.resolve(undefined)),
+      createWorkspace: mock(() =>
+        Promise.resolve(mockCoderWorkspace({ id: "new-coder-workspace" }))
+      ),
+      getWorkspace: mock(() =>
+        Promise.resolve(mockCoderWorkspace({ id: "new-coder-workspace" }))
+      ),
+      getAppHost: mock(() =>
+        Promise.resolve(`localhost:${computeServer.port}`)
+      ),
+    });
+
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger: noopLogger,
+      compute: {
+        type: "coder",
+        options: {
+          url: "http://coder.example.com",
+          sessionToken: "test-session-token",
+          computeServerPort: 22137,
+          template: "test-template",
+          coderClient: mockClient,
+          pollingIntervalMs: 10,
+          computeServerPollingIntervalMs: 10,
+        },
+      },
+    });
+
+    const chatID = "test-chat-id" as blink.ID;
+    const params = await scout.buildStreamTextParams({
+      chatID,
+      messages: [],
+      model: newMockModel({ textResponse: "test" }),
+    });
+    const result = streamText(params);
+
+    // Access the tools from the result and call initialize_workspace directly
+    // biome-ignore lint/suspicious/noExplicitAny: accessing internal tools for testing
+    const tools = (result as any).tools as Record<
+      string,
+      // biome-ignore lint/suspicious/noExplicitAny: mock input
+      { execute: (input: any) => Promise<string> }
+    >;
+    const initTool = tools.initialize_workspace;
+    expect(initTool).toBeDefined();
+
+    // Execute the tool - withModelIntent wrapper expects { model_intent, properties }
+    // biome-ignore lint/style/noNonNullAssertion: we just checked it's defined
+    const toolResult = await initTool!.execute({
+      model_intent: "initializing workspace",
+      properties: {},
+    });
+
+    expect(toolResult).toBe('Workspace "testuser/test-workspace" initialized.');
+    expect(mockClient.createWorkspace).toHaveBeenCalledTimes(1);
+
+    // Verify workspace info was stored
+    const storedValue = apiServer.storage[getWorkspaceInfoKey(chatID)];
+    expect(storedValue).toBeDefined();
+    const storedInfo = JSON.parse(storedValue as string);
+    expect(storedInfo.workspaceId).toBe("new-coder-workspace");
+  });
+
+  test("compute tools use coder client to connect to workspace", async () => {
+    using apiServer = createMockBlinkApiServer();
+    using computeServer = createMockComputeServer();
+    using _env = withBlinkApiUrl(apiServer.url);
+
+    const mockClient = createMockCoderClient({
+      getWorkspaceByOwnerAndName: mock(() => Promise.resolve(undefined)),
+      createWorkspace: mock(() =>
+        Promise.resolve(mockCoderWorkspace({ id: "workspace-for-compute" }))
+      ),
+      getWorkspace: mock(() =>
+        Promise.resolve(mockCoderWorkspace({ id: "workspace-for-compute" }))
+      ),
+      getAppHost: mock(() =>
+        Promise.resolve(`localhost:${computeServer.port}`)
+      ),
+    });
+
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger: noopLogger,
+      compute: {
+        type: "coder",
+        options: {
+          url: "http://coder.example.com",
+          sessionToken: "test-session-token",
+          computeServerPort: 2137,
+          template: "test-template",
+          coderClient: mockClient,
+          pollingIntervalMs: 10,
+          computeServerPollingIntervalMs: 10,
+        },
+      },
+    });
+
+    const params = await scout.buildStreamTextParams({
+      chatID: "test-chat-id" as blink.ID,
+      messages: [],
+      model: newMockModel({ textResponse: "test" }),
+    });
+    const result = streamText(params);
+
+    // biome-ignore lint/suspicious/noExplicitAny: accessing internal tools for testing
+    const tools = (result as any).tools as Record<
+      string,
+      // biome-ignore lint/suspicious/noExplicitAny: mock input
+      { execute: (input: any) => Promise<unknown> }
+    >;
+
+    // First, initialize the workspace
+    // biome-ignore lint/style/noNonNullAssertion: we know it exists
+    await tools.initialize_workspace!.execute({
+      model_intent: "initializing workspace",
+      properties: {},
+    });
+
+    expect(mockClient.createWorkspace).toHaveBeenCalledTimes(1);
+    // Note: getWorkspace is called during initialization for polling (waitForWorkspaceReady)
+    const callsAfterInit = (mockClient.getWorkspace as ReturnType<typeof mock>)
+      .mock.calls.length;
+
+    // Now call a compute tool that uses the workspace client
+    // This should trigger getCoderWorkspaceClient which calls getWorkspace()
+    const readDirTool = tools.read_directory;
+    expect(readDirTool).toBeDefined();
+
+    // Call the tool - the compute server will handle the request
+    // biome-ignore lint/suspicious/noExplicitAny: test result
+    // biome-ignore lint/style/noNonNullAssertion: we just checked it's defined
+    const readResult: any = await readDirTool!.execute({
+      model_intent: "reading directory",
+      properties: {
+        directory_path: "/tmp",
+      },
+    });
+
+    // Verify the compute server responded correctly
+    expect(readResult).toBeDefined();
+    expect(readResult.entries).toBeDefined();
+
+    // Verify that the coder client was used to get the workspace (one more call than during init)
+    expect(
+      (mockClient.getWorkspace as ReturnType<typeof mock>).mock.calls.length
+    ).toBe(callsAfterInit + 1);
+    expect(mockClient.getWorkspace).toHaveBeenCalledWith(
+      "workspace-for-compute"
+    );
+
+    // Verify getAppHost was called (may be called multiple times during init and client creation)
+    expect(mockClient.getAppHost).toHaveBeenCalled();
   });
 });

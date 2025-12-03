@@ -5,6 +5,13 @@ import { type Message, Scout } from "./lib";
 
 export const agent = new blink.Agent<Message>();
 
+const ensure = (value: string | undefined): string => {
+  if (value === undefined) {
+    throw new Error("value is undefined");
+  }
+  return value;
+};
+
 const scout = new Scout({
   agent,
   github: {
@@ -20,7 +27,13 @@ const scout = new Scout({
     exaApiKey: process.env.EXA_API_KEY,
   },
   compute: {
-    type: "docker",
+    type: "coder",
+    options: {
+      url: ensure(process.env.CODER_URL),
+      sessionToken: ensure(process.env.CODER_SESSION_TOKEN),
+      template: ensure(process.env.CODER_TEMPLATE),
+      presetName: ensure(process.env.CODER_PRESET_NAME),
+    },
   },
 });
 
@@ -39,7 +52,7 @@ agent.on("chat", async ({ id, messages }) => {
   const params = await scout.buildStreamTextParams({
     messages,
     chatID: id,
-    model: "anthropic/claude-sonnet-4.5",
+    model: "anthropic/claude-opus-4.5",
     providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
     tools: {
       get_favorite_color: tool({

@@ -66,14 +66,14 @@ All integrations are optional - include only what you need.
 
 ### ScoutOptions
 
-| Option      | Type                   | Required | Description                             |
-| ----------- | ---------------------- | -------- | --------------------------------------- |
-| `agent`     | `blink.Agent<Message>` | Yes      | Blink agent instance                    |
-| `github`    | `GitHubConfig`         | No       | GitHub App configuration                |
-| `slack`     | `SlackConfig`          | No       | Slack App configuration                 |
-| `webSearch` | `WebSearchConfig`      | No       | Exa web search configuration            |
-| `compute`   | `ComputeConfig`        | No       | Docker or Daytona compute configuration |
-| `logger`    | `Logger`               | No       | Custom logger instance                  |
+| Option      | Type                   | Required | Description                                     |
+| ----------- | ---------------------- | -------- | ----------------------------------------------- |
+| `agent`     | `blink.Agent<Message>` | Yes      | Blink agent instance                            |
+| `github`    | `GitHubConfig`         | No       | GitHub App configuration                        |
+| `slack`     | `SlackConfig`          | No       | Slack App configuration                         |
+| `webSearch` | `WebSearchConfig`      | No       | Exa web search configuration                    |
+| `compute`   | `ComputeConfig`        | No       | Docker, Daytona, or Coder compute configuration |
+| `logger`    | `Logger`               | No       | Custom logger instance                          |
 
 ### GitHub
 
@@ -147,6 +147,23 @@ Execute code in isolated environments:
     autoDeleteIntervalMinutes?: number // Auto-cleanup interval (default: 60)
     envVars?: Record<string, string>  // Environment variables for sandboxes
     labels?: Record<string, string>   // Labels for sandboxes
+  }
+}
+```
+
+**Coder (self-hosted workspaces):**
+
+```typescript
+{
+  type: "coder",
+  options: {
+    coderUrl: string                  // Coder deployment URL (e.g., https://coder.example.com)
+    sessionToken: string              // Coder session token for authentication
+    template: string                  // Template name to create workspaces from
+    computeServerPort?: number        // Port for compute server (default: 22137)
+    presetName?: string               // Optional preset name for workspace creation
+    richParameters?: Array<{ name: string; value: string }> // Optional template parameters
+    startTimeoutSeconds?: number      // Workspace start timeout (default: 300)
   }
 }
 ```
