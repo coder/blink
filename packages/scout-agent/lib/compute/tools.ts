@@ -5,13 +5,14 @@ import { type Tool, tool } from "ai";
 import * as blink from "blink";
 import { z } from "zod";
 import type { Message } from "../types";
-import { WORKSPACE_INFO_KEY } from "./common";
+import { getWorkspaceInfoKey } from "./common";
 
 export const createComputeTools = <T>({
   agent,
   githubAppContext,
   initializeWorkspace,
   createWorkspaceClient,
+  chatID,
 }: {
   agent: blink.Agent<Message>;
   initializeWorkspace: (
@@ -23,9 +24,10 @@ export const createComputeTools = <T>({
    * If provided, the workspace_authenticate_git tool will be available.
    */
   githubAppContext?: github.AppAuthOptions;
+  chatID: blink.ID;
 }): Record<string, Tool> => {
   const newClient = async () => {
-    const workspaceInfo = await agent.store.get(WORKSPACE_INFO_KEY);
+    const workspaceInfo = await agent.store.get(getWorkspaceInfoKey(chatID));
     if (!workspaceInfo) {
       throw new Error(
         "Workspace not initialized. Call initialize_workspace first."
@@ -40,8 +42,9 @@ export const createComputeTools = <T>({
       description: "Initialize a workspace for the user.",
       inputSchema: z.object({}),
       execute: async (_args, _opts) => {
-        const existingWorkspaceInfoRaw =
-          await agent.store.get(WORKSPACE_INFO_KEY);
+        const existingWorkspaceInfoRaw = await agent.store.get(
+          getWorkspaceInfoKey(chatID)
+        );
         const existingWorkspaceInfo = existingWorkspaceInfoRaw
           ? JSON.parse(existingWorkspaceInfoRaw)
           : undefined;
@@ -49,7 +52,7 @@ export const createComputeTools = <T>({
           existingWorkspaceInfo
         );
         await agent.store.set(
-          WORKSPACE_INFO_KEY,
+          getWorkspaceInfoKey(chatID),
           JSON.stringify(workspaceInfo)
         );
         return message;

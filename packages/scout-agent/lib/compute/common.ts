@@ -1,9 +1,11 @@
 import { Client } from "@blink-sdk/compute-protocol/client";
 import type { Stream } from "@blink-sdk/multiplexer";
 import Multiplexer from "@blink-sdk/multiplexer";
+import type * as blink from "blink";
 import type { WebSocket } from "ws";
 
-export const WORKSPACE_INFO_KEY = "__compute_workspace_id";
+export const getWorkspaceInfoKey = (chatID: blink.ID) =>
+  `__compute_workspace_id-${chatID}`;
 
 export const newComputeClient = async (ws: WebSocket): Promise<Client> => {
   return new Promise<Client>((resolve, reject) => {

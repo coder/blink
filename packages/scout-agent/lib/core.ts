@@ -305,6 +305,7 @@ export class Scout {
           githubAppContext,
           initializeWorkspace: initializeDockerWorkspace,
           createWorkspaceClient: getDockerWorkspaceClient,
+          chatID,
         });
         break;
       }
@@ -313,6 +314,7 @@ export class Scout {
         computeTools = createComputeTools<DaytonaWorkspaceInfo>({
           agent: this.agent,
           githubAppContext,
+          chatID,
           initializeWorkspace: (info) =>
             initializeDaytonaWorkspace(
               this.logger,

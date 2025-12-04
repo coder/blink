@@ -10,6 +10,7 @@ import { MockLanguageModelV2 } from "ai/test";
 import * as blink from "blink";
 import { Client } from "blink/client";
 import { WebSocketServer } from "ws";
+import { getWorkspaceInfoKey } from "./compute/common";
 import type { DaytonaClient, DaytonaSandbox } from "./compute/daytona/index";
 import { type Message, Scout } from "./index";
 import {
@@ -576,8 +577,9 @@ describe("daytona integration", () => {
       },
     });
 
+    const chatID = "test-chat-id" as blink.ID;
     const params = await scout.buildStreamTextParams({
-      chatID: "test-chat-id" as blink.ID,
+      chatID,
       messages: [],
       model: newMockModel({ textResponse: "test" }),
     });
@@ -610,7 +612,7 @@ describe("daytona integration", () => {
     });
 
     // Verify workspace info was stored
-    expect(apiServer.storage.__compute_workspace_id).toBe(
+    expect(apiServer.storage[getWorkspaceInfoKey(chatID)]).toBe(
       JSON.stringify({ id: "new-daytona-workspace" })
     );
   });
