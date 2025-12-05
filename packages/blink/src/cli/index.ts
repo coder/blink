@@ -25,6 +25,7 @@ import { version } from "../../package.json";
 import build from "./build";
 import deploy from "./deploy";
 import setupSlackApp from "./setup-slack-app";
+import setupGithubApp from "./setup-github-app";
 import * as clack from "@clack/prompts";
 
 // This polyfill is because older versions of NodeJS don't have a global crypto object.
@@ -85,6 +86,11 @@ setupCommand
   .command("slack-app [directory]")
   .description("Set up Slack app integration")
   .action(setupSlackApp);
+
+setupCommand
+  .command("github-app [directory]")
+  .description("Set up GitHub App integration")
+  .action(setupGithubApp);
 
 program
   .command("telemetry [boolean]")
