@@ -1,3 +1,6 @@
+import { exec, spawn } from "node:child_process";
+import { readdir, writeFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 import {
   cancel,
   confirm,
@@ -8,15 +11,13 @@ import {
   select,
   text,
 } from "@clack/prompts";
-import { spawn, exec } from "child_process";
-import { readdir, readFile, writeFile } from "fs/promises";
-import { basename, join } from "path";
 import Handlebars from "handlebars";
-import { templates, type TemplateId } from "./init-templates";
+import { type TemplateId, templates } from "./init-templates";
+import { setupGithubApp } from "./setup-github-app";
 import { setupSlackApp } from "./setup-slack-app";
 
 async function isCommandAvailable(command: string): Promise<boolean> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     exec(`${command} --version`, { timeout: 5000 }, (error) => {
       resolve(!error);
     });
@@ -119,6 +120,11 @@ export default async function init(directory?: string): Promise<void> {
 
   const templateChoice = await select({
     options: [
+      {
+        label: "Scout",
+        value: "scout",
+        hint: "Full-featured agent with Slack, GitHub, and compute",
+      },
       {
         label: "Slack Bot",
         value: "slack-bot",
@@ -265,8 +271,8 @@ export default async function init(directory?: string): Promise<void> {
 
   let exitProcessManually = false;
 
-  // Set up Slack app if using slack-bot template
-  if (template === "slack-bot") {
+  // Set up Slack app if using slack-bot or scout template
+  if (template === "slack-bot" || template === "scout") {
     const shouldCreateSlackApp = await confirm({
       message: "Would you like to set up your Slack app now?",
       initialValue: true,
@@ -282,6 +288,26 @@ export default async function init(directory?: string): Promise<void> {
       });
       // the devhook takes a while to clean up, so we exit the process
       // manually
+      exitProcessManually = true;
+    }
+
+    console.log("");
+  }
+
+  // Set up GitHub app if using scout template
+  if (template === "scout") {
+    const shouldCreateGithubApp = await confirm({
+      message: "Would you like to set up your GitHub App now?",
+      initialValue: true,
+    });
+
+    if (isCancel(shouldCreateGithubApp) || !shouldCreateGithubApp) {
+      log.info("You can set up your GitHub App later by running:");
+      log.info("  blink setup github-app");
+    } else {
+      await setupGithubApp(directory, {
+        name,
+      });
       exitProcessManually = true;
     }
 

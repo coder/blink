@@ -1,0 +1,24 @@
+{
+  "name": "{{packageName}}",
+  "main": "agent.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "blink dev",
+    "deploy": "blink deploy"
+  },
+  "devDependencies": {
+    "zod": "latest",
+    "ai": "latest",
+{{#if (eq aiProvider "anthropic")}}
+    "@ai-sdk/anthropic": "latest",
+{{else if (eq aiProvider "openai")}}
+    "@ai-sdk/openai": "latest",
+{{/if}}
+    "blink": "latest",
+    "esbuild": "latest",
+    "@types/node": "latest",
+    "typescript": "latest",
+    "@blink-sdk/scout-agent": "latest"
+  }
+}

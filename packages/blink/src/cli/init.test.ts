@@ -228,8 +228,9 @@ describe("init command", () => {
     await using tempDir = await makeTmpDir();
     using term = render(`${BLINK_COMMAND} init`, { cwd: tempDir.path });
     await term.waitUntil((screen) => screen.includes("Scratch"));
-    // by default, the first option should be selected. Scratch is second in the list.
+    // by default, the first option should be selected. Scratch is third in the list (after Slack Bot and Scout).
     expect(term.getScreen()).not.toContain("Basic agent with example tool");
+    term.write(KEY_CODES.DOWN);
     term.write(KEY_CODES.DOWN);
     await term.waitUntil((screen) =>
       screen.includes("Basic agent with example tool")
@@ -307,7 +308,9 @@ describe("init command", () => {
       });
 
       // Navigate through prompts to package manager selection
+      // Scratch is third in the list (after Slack Bot and Scout)
       await term.waitUntil((screen) => screen.includes("Scratch"));
+      term.write(KEY_CODES.DOWN);
       term.write(KEY_CODES.DOWN);
       await term.waitUntil((screen) =>
         screen.includes("Basic agent with example tool")

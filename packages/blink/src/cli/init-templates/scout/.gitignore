@@ -1,0 +1,13 @@
+# dependencies
+node_modules
+
+# config and build
+.blink/*
+!.blink/config.json
+
+# dotenv environment variables file
+.env
+.env.*
+
+# Finder (MacOS) folder config
+.DS_Store

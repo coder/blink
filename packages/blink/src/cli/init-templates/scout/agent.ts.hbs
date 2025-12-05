@@ -1,0 +1,89 @@
+{{#if (eq aiProvider "anthropic")}}
+import { anthropic } from "@ai-sdk/anthropic";
+{{else if (eq aiProvider "openai")}}
+import { openai } from "@ai-sdk/openai";
+{{/if}}
+import { type Message, Scout } from "@blink-sdk/scout-agent";
+import { streamText, tool } from "ai";
+import * as blink from "blink";
+import { z } from "zod";
+
+export const agent = new blink.Agent<Message>();
+
+const scout = new Scout({
+  agent,
+  // GitHub integration (optional).
+  // Run `blink setup github-app` to set up your GitHub App, or remove this section if not needed.
+  github: {
+    appID: process.env.GITHUB_APP_ID,
+    privateKey: process.env.GITHUB_PRIVATE_KEY,
+    webhookSecret: process.env.GITHUB_WEBHOOK_SECRET,
+  },
+  // Slack integration (optional).
+  // Run `blink setup slack-app` to set up your Slack App, or remove this section if not needed.
+  slack: {
+    botToken: process.env.SLACK_BOT_TOKEN,
+    signingSecret: process.env.SLACK_SIGNING_SECRET,
+  },
+  // Web search integration (optional). Visit https://exa.ai to get an API key.
+  webSearch: {
+    exaApiKey: process.env.EXA_API_KEY,
+  },
+  // Compute environment for running code.
+  // Using Docker by default for local development.
+  // For production, you can use Coder (https://coder.com) instead:
+  // compute: {
+  //   type: "coder",
+  //   options: {
+  //     url: process.env.CODER_URL,
+  //     sessionToken: process.env.CODER_SESSION_TOKEN,
+  //     template: process.env.CODER_TEMPLATE,
+  //     presetName: process.env.CODER_PRESET_NAME,
+  //   },
+  // },
+  compute: {
+    type: "docker",
+  },
+});
+
+agent.on("request", async (request) => {
+  const url = new URL(request.url);
+  if (url.pathname.startsWith("/slack")) {
+    return scout.handleSlackWebhook(request);
+  }
+  if (url.pathname.startsWith("/github")) {
+    return scout.handleGitHubWebhook(request);
+  }
+  return new Response("Hey there!", { status: 200 });
+});
+
+agent.on("chat", async ({ id, messages }) => {
+  const params = await scout.buildStreamTextParams({
+    messages,
+    chatID: id,
+{{#if (eq aiProvider "anthropic")}}
+    model: anthropic("claude-sonnet-4-5"),
+{{else if (eq aiProvider "openai")}}
+    model: openai.chat("gpt-5"),
+{{else if (eq aiProvider "vercel")}}
+    model: "anthropic/claude-opus-4.5",
+{{else}}
+    // Unknown provider: {{aiProvider}}. Defaulting to Vercel AI Gateway syntax.
+    model: "anthropic/claude-opus-4.5",
+{{/if}}
+    providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+    tools: {
+      // Add your custom tools here
+      get_favorite_color: tool({
+        description: "Get your favorite color",
+        inputSchema: z.object({}),
+        execute() {
+          return "blue";
+        },
+      }),
+    },
+  });
+  return streamText(params);
+});
+
+agent.serve();
