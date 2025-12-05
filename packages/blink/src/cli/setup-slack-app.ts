@@ -1,3 +1,8 @@
+import crypto from "node:crypto";
+import { access, readdir, readFile, writeFile } from "node:fs/promises";
+import { basename, join } from "node:path";
+import util from "node:util";
+import Client from "@blink.so/api";
 import {
   confirm,
   intro,
@@ -8,15 +13,9 @@ import {
   spinner,
   text,
 } from "@clack/prompts";
-import { access, readFile, readdir, writeFile } from "fs/promises";
-import { basename, join } from "path";
-import { createDevhookID, getDevhookID, hasDevhook } from "./lib/devhook";
-import { createSlackApp } from "../edit/tools/create-slack-app";
-import open from "open";
-import Client from "@blink.so/api";
-import crypto from "crypto";
 import chalk from "chalk";
-import util from "node:util";
+import { createSlackApp } from "../edit/tools/create-slack-app";
+import { createDevhookID, getDevhookID, hasDevhook } from "./lib/devhook";
 import { openUrl } from "./lib/util";
 
 export async function verifySlackCredentials(
@@ -88,36 +87,50 @@ const makeDisposable = (value: unknown): Disposable => {
   }
   if (Symbol.dispose in value) {
     // the input already is a disposable value
-    return value as any;
-  } else if ("dispose" in value && typeof value.dispose === "function") {
-    (value as any)[Symbol.dispose] = () => (value as any).dispose();
-    return value as any;
+    return value as Disposable;
+  }
+  if ("dispose" in value && typeof value.dispose === "function") {
+    const obj = value as object & { dispose: () => void };
+    (obj as unknown as { [Symbol.dispose]: () => void })[Symbol.dispose] = () =>
+      obj.dispose();
+    return obj as unknown as Disposable;
   }
   throw new Error("Unable to make value disposable");
 };
 
-async function updateEnvCredentials(
+export async function updateEnvCredentials(
   envPath: string,
   botToken?: string,
   signingSecret?: string
 ): Promise<void> {
-  let envContent = await readFile(envPath, "utf-8");
+  let envContent = "";
+  try {
+    envContent = await readFile(envPath, "utf-8");
+  } catch {
+    // File doesn't exist, that's okay
+  }
 
+  // Comment out any existing Slack credentials
+  envContent = envContent
+    .replace(/^(SLACK_BOT_TOKEN=.*)/gm, "# $1")
+    .replace(/^(SLACK_SIGNING_SECRET=.*)/gm, "# $1");
+
+  // Remove trailing newlines then add exactly one
+  envContent = `${envContent.trimEnd()}\n`;
+
+  // Append Slack credentials
+  const credentials: string[] = [];
+  credentials.push("");
+  credentials.push("# Slack App credentials");
   if (botToken) {
-    envContent = envContent.replace(
-      /SLACK_BOT_TOKEN=.*/,
-      `SLACK_BOT_TOKEN=${botToken}`
-    );
+    credentials.push(`SLACK_BOT_TOKEN=${botToken}`);
   }
-
   if (signingSecret) {
-    envContent = envContent.replace(
-      /SLACK_SIGNING_SECRET=.*/,
-      `SLACK_SIGNING_SECRET=${signingSecret}`
-    );
+    credentials.push(`SLACK_SIGNING_SECRET=${signingSecret}`);
   }
+  credentials.push("");
 
-  await writeFile(envPath, envContent);
+  await writeFile(envPath, envContent + credentials.join("\n"), "utf-8");
 }
 
 async function determinePackageManager(
@@ -205,7 +218,7 @@ export async function setupSlackApp(
   });
 
   let resolveConnected = () => {};
-  let rejectConnected = (error: unknown) => {};
+  let rejectConnected = (_error: unknown) => {};
   const connected = new Promise<void>((resolve, reject) => {
     resolveConnected = resolve;
     rejectConnected = reject;
@@ -214,7 +227,17 @@ export async function setupSlackApp(
     id: devhookId,
     onRequest: async (request) => {
       const body = await request.text();
-      let payload: any;
+      let payload: {
+        type?: string;
+        challenge?: string;
+        event?: {
+          type?: string;
+          channel_type?: string;
+          bot_id?: string;
+          channel?: string;
+          ts?: string;
+        };
+      };
 
       try {
         payload = JSON.parse(body);
@@ -262,8 +285,8 @@ export async function setupSlackApp(
         !payload.event.bot_id
       ) {
         dmReceived = true;
-        dmChannel = payload.event.channel;
-        dmTimestamp = payload.event.ts;
+        dmChannel = payload.event.channel ?? "";
+        dmTimestamp = payload.event.ts ?? "";
       }
 
       return new Response("OK");
@@ -484,7 +507,7 @@ export async function setupSlackApp(
               text: `⚠️ There seems to be a problem with the signing secret. Please check the CLI for instructions on how to fix it.`,
             }),
           });
-        } catch (error) {
+        } catch {
           // Silent fail - user will see the CLI prompt
         }
       }

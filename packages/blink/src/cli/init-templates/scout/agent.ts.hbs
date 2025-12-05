@@ -62,7 +62,7 @@ agent.on("chat", async ({ id, messages }) => {
     messages,
     chatID: id,
 {{#if (eq aiProvider "anthropic")}}
-    model: anthropic("claude-sonnet-4-5"),
+    model: anthropic("claude-opus-4-5"),
 {{else if (eq aiProvider "openai")}}
     model: openai.chat("gpt-5"),
 {{else if (eq aiProvider "vercel")}}
