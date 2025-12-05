@@ -174,7 +174,7 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     const allEnv = {
       ...process.env,
       ...dotenv,
-    }
+    };
     if (blinkToken) {
       allEnv.BLINK_TOKEN = blinkToken;
     }
