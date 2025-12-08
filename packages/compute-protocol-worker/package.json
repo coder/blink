@@ -1,0 +1,15 @@
+{
+  "name": "@blink.so/compute-protocol-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsgo --noEmit"
+  },
+  "exports": {
+    ".": "./src/worker.ts"
+  },
+  "dependencies": {
+    "@blink-sdk/compute-protocol": "^0.0.2",
+    "@blink-sdk/events": "workspace:*"
+  }
+}

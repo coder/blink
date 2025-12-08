@@ -1,0 +1,2 @@
+# This is required for the package to be published.
+!dist/package.json

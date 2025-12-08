@@ -1,0 +1,41 @@
+{
+  "name": "@blink.so/api",
+  "description": "The TypeScript SDK for the Blink API.",
+  "version": "1.0.0",
+  "author": "Coder",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://blink.so",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coder/blink.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "browser": "./dist/client.browser.js",
+      "import": "./dist/client.node.js",
+      "require": "./dist/client.node.cjs",
+      "default": "./dist/client.node.js"
+    },
+    "./react": {
+      "import": "./dist/react/index.js",
+      "require": "./dist/react/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "ai": ">= 5",
+    "react": ">= 18",
+    "zod": ">= 4"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true }
+  },
+  "optionalDependencies": {
+    "@blink-sdk/compute-protocol": ">= 0.0.2"
+  }
+}

@@ -1,0 +1,356 @@
+@font-face {
+  font-family: "LayGrotesk";
+  src: url("/fonts/LayGrotesk-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "LayGrotesk";
+  src: url("/fonts/LayGrotesk-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+/* Self-contained CSS for the public site */
+/* Extracted from globals.css to decouple public site styles */
+
+@import "tailwindcss" source("../..");
+
+/* Enable smooth scrolling for anchor links */
+html {
+  scroll-behavior: smooth;
+}
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 9, 11, 11;
+    --background-end-rgb: 9, 11, 11;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Ensure content doesn't overflow on mobile */
+  .overflow-wrap-anywhere {
+    overflow-wrap: anywhere;
+  }
+
+  .break-words {
+    word-break: break-word;
+  }
+
+  /* Transparent scrollbar utilities */
+  .scrollbar-transparent {
+    scrollbar-color: hsl(var(--sidebar-accent)) transparent;
+  }
+
+  .scrollbar-transparent::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .scrollbar-transparent::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-transparent::-webkit-scrollbar-thumb {
+    background: hsl(var(--sidebar-accent) / 0.3);
+    border-radius: 3px;
+  }
+
+  .scrollbar-transparent::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--sidebar-accent) / 0.5);
+  }
+
+  .scrollbar-gutter-stable {
+    scrollbar-gutter: stable;
+  }
+
+  .scrollbar-gutter-stable-both-edges {
+    scrollbar-gutter: stable both-edges;
+  }
+
+  /* Letter-spacing utility with Tailwind CSS custom property approach */
+  .tracking-\[0\.02em\] {
+    --tw-tracking: 0.02em;
+    letter-spacing: 0.02em;
+  }
+}
+
+/* Global responsive word-wrapping for all text content */
+@layer base {
+  *:not(.xterm-char-measure-element) {
+    max-width: 100%;
+  }
+
+  :root {
+    --background: hsl(0 0% 100%);
+    --foreground: hsl(240 10% 3.9%);
+    --card: hsl(0 0% 100%);
+    --card-foreground: hsl(240 10% 3.9%);
+    --popover: hsl(0 0% 100%);
+    --popover-foreground: hsl(240 10% 3.9%);
+    --primary: hsl(240 5.9% 10%);
+    --primary-foreground: hsl(0 0% 98%);
+    --secondary: hsl(240 4.8% 95.9%);
+    --secondary-foreground: hsl(240 5.9% 10%);
+    --muted: hsl(240 4.8% 95.9%);
+    --muted-foreground: hsl(240 3.8% 46.1%);
+    --accent: hsl(240 4.8% 95.9%);
+    --accent-foreground: hsl(240 5.9% 10%);
+    --destructive: hsl(0 84.2% 60.2%);
+    --destructive-foreground: hsl(0 0% 98%);
+    --border: hsl(240 5.9% 90%);
+    --input: hsl(240 5.9% 90%);
+    --ring: hsl(240 10% 3.9%);
+    --chart-1: hsl(12 76% 61%);
+    --chart-2: hsl(173 58% 39%);
+    --chart-3: hsl(197 37% 24%);
+    --chart-4: hsl(43 74% 66%);
+    --chart-5: hsl(27 87% 67%);
+    --radius: 0.5rem;
+    --sidebar-background: hsl(0 0% 94%);
+    --sidebar-foreground: hsl(240 5.3% 26.1%);
+    --sidebar-primary: hsl(240 5.9% 10%);
+    --sidebar-primary-foreground: hsl(0 0% 98%);
+    --sidebar-accent: hsl(240 4.8% 95.9%);
+    --sidebar-accent-foreground: hsl(240 5.9% 10%);
+    --sidebar-border: hsl(220 13% 91%);
+    --sidebar-ring: hsl(217.2 91.2% 59.8%);
+    --menu-popover: var(--popover);
+  }
+  .dark {
+    --background: hsl(240 9% 7%);
+    --foreground: hsl(0 0% 98%);
+    --card: hsl(240 8% 7%);
+    --card-foreground: hsl(0 0% 98%);
+    --menu-popover: hsl(240 6% 22%);
+    --popover: hsl(240 6% 18%);
+    --popover-foreground: hsl(0 0% 98%);
+    --primary: hsl(0 0% 98%);
+    --primary-foreground: hsl(240 5.9% 10%);
+    --secondary: hsl(240 3.7% 15.9%);
+    --secondary-foreground: hsl(0 0% 98%);
+    --muted: hsl(240 3.7% 15.9%);
+    --muted-foreground: hsl(240 5% 64.9%);
+    --accent: hsl(240 3.7% 15.9%);
+    --accent-foreground: hsl(0 0% 98%);
+    --destructive: hsl(0 62.8% 50.6%);
+    --destructive-foreground: hsl(0 0% 98%);
+    --border: hsl(240 3.7% 15.9%);
+    --input: hsl(240 3.7% 15.9%);
+    --ring: hsl(240 4.9% 83.9%);
+    --chart-1: hsl(220 70% 50%);
+    --chart-2: hsl(160 60% 45%);
+    --chart-3: hsl(30 80% 55%);
+    --chart-4: hsl(280 65% 60%);
+    --chart-5: hsl(340 75% 55%);
+    --sidebar-background: hsl(240 5.9% 10%);
+    --sidebar-foreground: hsl(240 4.8% 95.9%);
+    --sidebar-primary: hsl(224.3 76.3% 48%);
+    --sidebar-primary-foreground: hsl(0 0% 100%);
+    --sidebar-accent: hsl(240 3.7% 15.9%);
+    --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+    --sidebar-border: hsl(240 3.7% 15.9%);
+    --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  }
+}
+
+@layer base {
+  :root {
+    /* Animation timing custom properties */
+    --animation-fade-in-delay: 0.5s;
+    --animation-fade-in-duration: 1s;
+    --animation-slide-up-delay: 0.8s;
+    --animation-slide-up-duration: 0.8s;
+  }
+
+  /* Fade-in animation */
+  .animate-fade-in {
+    opacity: 0;
+    animation: fadeIn var(--animation-fade-in-duration) ease-out
+      var(--animation-fade-in-delay) forwards;
+  }
+
+  /* Slide-up animation */
+  .animate-slide-up {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: slideUp var(--animation-slide-up-duration) ease-out
+      var(--animation-slide-up-delay) forwards;
+  }
+
+  @keyframes fadeIn {
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes notification-ping {
+    0% {
+      opacity: 0;
+      transform: scale(0);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes line-draw {
+    0% {
+      height: 0px;
+      opacity: 1;
+    }
+    100% {
+      height: 120px;
+      opacity: 1;
+    }
+  }
+
+  @keyframes line-draw-fast {
+    0% {
+      height: 0px;
+    }
+    100% {
+      height: 200px;
+    }
+  }
+
+  @keyframes line-draw-to-section {
+    0% {
+      height: 0px;
+    }
+    100% {
+      height: 50vh;
+    }
+  }
+
+  @keyframes fade-in {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes line-extend-section {
+    0% {
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes dot-appear {
+    0% {
+      opacity: 0;
+      transform: scale(0);
+    }
+    50% {
+      transform: scale(1.2);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes fade-slide-in {
+    0% {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Staggered animation delays for multiple elements */
+  .animate-fade-in:nth-child(1) {
+    animation-delay: calc(var(--animation-fade-in-delay) + 0.1s);
+  }
+  .animate-fade-in:nth-child(2) {
+    animation-delay: calc(var(--animation-fade-in-delay) + 0.2s);
+  }
+  .animate-fade-in:nth-child(3) {
+    animation-delay: calc(var(--animation-fade-in-delay) + 0.3s);
+  }
+  .animate-fade-in:nth-child(4) {
+    animation-delay: calc(var(--animation-fade-in-delay) + 0.4s);
+  }
+  .animate-fade-in:nth-child(5) {
+    animation-delay: calc(var(--animation-fade-in-delay) + 0.5s);
+  }
+  .animate-fade-in:nth-child(6) {
+    animation-delay: calc(var(--animation-fade-in-delay) + 0.6s);
+  }
+
+  .animate-slide-up:nth-child(1) {
+    animation-delay: calc(var(--animation-slide-up-delay) + 0.1s);
+  }
+  .animate-slide-up:nth-child(2) {
+    animation-delay: calc(var(--animation-slide-up-delay) + 0.2s);
+  }
+  .animate-slide-up:nth-child(3) {
+    animation-delay: calc(var(--animation-slide-up-delay) + 0.3s);
+  }
+  .animate-slide-up:nth-child(4) {
+    animation-delay: calc(var(--animation-slide-up-delay) + 0.4s);
+  }
+  .animate-slide-up:nth-child(5) {
+    animation-delay: calc(var(--animation-slide-up-delay) + 0.5s);
+  }
+  .animate-slide-up:nth-child(6) {
+    animation-delay: calc(var(--animation-slide-up-delay) + 0.6s);
+  }
+}
+
+/* LayGrotesk font utility with Geist fallback */
+@layer utilities {
+  .font-laygrotesk {
+    font-family: "LayGrotesk", var(--font-geist), "Geist", system-ui, arial;
+  }
+}
+
+/* Apply global letter-spacing using Tailwind's CSS custom property approach */
+* {
+  --tw-tracking: 0.02em;
+  letter-spacing: 0.02em;
+}
+
+@media (min-width: 768px) {
+  .headline-responsive {
+    font-size: 3.75rem;
+    line-height: 1;
+  }
+}

@@ -26,7 +26,8 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "tsdown"
+    "build": "tsdown",
+    "typecheck": "tsgo --noEmit"
   },
   "exports": {
     ".": {

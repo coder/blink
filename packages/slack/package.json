@@ -37,7 +37,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown src/index.ts --dts --format esm,cjs"
+    "build": "tsdown src/index.ts --dts --format esm,cjs",
+    "typecheck": "tsgo --noEmit"
   },
   "type": "module",
   "devDependencies": {

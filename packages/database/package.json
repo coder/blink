@@ -1,0 +1,29 @@
+{
+  "name": "@blink.so/database",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./schema": "./src/schema.ts",
+    "./postgres": "./src/postgres.ts",
+    "./querier": "./src/querier.ts",
+    "./knock-service": "./src/knock-service.ts",
+    "./test": "./src/test.ts",
+    "./shared": "./src/shared.ts",
+    "./convert": "./src/convert.ts"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate",
+    "typecheck": "tsgo --noEmit"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.3.2",
+    "@neondatabase/serverless": "^1.0.2",
+    "dotenv": "^17.2.3",
+    "drizzle-kit": "^0.31.5",
+    "drizzle-orm": "^0.44.5",
+    "pg": "^8.16.0",
+    "pg-gateway": "^0.3.0-beta.4",
+    "postgres": "^3.4.7"
+  }
+}

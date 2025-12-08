@@ -5,7 +5,7 @@
   "scripts": {
     "format": "prettier --write --cache .",
     "test": "bun test",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "bun run --filter='*' typecheck"
   },
   "workspaces": [
     "packages/*"

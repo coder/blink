@@ -1,0 +1,10 @@
+version: v2
+
+plugins:
+  - remote: buf.build/bufbuild/es
+    out: gen
+    opt: target=ts
+
+inputs:
+  - git_repo: https://github.com/open-telemetry/opentelemetry-proto.git
+    ref: c0a98a1847d3124ac5f9ecd02d0e2d2732bbb590 # v1.8.0

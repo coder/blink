@@ -25,7 +25,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsdown"
+    "build": "tsdown",
+    "typecheck": "tsgo --noEmit"
   },
   "devDependencies": {
     "@octokit/auth-app": "^8.1.0",

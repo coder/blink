@@ -1,0 +1,16 @@
+{
+  "name": "@blink.so/runtime",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": "./src/server.ts",
+    "./types": "./src/types.ts",
+    "./node/wrapper": "./src/node/wrapper-node.generated.ts",
+    "./lambda": "./src/lambda/runtime-lambda.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "aws4fetch": "^1.0.20",
+    "jszip": "^3.10.1"
+  }
+}
