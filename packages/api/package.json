@@ -54,6 +54,6 @@
   },
   "dependencies": {
     "bcrypt-ts": "^7.1.0",
-    "next-auth": "5.0.0-beta.28"
+    "next-auth": "5.0.0-beta.30"
   }
 }
