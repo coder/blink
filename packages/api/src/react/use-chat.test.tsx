@@ -1,6 +1,6 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { UIMessage, UIMessageChunk } from "ai";
-import { beforeAll, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeAll, describe, expect, it, mock } from "bun:test";
 import { Window } from "happy-dom";
 import type Client from "../client.browser";
 import type { StreamChatEvent } from "../client.browser";
@@ -8,9 +8,24 @@ import { useChat } from "./use-chat";
 
 beforeAll(() => {
   if (!globalThis.window) {
-    globalThis.window = new Window() as any;
-    globalThis.document = window.document;
+    const window = new Window({
+      url: "http://localhost",
+    });
+    globalThis.window = window as any;
+    globalThis.document = window.document as any;
+    globalThis.HTMLElement = window.HTMLElement as any;
+    globalThis.MutationObserver = window.MutationObserver as any;
+    globalThis.getComputedStyle = window.getComputedStyle as any;
+    globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
+      setTimeout(() => cb(0), 0);
+      return 0;
+    };
+    globalThis.cancelAnimationFrame = () => {};
   }
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 // Note: Not cleaning up window/document in afterAll to avoid
