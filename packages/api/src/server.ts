@@ -18,6 +18,7 @@ import mountDevhook from "./routes/devhook.server";
 import mountFiles from "./routes/files.server";
 import mountInvites from "./routes/invites.server";
 import mountMessages from "./routes/messages.server";
+import mountOnboarding from "./routes/onboarding/onboarding.server";
 import mountOrganizations from "./routes/organizations/organizations.server";
 import type { OtelSpan } from "./routes/otlp/convert";
 import mountOtlp from "./routes/otlp/otlp.server";
@@ -220,6 +221,7 @@ export interface Bindings {
   readonly NODE_ENV: string;
   readonly AI_GATEWAY_API_KEY?: string;
   readonly TOOLS_EXA_API_KEY?: string;
+  readonly ONBOARDING_AGENT_RELEASE_URL?: string;
 
   // OAuth provider credentials
   readonly GITHUB_CLIENT_ID?: string;
@@ -311,6 +313,7 @@ mountMessages(api.basePath("/messages"));
 mountTools(api.basePath("/tools"));
 mountOtlp(api.basePath("/otlp"));
 mountDevhook(api.basePath("/devhook"));
+mountOnboarding(api.basePath("/onboarding"));
 
 // Webhook route for proxying requests to agents
 // The wildcard route handles subpaths like /api/webhook/:id/github/events

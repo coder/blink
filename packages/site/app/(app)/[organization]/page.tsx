@@ -113,6 +113,11 @@ export default async function Page({
 
   const isPersonal = organization.id === user.organization_id;
 
+  // Redirect to onboarding if organization has no agents
+  if (agents.length === 0) {
+    return redirect(`/${organizationName}/onboarding`);
+  }
+
   return (
     <div className="w-full relative">
       <Header user={user} organization={organization} />

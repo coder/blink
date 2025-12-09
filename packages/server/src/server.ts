@@ -112,6 +112,8 @@ export async function startServer(options: ServerOptions) {
           {
             AUTH_SECRET: authSecret,
             NODE_ENV: "development",
+            ONBOARDING_AGENT_RELEASE_URL:
+              "https://api.github.com/repos/hugodutka/blink-artifacts/releases/latest",
             agentStore: (deploymentTargetID) => {
               return {
                 delete: async (key) => {
