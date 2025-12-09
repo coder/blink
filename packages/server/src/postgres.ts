@@ -116,7 +116,11 @@ async function createAndStartContainer(): Promise<void> {
     `POSTGRES_DB=${POSTGRES_DB}`,
     "-p",
     `${POSTGRES_PORT}:5432`,
+    "-v",
+    "blink-server-postgres-data:/var/lib/postgresql/data",
     "pgvector/pgvector:pg17",
+    "-c",
+    "max_connections=1000",
   ]);
 
   logger.plain("PostgreSQL container created");

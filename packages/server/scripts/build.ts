@@ -1,6 +1,13 @@
 import { build } from "bun";
 import { execSync } from "child_process";
-import { cpSync, mkdirSync, rmSync, writeFileSync } from "fs";
+import {
+  cpSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "fs";
 import { join } from "path";
 
 const distDir = join(import.meta.dirname, "..", "dist");
@@ -65,6 +72,50 @@ function buildNextSite() {
     join(distDir, "site", "package.json"),
     JSON.stringify({ type: "module" })
   );
+
+  // Create symlinks for packages in .bun directory so Node.js can resolve them.
+  // Bun uses a .bun directory structure instead of flat node_modules, so we need
+  // to create symlinks at the top level pointing to the actual packages.
+  const bunDir = join(distDir, "site", "node_modules", ".bun");
+  const nodeModulesDir = join(distDir, "site", "node_modules");
+  for (const entry of readdirSync(bunDir)) {
+    // Skip non-package entries
+    if (entry === "node_modules" || entry.startsWith(".")) continue;
+
+    // Parse package name from entry (e.g., "next@15.5.6+..." -> "next")
+    // or ("@img+sharp-linux-arm64@0.34.5" -> "@img/sharp-linux-arm64")
+    const atIndex = entry.lastIndexOf("@");
+    if (atIndex <= 0) continue; // Skip if no version found
+
+    let packageName = entry.slice(0, atIndex);
+    // Handle scoped packages (bun uses + instead of /)
+    if (packageName.startsWith("@") && packageName.includes("+")) {
+      packageName = packageName.replace("+", "/");
+    }
+
+    const targetPath = packageName.includes("/")
+      ? join(nodeModulesDir, ...packageName.split("/"))
+      : join(nodeModulesDir, packageName);
+
+    // Create parent directory for scoped packages
+    if (packageName.includes("/")) {
+      const scope = packageName.split("/")[0]!;
+      mkdirSync(join(nodeModulesDir, scope), { recursive: true });
+    }
+
+    // Create relative symlink
+    const relativePath = join(
+      ".bun",
+      entry,
+      "node_modules",
+      ...packageName.split("/")
+    );
+    try {
+      symlinkSync(relativePath, targetPath);
+    } catch {
+      // Symlink may already exist
+    }
+  }
 }
 
 function copyMigrations() {

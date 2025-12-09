@@ -163,8 +163,7 @@ export async function startServer(options: ServerOptions) {
               };
             },
             database: async () => {
-              const conn = await connectToPostgres(postgresUrl);
-              return new Querier(conn);
+              return querier;
             },
             apiBaseURL: url,
             auth: {
@@ -407,8 +406,7 @@ export async function startServer(options: ServerOptions) {
     wss,
     wsDataMap,
     async () => {
-      const conn = await connectToPostgres(postgresUrl);
-      return new Querier(conn);
+      return querier;
     },
     process.env as Record<string, string>
   );

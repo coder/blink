@@ -1,15 +1,19 @@
 import connectToPostgres from "@blink.so/database/postgres";
 import Querier from "@blink.so/database/querier";
 
+const querierCache = new Map<string, Querier>();
+
 // getQuerier is a helper function for all functions in the site
 // that need to connect to the database.
-//
-// They do not need to be concerned about ending connections.
-// This all runs serverless, and we have max idle time
-// which will close the connection.
+// TODO: it's janky that we're caching the querier globally like this.
+// We should make it cleaner.
 export const getQuerier = async (): Promise<Querier> => {
-  const conn = await connectToPostgres(
-    process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? ""
-  );
-  return new Querier(conn);
+  const url = process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? "";
+  let querier = querierCache.get(url);
+  if (!querier) {
+    const conn = await connectToPostgres(url);
+    querier = new Querier(conn);
+    querierCache.set(url, querier);
+  }
+  return querier;
 };
