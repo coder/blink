@@ -9,6 +9,7 @@ import { mkdir, writeFile } from "fs/promises";
 import { createServer } from "net";
 import { tmpdir } from "os";
 import { join } from "path";
+import { getDockerNetworkingConfig } from "./check-docker-networking";
 
 interface DockerDeployOptions {
   deployment: AgentDeployment;
@@ -88,9 +89,33 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
       deployment.target_id
     );
 
+    // Determine the best Docker networking mode for this system
+    const networkConfig = await getDockerNetworkingConfig();
+    console.log(`Docker networking config: ${JSON.stringify(networkConfig)}`);
+
+    if (networkConfig.recommended === "none") {
+      throw new Error(
+        "Docker networking check failed: neither host networking nor port binding supports bidirectional communication between host and container. " +
+          "Please check your Docker configuration."
+      );
+    }
+
+    const useHostNetwork =
+      networkConfig.recommended === "host" ||
+      networkConfig.recommended === "both";
+
     // Find free ports for this agent (one for external access, one for internal API)
     const externalPort = await findFreePort();
     const internalAPIPort = await findFreePort();
+
+    // Calculate the URL the container should use to reach the host
+    let containerBaseUrl = baseUrl;
+    if (!useHostNetwork && networkConfig.portBind.hostAddress) {
+      // Replace the host in baseUrl with the address that works from the container
+      const url = new URL(baseUrl);
+      url.hostname = networkConfig.portBind.hostAddress;
+      containerBaseUrl = url.toString().replace(/\/$/, ""); // Remove trailing slash
+    }
 
     // Build Docker env args
     const dockerEnvArgs: string[] = [];
@@ -102,10 +127,10 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
     );
     dockerEnvArgs.push(
       "-e",
-      `${InternalAPIServerURLEnvironmentVariable}=${baseUrl}`
+      `${InternalAPIServerURLEnvironmentVariable}=${containerBaseUrl}`
     );
     // Agent configuration
-    dockerEnvArgs.push("-e", `BLINK_REQUEST_URL=${baseUrl}`);
+    dockerEnvArgs.push("-e", `BLINK_REQUEST_URL=${containerBaseUrl}`);
     dockerEnvArgs.push("-e", `BLINK_REQUEST_ID=${target?.request_id}`);
     dockerEnvArgs.push("-e", `PORT=${externalPort}`);
     // User-defined environment variables
@@ -128,6 +153,7 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
       // Ignore errors if container doesn't exist
     }
 
+    // Build docker args based on networking mode
     const dockerArgs = [
       "run",
       "-d",
@@ -135,8 +161,14 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
       containerName,
       "--restart",
       "unless-stopped",
-      "--network",
-      "host",
+      ...(useHostNetwork
+        ? ["--network", "host"]
+        : [
+            "-p",
+            `${externalPort}:${externalPort}`,
+            "-p",
+            `${internalAPIPort}:${internalAPIPort}`,
+          ]),
       "-v",
       `${deploymentDir}:/app`,
       "-w",
