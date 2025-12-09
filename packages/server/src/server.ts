@@ -4,7 +4,11 @@ import Querier from "@blink.so/database/querier";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
-import { createServer, IncomingMessage } from "http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import module from "module";
 import path, { join } from "path";
 import { parse } from "url";
@@ -19,12 +23,13 @@ interface ServerOptions {
   postgresUrl: string;
   authSecret: string;
   baseUrl: string;
+  devProxy?: string; // e.g. "localhost:3000"
 }
 
 // Files are now stored in the database instead of in-memory
 
 export async function startServer(options: ServerOptions) {
-  const { port, postgresUrl, authSecret, baseUrl } = options;
+  const { port, postgresUrl, authSecret, baseUrl, devProxy } = options;
 
   const db = await connectToPostgres(postgresUrl);
   const querier = new Querier(db);
@@ -47,14 +52,24 @@ export async function startServer(options: ServerOptions) {
   // Run database migrations...
   await migrate(db, { migrationsFolder: migrationsDir });
 
-  const app = await startNextServer({
-    siteDir,
-    postgresUrl,
-    authSecret,
-    baseUrl,
-  });
-  await app.prepare();
-  const nextHandler = app.getRequestHandler();
+  // Create a unified request handler - either Next.js directly or dev proxy
+  let handleSiteRequest: (
+    req: IncomingMessage,
+    res: ServerResponse
+  ) => Promise<void>;
+
+  if (devProxy) {
+    handleSiteRequest = (req, res) => proxyToNextDev(req, res, devProxy);
+  } else {
+    const app = await startNextServer({
+      siteDir,
+      postgresUrl,
+      authSecret,
+      baseUrl,
+    });
+    await app.prepare();
+    handleSiteRequest = app.getRequestHandler();
+  }
 
   const chatManagerRef: { current?: ChatManager } = {};
 
@@ -163,8 +178,7 @@ export async function startServer(options: ServerOptions) {
               };
             },
             database: async () => {
-              const conn = await connectToPostgres(postgresUrl);
-              return new Querier(conn);
+              return querier;
             },
             apiBaseURL: url,
             auth: {
@@ -352,7 +366,7 @@ export async function startServer(options: ServerOptions) {
       }
 
       // Handle Next.js routes
-      await nextHandler(nodeReq, nodeRes);
+      await handleSiteRequest(nodeReq, nodeRes);
     } catch (error) {
       console.error("Request error:", error);
       if (!nodeRes.headersSent) {
@@ -365,6 +379,37 @@ export async function startServer(options: ServerOptions) {
   // Handle WebSocket upgrades
   server.on("upgrade", (request, socket, head) => {
     const { pathname, query } = parse(request.url || "", true);
+
+    // In dev mode, proxy Next.js HMR WebSocket
+    if (devProxy && pathname === "/_next/webpack-hmr") {
+      wss.handleUpgrade(request, socket, head, (clientWs) => {
+        const nextUrl = new URL(request.url || "/", `ws://${devProxy}`);
+        const nextWs = new WebSocket(nextUrl);
+
+        nextWs.on("open", () => {
+          // Forward messages from Next to browser (preserve binary format)
+          nextWs.on("message", (data, isBinary) => {
+            if (clientWs.readyState === WebSocket.OPEN) {
+              clientWs.send(data, { binary: isBinary });
+            }
+          });
+
+          // Forward messages from browser to Next
+          clientWs.on("message", (data, isBinary) => {
+            if (nextWs.readyState === WebSocket.OPEN) {
+              nextWs.send(data, { binary: isBinary });
+            }
+          });
+        });
+
+        nextWs.on("close", () => clientWs.close());
+        clientWs.on("close", () => nextWs.close());
+
+        nextWs.on("error", () => clientWs.close());
+        clientWs.on("error", () => nextWs.close());
+      });
+      return;
+    }
 
     // Check if this is a token auth WebSocket
     if (pathname?.startsWith("/api/auth/token")) {
@@ -407,8 +452,7 @@ export async function startServer(options: ServerOptions) {
     wss,
     wsDataMap,
     async () => {
-      const conn = await connectToPostgres(postgresUrl);
-      return new Querier(conn);
+      return querier;
     },
     process.env as Record<string, string>
   );
@@ -416,6 +460,78 @@ export async function startServer(options: ServerOptions) {
   server.listen(port);
 
   return server;
+}
+
+/**
+ * Proxy HTTP requests to a Next.js dev server
+ */
+async function proxyToNextDev(
+  nodeReq: IncomingMessage,
+  nodeRes: import("http").ServerResponse,
+  proxyTarget: string
+) {
+  try {
+    const rawPath = nodeReq.url || "/";
+    const base = new URL(`http://${proxyTarget}`);
+    const safeUrl = new URL(rawPath, base);
+
+    const headers = new Headers();
+    for (const [key, value] of Object.entries(nodeReq.headers)) {
+      if (value) {
+        if (Array.isArray(value)) {
+          for (const v of value) headers.append(key, v);
+        } else {
+          headers.set(key, value);
+        }
+      }
+    }
+
+    const body =
+      nodeReq.method !== "GET" && nodeReq.method !== "HEAD"
+        ? (nodeReq as unknown as BodyInit)
+        : undefined;
+
+    const response = await fetch(safeUrl.toString(), {
+      method: nodeReq.method,
+      headers,
+      body,
+      // @ts-ignore - Node.js specific option for streaming request body
+      duplex: "half",
+    });
+
+    // Write response headers, excluding encoding headers since fetch auto-decompresses
+    const responseHeaders: Record<string, string | string[]> = {};
+    response.headers.forEach((value, key) => {
+      // Skip headers that are invalid after fetch auto-decompresses the response
+      const lowerKey = key.toLowerCase();
+      if (
+        lowerKey === "content-encoding" ||
+        lowerKey === "content-length" ||
+        lowerKey === "transfer-encoding"
+      ) {
+        return;
+      }
+      responseHeaders[key] = value;
+    });
+    nodeRes.writeHead(response.status, responseHeaders);
+
+    // Stream response body
+    if (response.body) {
+      const reader = response.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        nodeRes.write(value);
+      }
+    }
+    nodeRes.end();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    nodeRes.writeHead(502, { "Content-Type": "text/plain" });
+    nodeRes.end(
+      `Proxy error: ${message}. Is 'next dev' running on ${proxyTarget}?`
+    );
+  }
 }
 
 export interface StartNextServerOptions {

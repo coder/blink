@@ -23,7 +23,8 @@
   "type": "module",
   "scripts": {
     "build": "bun scripts/build.ts",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo --noEmit",
+    "dev": "bun src/cli.ts --dev"
   },
   "devDependencies": {
     "blink": "workspace:*",

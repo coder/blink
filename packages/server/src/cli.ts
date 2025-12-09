@@ -15,6 +15,10 @@ program
   .description("Self-hosted Blink server")
   .version(version)
   .option("-p, --port <port>", "Port to run the server on", "3005")
+  .option(
+    "-d, --dev [host]",
+    "Proxy frontend requests to Next.js dev server (default: localhost:3000)"
+  )
   .action(async (options) => {
     try {
       await runServer(options);
@@ -27,7 +31,7 @@ program
     }
   });
 
-async function runServer(options: { port: string }) {
+async function runServer(options: { port: string; dev?: boolean | string }) {
   const port = parseInt(options.port, 10);
   if (isNaN(port) || port < 1 || port > 65535) {
     throw new Error(`Invalid port: ${options.port}`);
@@ -43,17 +47,26 @@ async function runServer(options: { port: string }) {
   }
 
   // Generate or use existing AUTH_SECRET
-  const authSecret =
-    process.env.AUTH_SECRET || "fake-random-string-should-be-in-db";
+  if (!process.env.AUTH_SECRET) {
+    process.env.AUTH_SECRET = "fake-random-string-should-be-in-db";
+  }
+  const authSecret = process.env.AUTH_SECRET;
 
   const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
 
+  // Determine devProxy value
+  const devProxy = options.dev
+    ? options.dev === true
+      ? "localhost:3000"
+      : options.dev
+    : undefined;
   // Start the server
   const srv = await startServer({
     port,
     postgresUrl,
     authSecret,
     baseUrl,
+    devProxy,
   });
 
   const box = boxen(
