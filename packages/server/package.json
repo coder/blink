@@ -28,16 +28,19 @@
   },
   "devDependencies": {
     "blink": "workspace:*",
+    "@blink.so/api": "workspace:*",
+    "@blink-sdk/tunnel": "workspace:*",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
     "@types/ws": "^8.5.13",
-    "chalk": "^5.4.1",
     "boxen": "^8.0.1",
+    "chalk": "^5.4.1",
     "commander": "^12.1.0",
     "drizzle-orm": "^0.44.5",
     "fetch-to-node": "^2.1.0",
     "pg": "^8.16.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "xdg-portable": "^10.6.0"
   },
   "engines": {
     "node": ">=20.0.0"
