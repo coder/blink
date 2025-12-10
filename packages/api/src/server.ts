@@ -241,12 +241,17 @@ const api = new Hono<{
   Bindings: Bindings;
 }>()
   .basePath("/api")
-  .use(
-    cors({
+  .use(async (c, next) => {
+    // Skip CORS middleware for webhook routes - they handle their own CORS filtering
+    // to preserve non-CORS Vary header values from agents
+    if (c.req.path.startsWith("/api/webhook/")) {
+      return next();
+    }
+    return cors({
       // We're going to test the embedding of chats on coder.com.
       origin: ["https://blink.so"],
-    })
-  );
+    })(c, next);
+  });
 
 api.use(async (c, next) => {
   await next();
@@ -307,13 +312,19 @@ mountTools(api.basePath("/tools"));
 mountOtlp(api.basePath("/otlp"));
 mountDevhook(api.basePath("/devhook"));
 
-// Legacy webhook route for backwards compatibility.
-api.all("/webhook/:id", async (c) => {
-  const id = c.req.param("id");
+// Webhook route for proxying requests to agents
+// The wildcard route handles subpaths like /api/webhook/:id/github/events
+api.all("/webhook/:id{.*}", async (c) => {
+  // Extract id and subpath from the matched param
+  const fullParam = c.req.param("id");
+  const slashIndex = fullParam.indexOf("/");
+  const id = slashIndex === -1 ? fullParam : fullParam.slice(0, slashIndex);
+  const subpath = slashIndex === -1 ? "" : fullParam.slice(slashIndex);
+
   if (!validate(id)) {
     return c.json({ message: "Invalid ID" }, 400);
   }
-  return handleAgentRequest(c, id, true);
+  return handleAgentRequest(c, id, { mode: "webhook", subpath });
 });
 
 export type AgentServer = Hono<{
@@ -332,7 +343,7 @@ app.all("*", (c) => {
   // We handle all agent requests here if they match.
   // This could be for dev requests or production requests.
   if (match) {
-    return handleAgentRequest(c, match, false);
+    return handleAgentRequest(c, match, { mode: "subdomain" });
   }
   // Just pass through to the API.
   // We could make it 404 here, but it's really unnecessary

@@ -4,10 +4,14 @@ import type { Bindings } from "../server";
 import { detectRequestLocation } from "../server-helper";
 import { generateAgentInvocationToken } from "./agents/me/me.server";
 
+export type AgentRequestRouting =
+  | { mode: "webhook"; subpath?: string }
+  | { mode: "subdomain" };
+
 export default async function handleAgentRequest(
   c: Context<{ Bindings: Bindings }>,
   id: string,
-  legacy?: boolean
+  routing: AgentRequestRouting
 ) {
   const db = await c.env.database();
   const query = await db.selectAgentDeploymentByRequestID(id);
@@ -37,8 +41,8 @@ export default async function handleAgentRequest(
   const incomingUrl = new URL(c.req.raw.url);
 
   let url: URL;
-  if (legacy) {
-    url = new URL("/webhook" + incomingUrl.search, directAccessURL);
+  if (routing.mode === "webhook") {
+    url = new URL(routing.subpath || "/", directAccessURL);
   } else {
     url = new URL(incomingUrl.pathname, directAccessURL);
   }
@@ -49,7 +53,7 @@ export default async function handleAgentRequest(
   const contentLengthRaw = c.req.raw.headers.get("content-length");
   if (contentLengthRaw) {
     contentLength = Number(contentLengthRaw);
-    if (isNaN(contentLength)) {
+    if (Number.isNaN(contentLength)) {
       contentLength = undefined;
     }
   }
@@ -73,7 +77,7 @@ export default async function handleAgentRequest(
   const pathWithQuery = incomingUrl.pathname + incomingUrl.search;
   const truncatedPath =
     pathWithQuery.length > 80
-      ? pathWithQuery.slice(0, 80) + "..."
+      ? `${pathWithQuery.slice(0, 80)}...`
       : pathWithQuery;
 
   // Extract useful headers for logging (not sensitive ones)
@@ -125,18 +129,15 @@ export default async function handleAgentRequest(
     })
   );
 
-  let requestBodyPromise: Promise<ReadBodyResult | undefined> | undefined;
-  let upstreamBody: ReadableStream | undefined;
-  if (c.req.raw.body) {
-    let downstreamBody: ReadableStream;
-    [upstreamBody, downstreamBody] = c.req.raw.body.tee();
-    requestBodyPromise = readBody(c.req.raw.headers, downstreamBody, 64 * 1024);
-  }
-
   const headers = new Headers();
   c.req.raw.headers.forEach((value, key) => {
     headers.set(key, value);
   });
+  // Strip cookies from webhook requests to prevent session leakage
+  // Subdomain requests are on a different origin, so cookies won't be sent anyway
+  if (routing.mode === "webhook") {
+    headers.delete("cookie");
+  }
   headers.set(
     BlinkInvocationTokenHeader,
     await generateAgentInvocationToken(c.env.AUTH_SECRET, {
@@ -150,7 +151,7 @@ export default async function handleAgentRequest(
   let error: string | undefined;
   try {
     response = await fetch(url, {
-      body: upstreamBody,
+      body: c.req.raw.body,
       method: c.req.raw.method,
       signal,
       headers,
@@ -162,15 +163,60 @@ export default async function handleAgentRequest(
   const agentID = query.agent_deployment.agent_id;
   const deploymentID = query.agent_deployment.id;
 
-  let responseBodyPromise: Promise<ReadBodyResult | undefined> | undefined;
-  if (response && response.body) {
-    const [toClient, toLog] = response.body.tee();
-    responseBodyPromise = readBody(response.headers, toLog, 64 * 1024);
-    response = new Response(toClient, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
+  if (response) {
+    // Strip sensitive headers from webhook responses to prevent:
+    // - Session hijacking via set-cookie
+    // - Permissive CORS policies that could expose user data
+    // - XSS attacks via HTML responses
+    // - Open redirects via Location header
+    // Subdomain requests are on a different origin, so these don't apply
+    if (routing.mode === "webhook") {
+      const responseHeaders = new Headers(response.headers);
+      responseHeaders.delete("set-cookie");
+      responseHeaders.delete("access-control-allow-origin");
+      responseHeaders.delete("access-control-allow-credentials");
+      responseHeaders.delete("access-control-allow-methods");
+      responseHeaders.delete("access-control-allow-headers");
+
+      // Prevent open redirects - strip Location header
+      responseHeaders.delete("location");
+
+      // Security headers to prevent XSS and other attacks
+      // nosniff prevents browsers from MIME-sniffing responses
+      responseHeaders.set("x-content-type-options", "nosniff");
+      // Restrictive CSP blocks all active content (scripts, styles, etc.)
+      responseHeaders.set(
+        "content-security-policy",
+        "default-src 'none'; frame-ancestors 'none'"
+      );
+      // Prevent clickjacking
+      responseHeaders.set("x-frame-options", "DENY");
+
+      // Filter CORS-related values from Vary header
+      const vary = responseHeaders.get("vary");
+      if (vary) {
+        const corsVaryValues = [
+          "origin",
+          "access-control-request-method",
+          "access-control-request-headers",
+        ];
+        const filtered = vary
+          .split(",")
+          .map((v) => v.trim())
+          .filter((v) => !corsVaryValues.includes(v.toLowerCase()));
+        if (filtered.length > 0) {
+          responseHeaders.set("vary", filtered.join(", "));
+        } else {
+          responseHeaders.delete("vary");
+        }
+      }
+
+      response = new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      });
+    }
   }
 
   const durationMs = Math.round(performance.now() - startTime);
@@ -249,104 +295,3 @@ export default async function handleAgentRequest(
     );
   }
 }
-
-interface RedactHeadersResult {
-  headers: Record<string, string>;
-  redacted: boolean;
-}
-
-// redactHeaders replaces sensitive headers with "REDACTED" and
-// limits the number of headers to 100.
-function redactHeaders(incoming: Headers): RedactHeadersResult {
-  const headers: Record<string, string> = {};
-  let headerCount = 0;
-  let redacted = false;
-  const sensitiveHeaders = ["authorization", "cookie", "set-cookie"];
-  incoming.forEach((value, key) => {
-    if (headerCount >= 60) {
-      redacted = true;
-      return;
-    }
-    if (key.length > 128) {
-      redacted = true;
-      key = key.slice(0, 128);
-    }
-    if (value.length > 2048) {
-      redacted = true;
-      value = value.slice(0, 2048) + " ... [truncated]";
-    }
-    headerCount++;
-    if (sensitiveHeaders.includes(key.toLowerCase())) {
-      headers[key] = "REDACTED";
-    } else {
-      headers[key] = value;
-    }
-  });
-  return {
-    headers: headers,
-    redacted,
-  };
-}
-
-interface ReadBodyResult {
-  body: string;
-  truncated: boolean;
-}
-
-async function readBody(
-  headers: Headers,
-  body: ReadableStream,
-  maxLength: number
-): Promise<ReadBodyResult | undefined> {
-  if (!isTextual(headers.get("content-type"))) {
-    // For non-textual content, cancel the stream immediately.
-    // We don't need to read it, just ensure it's canceled to signal
-    // to Cloudflare that we're not using this teed stream.
-    await body.cancel();
-    return undefined;
-  }
-  const reader = body.getReader();
-  try {
-    const decoder = new TextDecoder();
-    let result = "";
-    let totalRead = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      const chunk = decoder.decode(value, { stream: true });
-      result += chunk;
-      totalRead += chunk.length;
-      if (totalRead > maxLength) {
-        // Cancel the reader - we've read enough
-        await reader.cancel();
-        return {
-          body: result,
-          truncated: true,
-        };
-      }
-    }
-    return {
-      body: result,
-      truncated: false,
-    };
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-const isTextual = (contentType: string | null) => {
-  if (!contentType) {
-    return false;
-  }
-  const v = contentType.toLowerCase();
-  return (
-    v.startsWith("text/") ||
-    v.includes("json") ||
-    v.includes("xml") ||
-    v.includes("x-www-form-urlencoded") ||
-    v.includes("graphql") ||
-    v.includes("cloudevents+json")
-  );
-};
