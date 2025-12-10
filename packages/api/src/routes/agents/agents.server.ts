@@ -28,6 +28,7 @@ import mountLogs from "./logs.server";
 import mountAgentsMe from "./me/me.server";
 import mountAgentMembers from "./members.server";
 import mountRuns from "./runs.server";
+import mountSetupSlack from "./setup-slack.server";
 import mountSteps from "./steps.server";
 import mountTraces from "./traces.server";
 
@@ -417,6 +418,7 @@ export default function mountAgents(app: Hono<{ Bindings: Bindings }>) {
   mountLogs(app.basePath("/:agent_id/logs"));
   mountTraces(app.basePath("/:agent_id/traces"));
   mountAgentMembers(app.basePath("/:agent_id/members"));
+  mountSetupSlack(app.basePath("/:agent_id/setup/slack"));
 
   // This is special - just for the agent invocation API.
   // We don't like to do this, but we do because this API

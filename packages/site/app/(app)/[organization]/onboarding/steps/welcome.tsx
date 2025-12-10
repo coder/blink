@@ -18,7 +18,10 @@ interface WelcomeStepProps {
   client: Client;
   organizationId: string;
   onFileDownloaded: (fileId: string) => void;
+  onAgentCreated: (agentId: string) => void;
   existingFileId?: string;
+  existingAgentId?: string;
+  agentName: string;
 }
 
 export function WelcomeStep({
@@ -26,26 +29,45 @@ export function WelcomeStep({
   client,
   organizationId,
   onFileDownloaded,
+  onAgentCreated,
   existingFileId,
+  existingAgentId,
+  agentName,
 }: WelcomeStepProps) {
   const [downloading, setDownloading] = useState(false);
 
   const handleGetStarted = async () => {
-    if (existingFileId) {
+    if (existingFileId && existingAgentId) {
       onContinue();
       return;
     }
 
     setDownloading(true);
     try {
-      const result = await client.onboarding.downloadAgent({
-        organization_id: organizationId,
-      });
-      onFileDownloaded(result.file_id);
+      // Download the agent files if not already done
+      let fileId = existingFileId;
+      if (!fileId) {
+        const downloadResult = await client.onboarding.downloadAgent({
+          organization_id: organizationId,
+        });
+        fileId = downloadResult.file_id;
+        onFileDownloaded(fileId);
+      }
+
+      // Create the agent (without deployment) if not already done
+      if (!existingAgentId) {
+        const agent = await client.agents.create({
+          organization_id: organizationId,
+          name: agentName,
+          description: "AI agent with GitHub, Slack, and web search integrations",
+        });
+        onAgentCreated(agent.id);
+      }
+
       onContinue();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to download agent"
+        error instanceof Error ? error.message : "Failed to initialize agent"
       );
     } finally {
       setDownloading(false);

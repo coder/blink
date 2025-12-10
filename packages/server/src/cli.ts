@@ -74,6 +74,7 @@ async function runServer(options: { port: string }) {
     postgresUrl,
     authSecret,
     baseUrl,
+    accessUrl,
   });
 
   const box = boxen(

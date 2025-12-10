@@ -1,6 +1,7 @@
 "use client";
 
 import { useAPIClient } from "@/lib/api-client";
+import type Client from "@blink.so/api";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProgressIndicator } from "./components/progress-indicator";
@@ -11,7 +12,7 @@ import { ApiKeysStep } from "./steps/api-keys";
 import { DeployingStep } from "./steps/deploying";
 import { SuccessStep } from "./steps/success";
 
-type OnboardingStep =
+export type OnboardingStep =
   | "welcome"
   | "github-setup"
   | "slack-setup"
@@ -19,7 +20,7 @@ type OnboardingStep =
   | "deploying"
   | "success";
 
-interface OnboardingState {
+export interface OnboardingState {
   currentStep: OnboardingStep;
   fileId?: string;
   github?: {
@@ -44,20 +45,29 @@ const STORAGE_KEY_PREFIX = "onboarding:";
 
 const defaultState: OnboardingState = {
   currentStep: "welcome",
-  agentName: "scout",
+  agentName: "Scout",
 };
 
-export function OnboardingWizard({
+function OnboardingWizardInner({
   organizationId,
   organizationName,
+  client,
+  initialState,
 }: {
   organizationId: string;
   organizationName: string;
+  client: Client;
+  /** Optional initial state for testing/stories - bypasses localStorage */
+  initialState?: Partial<OnboardingState>;
 }) {
   const router = useRouter();
-  const client = useAPIClient();
+  const skipPersistence = initialState !== undefined;
 
   const [state, setState] = useState<OnboardingState>(() => {
+    // If initialState is provided, use it (for stories/testing)
+    if (initialState) {
+      return { ...defaultState, ...initialState };
+    }
     if (typeof window === "undefined") {
       return defaultState;
     }
@@ -72,13 +82,14 @@ export function OnboardingWizard({
     return defaultState;
   });
 
-  // Persist state to localStorage
+  // Persist state to localStorage (skip when using initialState for stories)
   useEffect(() => {
+    if (skipPersistence) return;
     localStorage.setItem(
       `${STORAGE_KEY_PREFIX}${organizationId}`,
       JSON.stringify(state)
     );
-  }, [state, organizationId]);
+  }, [state, organizationId, skipPersistence]);
 
   const goToStep = useCallback((step: OnboardingStep) => {
     setState((prev) => ({ ...prev, currentStep: step }));
@@ -103,20 +114,23 @@ export function OnboardingWizard({
   ];
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
+    <div className="mx-auto flex min-h-full max-w-2xl flex-col px-4 py-12">
       <ProgressIndicator
         steps={steps.slice(0, -1)} // Exclude success from progress
         currentStep={state.currentStep}
       />
 
-      <div className="mt-8">
+      <div className="flex w-full flex-1 items-center">
         {state.currentStep === "welcome" && (
           <WelcomeStep
             onContinue={() => goToStep("github-setup")}
             client={client}
             organizationId={organizationId}
             onFileDownloaded={(fileId) => updateState({ fileId })}
+            onAgentCreated={(agentId) => updateState({ agentId })}
             existingFileId={state.fileId}
+            existingAgentId={state.agentId}
+            agentName={state.agentName}
           />
         )}
 
@@ -133,11 +147,12 @@ export function OnboardingWizard({
           />
         )}
 
-        {state.currentStep === "slack-setup" && (
+        {state.currentStep === "slack-setup" && state.agentId && (
           <SlackSetupStep
             client={client}
-            initialValues={state.slack}
-            onContinue={(slack) => {
+            agentId={state.agentId}
+            agentName={state.agentName}
+            onComplete={(slack) => {
               updateState({ slack });
               goToStep("api-keys");
             }}
@@ -158,17 +173,17 @@ export function OnboardingWizard({
           />
         )}
 
-        {state.currentStep === "deploying" && (
+        {state.currentStep === "deploying" && state.agentId && (
           <DeployingStep
             client={client}
             organizationId={organizationId}
             fileId={state.fileId!}
+            agentId={state.agentId}
             agentName={state.agentName}
             github={state.github}
             slack={state.slack}
             apiKeys={state.apiKeys}
-            onSuccess={(agentId) => {
-              updateState({ agentId });
+            onSuccess={() => {
               goToStep("success");
             }}
             onError={() => goToStep("api-keys")}
@@ -184,5 +199,59 @@ export function OnboardingWizard({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * OnboardingWizard with client injection support for testing.
+ * When client is provided, useAPIClient() is not called.
+ */
+export function OnboardingWizard({
+  organizationId,
+  organizationName,
+  client,
+  initialState,
+}: {
+  organizationId: string;
+  organizationName: string;
+  /** Optional client for testing/stories */
+  client?: Client;
+  /** Optional initial state for testing/stories - bypasses localStorage */
+  initialState?: Partial<OnboardingState>;
+}) {
+  if (client) {
+    return (
+      <OnboardingWizardInner
+        organizationId={organizationId}
+        organizationName={organizationName}
+        client={client}
+        initialState={initialState}
+      />
+    );
+  }
+
+  return (
+    <OnboardingWizardWithHook
+      organizationId={organizationId}
+      organizationName={organizationName}
+    />
+  );
+}
+
+function OnboardingWizardWithHook({
+  organizationId,
+  organizationName,
+}: {
+  organizationId: string;
+  organizationName: string;
+}) {
+  const client = useAPIClient();
+
+  return (
+    <OnboardingWizardInner
+      organizationId={organizationId}
+      organizationName={organizationName}
+      client={client}
+    />
   );
 }

@@ -1,5 +1,7 @@
 import { BlinkInvocationTokenHeader } from "@blink.so/runtime/types";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Context } from "hono";
+
 import type { Bindings } from "../server";
 import { detectRequestLocation } from "../server-helper";
 import { generateAgentInvocationToken } from "./agents/me/me.server";
@@ -23,7 +25,48 @@ export default async function handleAgentRequest(
     }
     return c.json({ message: "No agent exists for this webook" }, 404);
   }
+
+  const incomingUrl = new URL(c.req.raw.url);
+
+  // Detect if this is a Slack request (works for both webhook and subdomain routing)
+  const isSlackPath =
+    (routing.mode === "webhook" && routing.subpath === "/slack") ||
+    (routing.mode === "subdomain" && incomingUrl.pathname === "/slack");
+
+  // Handle Slack verification tracking if active
+  const slackVerification = query.agent?.slack_verification;
+  let requestBodyText: string | undefined;
+
+  if (isSlackPath && slackVerification) {
+    // Read the body for verification processing
+    requestBodyText = await c.req.text();
+
+    const result = await processSlackVerificationTracking(
+      db,
+      { id: query.agent.id, slack_verification: slackVerification },
+      requestBodyText,
+      c.req.header("x-slack-signature"),
+      c.req.header("x-slack-request-timestamp")
+    );
+
+    // URL verification challenge must be responded to immediately
+    if (result.challengeResponse) {
+      return c.json({ challenge: result.challengeResponse });
+    }
+
+    // Invalid signature - acknowledge but don't process further
+    if (!result.signatureValid) {
+      return c.json({ ok: true });
+    }
+
+    // Otherwise, continue to forward to agent (if deployed)
+  }
+
   if (!query.agent_deployment) {
+    // No deployment - if this was a valid Slack request, we already tracked it
+    if (isSlackPath && slackVerification) {
+      return c.json({ ok: true }); // Acknowledge Slack event
+    }
     return c.json(
       {
         message: `No deployment exists for this agent. Be sure to deploy your agent to receive webhook events`,
@@ -38,7 +81,6 @@ export default async function handleAgentRequest(
       404
     );
   }
-  const incomingUrl = new URL(c.req.raw.url);
 
   let url: URL;
   if (routing.mode === "webhook") {
@@ -150,8 +192,11 @@ export default async function handleAgentRequest(
   let response: Response | undefined;
   let error: string | undefined;
   try {
+    // Use the body we already read if it's a Slack request, otherwise use the stream
+    const bodyToSend =
+      requestBodyText !== undefined ? requestBodyText : c.req.raw.body;
     response = await fetch(url, {
-      body: c.req.raw.body,
+      body: bodyToSend,
       method: c.req.raw.method,
       signal,
       headers,
@@ -294,4 +339,157 @@ export default async function handleAgentRequest(
       500
     );
   }
+}
+
+/**
+ * Verify Slack request signature using HMAC-SHA256.
+ */
+function verifySlackSignature(
+  signingSecret: string,
+  timestamp: string,
+  body: string,
+  signature: string
+): boolean {
+  const time = Math.floor(Date.now() / 1000);
+  const requestTimestamp = Number.parseInt(timestamp, 10);
+
+  // Request is older than 5 minutes - reject to prevent replay attacks
+  if (Math.abs(time - requestTimestamp) > 60 * 5) {
+    return false;
+  }
+
+  const hmac = createHmac("sha256", signingSecret);
+  const sigBasestring = `v0:${timestamp}:${body}`;
+  hmac.update(sigBasestring);
+  const mySignature = `v0=${hmac.digest("hex")}`;
+
+  try {
+    return timingSafeEqual(Buffer.from(mySignature), Buffer.from(signature));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Process Slack verification tracking without blocking the request flow.
+ * Returns tracking results so the caller can decide how to proceed.
+ */
+async function processSlackVerificationTracking(
+  db: Awaited<ReturnType<Bindings["database"]>>,
+  agent: {
+    id: string;
+    slack_verification: {
+      signingSecret: string;
+      botToken: string;
+      startedAt: string;
+      lastEventAt?: string;
+      dmReceivedAt?: string;
+      dmChannel?: string;
+      signatureFailedAt?: string;
+    };
+  },
+  body: string,
+  slackSignature: string | undefined,
+  slackTimestamp: string | undefined
+): Promise<{
+  signatureValid: boolean;
+  challengeResponse?: string;
+}> {
+  const verification = agent.slack_verification;
+
+  // Verify Slack signature if headers are present
+  if (slackSignature && slackTimestamp) {
+    if (
+      !verifySlackSignature(
+        verification.signingSecret,
+        slackTimestamp,
+        body,
+        slackSignature
+      )
+    ) {
+      // Signature verification failed - record in database
+      await db.updateAgent({
+        id: agent.id,
+        slack_verification: {
+          ...verification,
+          signatureFailedAt: new Date().toISOString(),
+        },
+      });
+      return { signatureValid: false };
+    }
+  }
+
+  // Parse the payload
+  let payload: {
+    type?: string;
+    challenge?: string;
+    event?: {
+      type?: string;
+      channel_type?: string;
+      channel?: string;
+      bot_id?: string;
+      ts?: string;
+    };
+  };
+
+  try {
+    payload = JSON.parse(body);
+  } catch {
+    // Can't parse - treat as invalid but not a security issue
+    return { signatureValid: true };
+  }
+
+  // Handle Slack URL verification challenge
+  if (payload.type === "url_verification" && payload.challenge) {
+    // Update lastEventAt since we received a valid event
+    await db.updateAgent({
+      id: agent.id,
+      slack_verification: {
+        ...verification,
+        lastEventAt: new Date().toISOString(),
+      },
+    });
+    return { signatureValid: true, challengeResponse: payload.challenge };
+  }
+
+  // Track if we received a DM
+  const isDM =
+    payload.event?.type === "message" &&
+    payload.event.channel_type === "im" &&
+    !payload.event.bot_id; // Ignore bot's own messages
+
+  // If this is a DM and we haven't already recorded one, send a response to Slack
+  if (isDM && !verification.dmReceivedAt && payload.event?.channel) {
+    await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${verification.botToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: payload.event.channel,
+        thread_ts: payload.event.ts,
+        text: "Congrats, your Slack app is set up! You can now go back to the Blink dashboard.",
+      }),
+    }).catch(() => {
+      // Silent fail - user will see status in the UI
+    });
+  }
+
+  const updatedVerification = {
+    ...verification,
+    lastEventAt: new Date().toISOString(),
+    ...(isDM && {
+      dmReceivedAt: new Date().toISOString(),
+      dmChannel: payload.event?.channel,
+    }),
+  };
+
+  await db.updateAgent({
+    id: agent.id,
+    slack_verification: updatedVerification,
+  });
+
+  // Continue to agent - we've tracked the event
+  return { signatureValid: true };
 }

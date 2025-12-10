@@ -17,6 +17,7 @@ interface DeployingStepProps {
   client: Client;
   organizationId: string;
   fileId: string;
+  agentId: string;
   agentName: string;
   github?: {
     appId: string;
@@ -40,6 +41,7 @@ export function DeployingStep({
   client,
   organizationId,
   fileId,
+  agentId,
   agentName,
   github,
   slack,
@@ -112,14 +114,26 @@ export function DeployingStep({
           });
         }
 
-        const result = await client.onboarding.deployAgent({
-          organization_id: organizationId,
-          name: agentName,
-          file_id: fileId,
-          env,
+        // Set environment variables on the existing agent
+        for (const variable of env) {
+          await client.agents.env.create({
+            agent_id: agentId,
+            key: variable.key,
+            value: variable.value,
+            secret: variable.secret,
+            upsert: true,
+          });
+        }
+
+        // Deploy the agent with the downloaded files
+        await client.agents.deployments.create({
+          agent_id: agentId,
+          output_files: [{ path: "agent.js", id: fileId }],
+          entrypoint: "agent.js",
+          target: "production",
         });
 
-        onSuccess(result.id);
+        onSuccess(agentId);
       } catch (error) {
         setStatus("error");
         const message =
@@ -135,6 +149,7 @@ export function DeployingStep({
     client,
     organizationId,
     fileId,
+    agentId,
     agentName,
     github,
     slack,

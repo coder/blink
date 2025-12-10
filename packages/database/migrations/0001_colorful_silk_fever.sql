@@ -1,0 +1,1 @@
+ALTER TABLE "agent" ADD COLUMN "slack_verification" jsonb;

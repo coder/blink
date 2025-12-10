@@ -7,6 +7,7 @@ import {
   rmSync,
   symlinkSync,
   writeFileSync,
+  existsSync,
 } from "fs";
 import { join } from "path";
 
@@ -78,7 +79,8 @@ function buildNextSite() {
   // to create symlinks at the top level pointing to the actual packages.
   const bunDir = join(distDir, "site", "node_modules", ".bun");
   const nodeModulesDir = join(distDir, "site", "node_modules");
-  for (const entry of readdirSync(bunDir)) {
+  const bunDirExists = existsSync(bunDir);
+  for (const entry of bunDirExists ? readdirSync(bunDir) : []) {
     // Skip non-package entries
     if (entry === "node_modules" || entry.startsWith(".")) continue;
 

@@ -19,12 +19,13 @@ interface ServerOptions {
   postgresUrl: string;
   authSecret: string;
   baseUrl: string;
+  accessUrl: string;
 }
 
 // Files are now stored in the database instead of in-memory
 
 export async function startServer(options: ServerOptions) {
-  const { port, postgresUrl, authSecret, baseUrl } = options;
+  const { port, postgresUrl, authSecret, baseUrl, accessUrl } = options;
 
   const db = await connectToPostgres(postgresUrl);
   const querier = new Querier(db);
@@ -168,6 +169,7 @@ export async function startServer(options: ServerOptions) {
               return querier;
             },
             apiBaseURL: url,
+            accessUrl: new URL(accessUrl),
             auth: {
               handleWebSocketTokenRequest: async (id, request) => {
                 // WebSocket upgrades are handled in the 'upgrade' event

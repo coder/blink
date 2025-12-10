@@ -64,6 +64,7 @@ export const Default: Story = {
         chat_expire_ttl: null,
         last_deployment_number: 0,
         last_run_number: 0,
+        slack_verification: null,
       }),
     });
   },

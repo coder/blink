@@ -214,6 +214,11 @@ export interface Bindings {
    * Pathname will not be respected - /api is used.
    */
   readonly apiBaseURL: URL;
+  /**
+   * accessUrl is the public URL used for external access (e.g., webhooks).
+   * This may differ from apiBaseURL when using tunnels or proxies.
+   */
+  readonly accessUrl?: URL;
   readonly matchRequestHost?: (host: string) => string | undefined;
   readonly createRequestURL?: (id: string) => URL;
 

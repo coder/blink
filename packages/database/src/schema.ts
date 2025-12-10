@@ -488,6 +488,17 @@ export const agent = pgTable(
       .notNull()
       .default(0),
     last_run_number: integer("last_run_number").notNull().default(0),
+
+    // Slack setup verification state (null when no verification in progress)
+    slack_verification: jsonb("slack_verification").$type<{
+      signingSecret: string;
+      botToken: string;
+      startedAt: string;
+      lastEventAt?: string;
+      dmReceivedAt?: string;
+      dmChannel?: string;
+      signatureFailedAt?: string;
+    }>(),
   },
   (table) => [
     check(
