@@ -4,6 +4,7 @@ import boxen from "boxen";
 import chalk from "chalk";
 import { Command } from "commander";
 import { version } from "../package.json";
+import { startDevhookProxy } from "./devhook";
 import * as logger from "./logger";
 import { ensurePostgres } from "./postgres";
 import { startServer } from "./server";
@@ -29,7 +30,7 @@ program
 
 async function runServer(options: { port: string }) {
   const port = parseInt(options.port, 10);
-  if (isNaN(port) || port < 1 || port > 65535) {
+  if (Number.isNaN(port) || port < 1 || port > 65535) {
     throw new Error(`Invalid port: ${options.port}`);
   }
 
@@ -48,8 +49,27 @@ async function runServer(options: { port: string }) {
 
   const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
 
+  // Determine access URL - use BLINK_ACCESS_URL if set, otherwise create devhook
+  let accessUrl: string;
+  let devhookCleanup: (() => void) | undefined;
+
+  if (process.env.BLINK_ACCESS_URL) {
+    accessUrl = process.env.BLINK_ACCESS_URL;
+  } else {
+    const devhook = await startDevhookProxy(port);
+    accessUrl = devhook.accessUrl;
+    devhookCleanup = devhook.cleanup;
+
+    const cleanup = () => {
+      devhookCleanup?.();
+      process.exit(0);
+    };
+    process.on("SIGTERM", cleanup);
+    process.on("SIGINT", cleanup);
+  }
+
   // Start the server
-  const srv = await startServer({
+  const _srv = await startServer({
     port,
     postgresUrl,
     authSecret,
@@ -59,9 +79,9 @@ async function runServer(options: { port: string }) {
   const box = boxen(
     [
       "View the Web UI:",
-      chalk.magenta.underline(baseUrl),
+      chalk.magenta.underline(accessUrl),
       "",
-      `Set ${chalk.bold("BLINK_API_URL=" + baseUrl)} when using the Blink CLI.`,
+      `Set ${chalk.bold(`BLINK_API_URL=${accessUrl}`)} when using the Blink CLI.`,
     ].join("\n"),
     {
       borderColor: "cyan",

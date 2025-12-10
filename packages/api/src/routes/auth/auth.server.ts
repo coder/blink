@@ -364,20 +364,22 @@ async function handleOAuthCallback(
   });
 
   // Set cookies and redirect using Hono's setCookie helper
-  setCookie(c, SESSION_COOKIE_NAME, token, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "Lax",
-    secure: SESSION_SECURE,
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  });
-
+  // NOTE: last_login_provider must come BEFORE blink_session_token because
+  // the devhook compute-protocol only preserves the last Set-Cookie header
   setCookie(c, "last_login_provider", provider, {
     path: "/",
     httpOnly: true,
     sameSite: "Lax",
     secure: SESSION_SECURE,
     maxAge: 60 * 60 * 24 * 180, // 180 days
+  });
+
+  setCookie(c, SESSION_COOKIE_NAME, token, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: SESSION_SECURE,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   });
 
   // If linking an existing account, redirect back with success message
@@ -544,20 +546,22 @@ export default function mountAuth(server: APIServer) {
       });
 
       // Set cookies using Hono's setCookie helper
-      setCookie(c, SESSION_COOKIE_NAME, token, {
-        path: "/",
-        httpOnly: true,
-        sameSite: "Lax",
-        secure: SESSION_SECURE,
-        maxAge: 30 * 24 * 60 * 60, // 30 days
-      });
-
+      // NOTE: last_login_provider must come BEFORE blink_session_token because
+      // the devhook compute-protocol only preserves the last Set-Cookie header
       setCookie(c, "last_login_provider", "credentials", {
         path: "/",
         httpOnly: true,
         sameSite: "Lax",
         secure: SESSION_SECURE,
         maxAge: 60 * 60 * 24 * 180, // 180 days
+      });
+
+      setCookie(c, SESSION_COOKIE_NAME, token, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+        secure: SESSION_SECURE,
+        maxAge: 30 * 24 * 60 * 60, // 30 days
       });
 
       return c.json({ ok: true, url: "/chat" });
@@ -628,20 +632,22 @@ export default function mountAuth(server: APIServer) {
       });
 
       // Set cookies using Hono's setCookie helper
-      setCookie(c, SESSION_COOKIE_NAME, sessionToken, {
-        path: "/",
-        httpOnly: true,
-        sameSite: "Lax",
-        secure: SESSION_SECURE,
-        maxAge: 30 * 24 * 60 * 60, // 30 days
-      });
-
+      // NOTE: last_login_provider must come BEFORE blink_session_token because
+      // the devhook compute-protocol only preserves the last Set-Cookie header
       setCookie(c, "last_login_provider", "credentials", {
         path: "/",
         httpOnly: true,
         sameSite: "Lax",
         secure: SESSION_SECURE,
         maxAge: 60 * 60 * 24 * 180, // 180 days
+      });
+
+      setCookie(c, SESSION_COOKIE_NAME, sessionToken, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+        secure: SESSION_SECURE,
+        maxAge: 30 * 24 * 60 * 60, // 30 days
       });
 
       return c.json({ ok: true });
