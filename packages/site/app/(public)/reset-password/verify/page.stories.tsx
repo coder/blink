@@ -1,6 +1,6 @@
 import { emailVerificationTokenCookieName } from "@/app/(auth)/auth";
 import Layout from "@/app/(public)/layout";
-import { cookies } from "@storybook/experimental-nextjs-vite/headers.mock";
+import { cookies } from "@storybook/nextjs-vite/headers.mock";
 import type { Meta, StoryObj } from "@storybook/react";
 import ResetVerificationPage from "./page";
 

@@ -12,13 +12,13 @@ export const metadata: Metadata = {
 };
 
 interface LoginPageProps {
-  searchParams: {
+  searchParams: Promise<{
     error?: string;
     waitlist?: string;
     callbackUrl?: string;
     redirect?: string;
     reset?: string;
-  };
+  }>;
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {

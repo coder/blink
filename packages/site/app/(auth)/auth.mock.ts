@@ -2,7 +2,7 @@ import type {
   Organization,
   OrganizationMembership,
 } from "@blink.so/database/schema";
-import { fn } from "@storybook/test";
+import { fn } from "storybook/test";
 import type { Session } from "next-auth";
 
 export const auth = fn(async (): Promise<Session | null> => {

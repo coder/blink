@@ -1,7 +1,7 @@
 import Layout from "@/app/(app)/layout";
 import { getQuerier } from "@/lib/database.mock";
 import type { Meta, StoryObj } from "@storybook/react";
-import { mocked } from "@storybook/test";
+import { mocked } from "storybook/test";
 import { SessionProvider } from "next-auth/react";
 import OrganizationLayout from "./layout";
 import OrganizationPage from "./page";

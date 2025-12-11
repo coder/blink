@@ -1,5 +1,5 @@
 import type Querier from "@blink.so/database/querier";
-import { fn } from "@storybook/test";
+import { fn } from "storybook/test";
 
 // Helpers for generating simple mock usage data
 const makeDaily = (days: number) => {
