@@ -19,6 +19,7 @@ import AgentEnv, { schemaCreateAgentEnv } from "./env.client";
 import AgentLogs from "./logs.client";
 import AgentMembers from "./members.client";
 import AgentRuns from "./runs.client";
+import AgentSetupGitHub from "./setup-github.client";
 import AgentSetupSlack from "./setup-slack.client";
 import AgentSteps from "./steps.client";
 import AgentTraces from "./traces.client";
@@ -166,6 +167,7 @@ export default class Agents {
   public readonly logs: AgentLogs;
   public readonly traces: AgentTraces;
   public readonly members: AgentMembers;
+  public readonly setupGitHub: AgentSetupGitHub;
   public readonly setupSlack: AgentSetupSlack;
 
   public constructor(client: Client) {
@@ -177,6 +179,7 @@ export default class Agents {
     this.logs = new AgentLogs(client);
     this.traces = new AgentTraces(client);
     this.members = new AgentMembers(client);
+    this.setupGitHub = new AgentSetupGitHub(client);
     this.setupSlack = new AgentSetupSlack(client);
   }
 

@@ -65,6 +65,7 @@ export const Default: Story = {
         last_deployment_number: 0,
         last_run_number: 0,
         slack_verification: null,
+        github_app_setup: null,
       }),
     });
   },

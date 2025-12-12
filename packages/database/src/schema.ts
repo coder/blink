@@ -499,6 +499,27 @@ export const agent = pgTable(
       dmChannel?: string;
       signatureFailedAt?: string;
     }>(),
+
+    // GitHub App setup state (null when no setup in progress)
+    github_app_setup: jsonb("github_app_setup").$type<{
+      sessionId: string;
+      manifestName: string;
+      organization?: string;
+      startedAt: string;
+      expiresAt: string;
+      status: "pending" | "completed" | "failed";
+      error?: string;
+      appData?: {
+        id: number;
+        clientId: string;
+        clientSecret: string;
+        webhookSecret: string;
+        pem: string;
+        name: string;
+        htmlUrl: string;
+        slug: string;
+      };
+    }>(),
   },
   (table) => [
     check(
