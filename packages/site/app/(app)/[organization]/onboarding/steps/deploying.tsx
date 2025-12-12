@@ -20,9 +20,9 @@ interface DeployingStepProps {
   agentId: string;
   agentName: string;
   github?: {
-    appId: string;
-    privateKey: string;
-    webhookSecret: string;
+    appName: string;
+    appUrl: string;
+    installUrl: string;
   };
   slack?: {
     botToken: string;
@@ -62,23 +62,9 @@ export function DeployingStep({
         // Build environment variables
         const env: Array<{ key: string; value: string; secret: boolean }> = [];
 
-        if (github?.appId) {
-          env.push({ key: "GITHUB_APP_ID", value: github.appId, secret: false });
-        }
-        if (github?.privateKey) {
-          env.push({
-            key: "GITHUB_APP_PRIVATE_KEY",
-            value: Buffer.from(github.privateKey).toString("base64"),
-            secret: true,
-          });
-        }
-        if (github?.webhookSecret) {
-          env.push({
-            key: "GITHUB_WEBHOOK_SECRET",
-            value: github.webhookSecret,
-            secret: true,
-          });
-        }
+        // GitHub credentials are now saved directly by the GitHubSetupWizard
+        // via the completeCreation endpoint, so we don't need to set them here.
+        // The github object now only contains metadata (appName, appUrl, installUrl).
         if (slack?.botToken) {
           env.push({
             key: "SLACK_BOT_TOKEN",

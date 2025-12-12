@@ -24,9 +24,9 @@ export interface OnboardingState {
   currentStep: OnboardingStep;
   fileId?: string;
   github?: {
-    appId: string;
-    privateKey: string;
-    webhookSecret: string;
+    appName: string;
+    appUrl: string;
+    installUrl: string;
   };
   slack?: {
     botToken: string;
@@ -134,11 +134,12 @@ function OnboardingWizardInner({
           />
         )}
 
-        {state.currentStep === "github-setup" && (
+        {state.currentStep === "github-setup" && state.agentId && (
           <GitHubSetupStep
             client={client}
-            initialValues={state.github}
-            onContinue={(github) => {
+            agentId={state.agentId}
+            agentName={state.agentName}
+            onComplete={(github) => {
               updateState({ github });
               goToStep("slack-setup");
             }}

@@ -8,6 +8,9 @@ const TEST_ORGANIZATION_NAME = "test-org";
 const TEST_AGENT_ID = "agent-456";
 const TEST_FILE_ID = "file-789";
 const TEST_WEBHOOK_URL = "https://api.blink.so/webhooks/slack/test-webhook-id";
+const TEST_GITHUB_WEBHOOK_URL = "https://api.blink.so/api/webhook/test-id/github";
+const TEST_GITHUB_SESSION_ID = "github-session-123";
+const TEST_GITHUB_MANIFEST_URL = "https://github.com/settings/apps/new?manifest=...";
 
 // Create a mock client for stories
 const mockClient = new Client({ baseURL: "http://localhost:6006" });
@@ -15,6 +18,7 @@ const mockClient = new Client({ baseURL: "http://localhost:6006" });
 // Track state across mocked API calls
 const mockState = {
   pollCount: 0,
+  githubPollCount: 0,
 };
 
 // Create comprehensive fetch mock for all onboarding API calls
@@ -55,6 +59,76 @@ const createMockFetchDecorator = () => {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
+    }
+
+    // GET /api/agents/{agentId}/setup/github/webhook-url
+    if (url.pathname.includes("/setup/github/webhook-url") && method === "GET") {
+      return new Response(
+        JSON.stringify({ webhook_url: TEST_GITHUB_WEBHOOK_URL }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // POST /api/agents/{agentId}/setup/github/start-creation
+    if (
+      url.pathname.includes("/setup/github/start-creation") &&
+      method === "POST"
+    ) {
+      mockState.githubPollCount = 0;
+      return new Response(
+        JSON.stringify({
+          manifest_url: TEST_GITHUB_MANIFEST_URL,
+          session_id: TEST_GITHUB_SESSION_ID,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // GET /api/agents/{agentId}/setup/github/creation-status/{sessionId}
+    if (
+      url.pathname.includes("/setup/github/creation-status") &&
+      method === "GET"
+    ) {
+      mockState.githubPollCount++;
+      const completed = mockState.githubPollCount >= 3;
+      return new Response(
+        JSON.stringify({
+          status: completed ? "completed" : "pending",
+          app_data: completed
+            ? {
+                id: 12345,
+                name: "Scout",
+                html_url: "https://github.com/apps/scout",
+                slug: "scout",
+              }
+            : undefined,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // POST /api/agents/{agentId}/setup/github/complete-creation
+    if (
+      url.pathname.includes("/setup/github/complete-creation") &&
+      method === "POST"
+    ) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          app_name: "Scout",
+          app_url: "https://github.com/apps/scout",
+          install_url: "https://github.com/apps/scout/installations/new",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // POST /api/agents/{agentId}/setup/github/cancel-creation
+    if (
+      url.pathname.includes("/setup/github/cancel-creation") &&
+      method === "POST"
+    ) {
+      return new Response(null, { status: 204 });
     }
 
     // GET /api/agents/{agentId}/setup/slack/webhook-url
