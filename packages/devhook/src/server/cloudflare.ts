@@ -121,7 +121,8 @@ function extractDevhookId(url: URL, env: Env): string | undefined {
 
   if (mode === "subpath") {
     // Subpath mode: /devhook/:id/*
-    const match = url.pathname.match(/^\/devhook\/([a-f0-9]{16})(\/.*)?$/);
+    // Base36 IDs: 16 characters of [0-9a-z]
+    const match = url.pathname.match(/^\/devhook\/([0-9a-z]{16})(\/.*)?$/);
     if (match) {
       return match[1];
     }
@@ -130,8 +131,8 @@ function extractDevhookId(url: URL, env: Env): string | undefined {
     const baseHost = baseUrl.hostname;
     if (url.hostname.endsWith(`.${baseHost}`) && url.hostname !== baseHost) {
       const subdomain = url.hostname.slice(0, -(baseHost.length + 1));
-      // Validate it looks like a devhook ID (16 hex characters)
-      if (/^[a-f0-9]{16}$/.test(subdomain)) {
+      // Validate it looks like a devhook ID (16 base36 characters)
+      if (/^[0-9a-z]{16}$/.test(subdomain)) {
         return subdomain;
       }
     }

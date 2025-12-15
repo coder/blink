@@ -321,8 +321,8 @@ function extractDevhookId(
   host?: string
 ): string | undefined {
   if (mode === "subpath") {
-    // Match devhook IDs that are 16 hex characters
-    const match = url.pathname.match(/^\/devhook\/([a-f0-9]{16})(\/.*)?$/);
+    // Match devhook IDs that are 16 base36 characters [0-9a-z]
+    const match = url.pathname.match(/^\/devhook\/([0-9a-z]{16})(\/.*)?$/);
     return match?.[1];
   } else {
     // Wildcard mode
@@ -331,7 +331,7 @@ function extractDevhookId(
       const subdomain = host.slice(0, -(baseHost.length + 1));
       // Remove port if present
       const id = subdomain.split(":")[0];
-      if (id && /^[a-f0-9]{16}$/.test(id)) {
+      if (id && /^[0-9a-z]{16}$/.test(id)) {
         return id;
       }
     }

@@ -14,7 +14,7 @@ describe("devhook", () => {
 
       expect(id1).toBe(id2);
       expect(id1).toHaveLength(16);
-      expect(id1).toMatch(/^[a-f0-9]+$/);
+      expect(id1).toMatch(/^[0-9a-z]+$/);
     });
 
     it("should generate different IDs for different client secrets", async () => {
@@ -44,13 +44,36 @@ describe("devhook", () => {
     it("should handle empty secrets", async () => {
       const id = await generateDevhookId("", SERVER_SECRET);
       expect(id).toHaveLength(16);
-      expect(id).toMatch(/^[a-f0-9]+$/);
+      expect(id).toMatch(/^[0-9a-z]+$/);
     });
 
     it("should handle unicode secrets", async () => {
       const id = await generateDevhookId("секрет🔐", SERVER_SECRET);
       expect(id).toHaveLength(16);
-      expect(id).toMatch(/^[a-f0-9]+$/);
+      expect(id).toMatch(/^[0-9a-z]+$/);
+    });
+
+    it("should use full base36 alphabet for maximum entropy", async () => {
+      // Generate many IDs and verify we see characters beyond hex (g-z)
+      const ids = new Set<string>();
+      const allChars = new Set<string>();
+
+      // Generate IDs with different secrets
+      for (let i = 0; i < 100; i++) {
+        const id = await generateDevhookId(`secret-${i}`, SERVER_SECRET);
+        ids.add(id);
+        for (const char of id) {
+          allChars.add(char);
+        }
+      }
+
+      // All IDs should be unique
+      expect(ids.size).toBe(100);
+
+      // We should see characters beyond hex (g-z)
+      // With 100 random IDs, it's statistically almost certain we'll see some
+      const beyondHex = [...allChars].filter((c) => c >= "g" && c <= "z");
+      expect(beyondHex.length).toBeGreaterThan(0);
     });
   });
 
