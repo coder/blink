@@ -560,6 +560,123 @@ describe("devhook", () => {
       expect(body.length).toBe(100000);
       expect(body).toBe("y".repeat(100000));
     });
+
+    it("should support webhook signature verification", async () => {
+      // Simulate a webhook with HMAC signature verification (like GitHub webhooks)
+      const webhookSecret = "webhook-secret-key";
+      let signatureValid = false;
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "webhook-test",
+        onRequest: async (req) => {
+          // Read the raw body for signature verification
+          const rawBody = await req.text();
+          const signature = req.headers.get("x-hub-signature-256");
+
+          if (signature) {
+            // Verify HMAC-SHA256 signature (simplified - real impl would use crypto)
+            const encoder = new TextEncoder();
+            const key = await crypto.subtle.importKey(
+              "raw",
+              encoder.encode(webhookSecret),
+              { name: "HMAC", hash: "SHA-256" },
+              false,
+              ["sign"]
+            );
+            const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+            const expectedSig = "sha256=" + Array.from(new Uint8Array(sig))
+              .map(b => b.toString(16).padStart(2, "0"))
+              .join("");
+
+            signatureValid = signature === expectedSig;
+          }
+
+          return new Response(JSON.stringify({ received: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("webhook-test", SERVER_SECRET);
+
+      // Create a webhook payload with signature
+      const payload = JSON.stringify({ event: "push", repository: "test/repo" });
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(webhookSecret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+      const signature = "sha256=" + Array.from(new Uint8Array(sig))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      const response = await fetch(
+        `http://localhost:${serverPort}/devhook/${devhookId}/webhook/github`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-hub-signature-256": signature,
+            "x-github-event": "push",
+          },
+          body: payload,
+        }
+      );
+
+      expect(response.status).toBe(200);
+      expect(signatureValid).toBe(true);
+    });
+
+    it("should handle webhook-style POST with form data", async () => {
+      let receivedContentType: string | null = null;
+      let receivedBody: string | undefined;
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "form-webhook-test",
+        onRequest: async (req) => {
+          receivedContentType = req.headers.get("content-type");
+          receivedBody = await req.text();
+          return new Response("OK");
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("form-webhook-test", SERVER_SECRET);
+
+      const formData = new URLSearchParams();
+      formData.append("payload", JSON.stringify({ action: "opened" }));
+      formData.append("token", "abc123");
+
+      const response = await fetch(
+        `http://localhost:${serverPort}/devhook/${devhookId}/webhook`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          body: formData.toString(),
+        }
+      );
+
+      expect(response.status).toBe(200);
+      expect(receivedContentType).toBe("application/x-www-form-urlencoded");
+      expect(receivedBody).toContain("payload");
+      expect(receivedBody).toContain("token");
+    });
   });
 
   describe("server callbacks", () => {
