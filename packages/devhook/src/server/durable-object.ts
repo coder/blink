@@ -60,6 +60,11 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
   public override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
+    // Proxy request (check BEFORE WebSocket upgrade since proxied WS also has upgrade header)
+    if (url.pathname === "/proxy" || request.headers.has("x-devhook-proxy-url")) {
+      return this.handleProxyRequest(request);
+    }
+
     // Client connecting via WebSocket
     if (request.headers.get("upgrade") === "websocket") {
       // Initialize session from the headers if needed
@@ -74,11 +79,6 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
       }
 
       return this.handleClientConnect(request);
-    }
-
-    // Proxy request
-    if (url.pathname === "/proxy" || request.headers.has("x-devhook-proxy-url")) {
-      return this.handleProxyRequest(request);
     }
 
     return new Response("Not found", { status: 404 });
@@ -216,12 +216,18 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
 
     switch (state.type) {
       case "client": {
+        let bytes: Uint8Array;
         if (typeof message === "string") {
-          // Clients should not send string messages
-          console.warn("Received unexpected string message from client");
-          return;
+          // Node.js ws library may send binary as string in some workerd/miniflare environments
+          // Convert string to binary assuming Latin-1 encoding (each char is one byte)
+          bytes = new Uint8Array(message.length);
+          for (let i = 0; i < message.length; i++) {
+            bytes[i] = message.charCodeAt(i);
+          }
+        } else {
+          bytes = new Uint8Array(message);
         }
-        worker.handleClientMessage(new Uint8Array(message));
+        worker.handleClientMessage(bytes);
         break;
       }
       case "proxied": {
@@ -254,6 +260,12 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
       case "proxied": {
         const worker = this.getWorker();
         worker.sendProxiedWebSocketClose(state.streamID, code);
+        // Close the server side of the WebSocketPair to complete the handshake
+        try {
+          ws.close(code, "Closed");
+        } catch {
+          // Already closed
+        }
         break;
       }
     }

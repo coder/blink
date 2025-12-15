@@ -786,7 +786,9 @@ export function runSharedTests(
         localWsServer.close();
       });
 
-      it("should close proxied WebSockets when devhook client disconnects", async () => {
+      // Note: miniflare/wrangler dev can be slow with WebSocket close propagation
+      // See: https://github.com/cloudflare/workers-sdk/issues/10307
+      it("should close proxied WebSockets when devhook client disconnects", { timeout: 30000 }, async () => {
         let externalWsClosed = false;
 
         const { WebSocketServer, WebSocket: WsClient } = await import("ws");
@@ -821,20 +823,27 @@ export function runSharedTests(
         const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
 
         await new Promise<void>((resolve, reject) => {
-          externalWs.on("open", resolve);
+          externalWs.on("open", () => {
+            resolve();
+          });
           externalWs.on("error", reject);
-          setTimeout(() => reject(new Error("Timeout")), 5000);
+          setTimeout(() => reject(new Error("Timeout connecting")), 5000);
         });
 
-        externalWs.on("close", () => {
-          externalWsClosed = true;
+        // Disconnect the devhook client and wait for external WS to close
+        await new Promise<void>((resolve, reject) => {
+          externalWs.on("close", () => {
+            externalWsClosed = true;
+            resolve();
+          });
+
+          disposable.dispose();
+
+          // Longer timeout for miniflare's slow WebSocket close handling
+          setTimeout(() => {
+            reject(new Error("External WS did not close after devhook client disconnect"));
+          }, 20000);
         });
-
-        // Disconnect the devhook client
-        disposable.dispose();
-
-        // Wait for close to propagate
-        await delay(300);
 
         expect(externalWsClosed).toBe(true);
 

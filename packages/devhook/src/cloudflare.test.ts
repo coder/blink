@@ -24,9 +24,6 @@ const SERVER_SECRET = "test-server-secret";
 // Check if we should skip tests (e.g., in CI without wrangler)
 const SKIP_TESTS = process.env.SKIP_CLOUDFLARE_TESTS === "1";
 
-// Skip WebSocket tests in local mode as miniflare has different WebSocket behavior
-const SKIP_WEBSOCKET_TESTS = process.env.SKIP_WEBSOCKET_TESTS !== "0";
-
 if (SKIP_TESTS) {
   describe("devhook cloudflare (skipped)", () => {
     it("cloudflare tests are skipped - set SKIP_CLOUDFLARE_TESTS=0 to enable", () => {
@@ -39,7 +36,6 @@ if (SKIP_TESTS) {
   runSharedTests(
     "cloudflare",
     createCloudflareServerFactory(SERVER_SECRET),
-    SERVER_SECRET,
-    { skipWebSocketTests: SKIP_WEBSOCKET_TESTS }
+    SERVER_SECRET
   );
 }

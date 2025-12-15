@@ -490,7 +490,6 @@ export class DevhookClient {
                 ws.close();
               }
             } catch {
-              // Ignore close errors
               ws.close();
             }
             break;
