@@ -586,9 +586,9 @@ export function runSharedTests(
 
         await delay(200);
 
-        // Verify each connection received its own response
+        // Verify each connection received exactly one response
         for (let i = 0; i < numConnections; i++) {
-          expect(receivedMessages.get(i)!.length).toBeGreaterThanOrEqual(1);
+          expect(receivedMessages.get(i)!.length).toBe(1);
           expect(receivedMessages.get(i)![0]).toContain(`hello from ws${i}`);
         }
 
@@ -694,10 +694,10 @@ export function runSharedTests(
         expect(messages1).not.toContain("message to client 2");
         expect(messages2).not.toContain("message to client 1");
 
-        // Verify responses came from correct servers
-        expect(received1.length).toBeGreaterThanOrEqual(1);
+        // Verify exactly one response from each server
+        expect(received1.length).toBe(1);
         expect(received1[0]).toContain("server1:");
-        expect(received2.length).toBeGreaterThanOrEqual(1);
+        expect(received2.length).toBe(1);
         expect(received2[0]).toContain("server2:");
 
         externalWs1.close();
@@ -1829,10 +1829,9 @@ export function runSharedTests(
           setTimeout(() => reject(new Error("Timeout")), 5000);
         });
 
-        // Verify bidirectional communication worked
-        // Note: Message counts may be higher due to proxy behavior
-        expect(serverMessageCount).toBeGreaterThanOrEqual(2);
-        expect(clientMessageCount).toBeGreaterThanOrEqual(2);
+        // Verify bidirectional communication worked with exact message counts
+        expect(serverMessageCount).toBe(2);
+        expect(clientMessageCount).toBe(2);
 
         externalWs.close();
         localWsServer.close();
