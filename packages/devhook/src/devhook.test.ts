@@ -679,6 +679,663 @@ describe("devhook", () => {
     });
   });
 
+  describe("webhook functionality", () => {
+    let server: ReturnType<typeof createLocalServer>;
+    let serverPort: number;
+    let clientConnections: Array<{ dispose: () => void }> = [];
+
+    beforeAll(async () => {
+      serverPort = 22080 + Math.floor(Math.random() * 1000);
+      server = createLocalServer({
+        port: serverPort,
+        secret: SERVER_SECRET,
+        baseUrl: `http://localhost:${serverPort}`,
+        mode: "subpath",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+
+    afterAll(() => {
+      server?.close();
+    });
+
+    afterEach(() => {
+      for (const conn of clientConnections) {
+        conn.dispose();
+      }
+      clientConnections = [];
+    });
+
+    // Helper to create HMAC-SHA256 signature
+    async function createSignature(payload: string, secret: string): Promise<string> {
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+      return "sha256=" + Array.from(new Uint8Array(sig))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+    }
+
+    // Helper to verify HMAC-SHA256 signature
+    async function verifySignature(payload: string, signature: string, secret: string): Promise<boolean> {
+      const expected = await createSignature(payload, secret);
+      return signature === expected;
+    }
+
+    it("should handle concurrent webhooks to the same client", async () => {
+      const receivedWebhooks: Array<{ id: string; body: string; timestamp: number }> = [];
+      const webhookSecret = "concurrent-test-secret";
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "concurrent-webhook-client",
+        onRequest: async (req) => {
+          const body = await req.text();
+          const id = req.headers.get("x-webhook-id") || "unknown";
+          
+          // Simulate some processing time
+          await new Promise((resolve) => setTimeout(resolve, 50 + Math.random() * 50));
+          
+          receivedWebhooks.push({
+            id,
+            body,
+            timestamp: Date.now(),
+          });
+
+          return new Response(JSON.stringify({ received: id }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("concurrent-webhook-client", SERVER_SECRET);
+
+      // Send 10 webhooks concurrently
+      const webhookCount = 10;
+      const promises = Array.from({ length: webhookCount }, async (_, i) => {
+        const payload = JSON.stringify({ event: "test", index: i });
+        const response = await fetch(
+          `http://localhost:${serverPort}/devhook/${devhookId}/webhook`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-webhook-id": `webhook-${i}`,
+            },
+            body: payload,
+          }
+        );
+        return { index: i, status: response.status, body: await response.json() };
+      });
+
+      const results = await Promise.all(promises);
+
+      // All requests should succeed
+      expect(results.every(r => r.status === 200)).toBe(true);
+      
+      // All webhooks should be received
+      expect(receivedWebhooks.length).toBe(webhookCount);
+      
+      // Each webhook should have unique ID
+      const receivedIds = new Set(receivedWebhooks.map(w => w.id));
+      expect(receivedIds.size).toBe(webhookCount);
+    });
+
+    it("should handle concurrent webhooks to different clients", async () => {
+      const clientResults: Map<string, string[]> = new Map();
+
+      // Create 3 clients with different secrets
+      const clientSecrets = ["client-a", "client-b", "client-c"];
+      
+      for (const secret of clientSecrets) {
+        clientResults.set(secret, []);
+        
+        const client = new DevhookClient({
+          serverUrl: `http://localhost:${serverPort}`,
+          secret,
+          onRequest: async (req) => {
+            const body = await req.json() as { clientId: string; webhookId: string };
+            clientResults.get(secret)!.push(body.webhookId);
+            
+            // Simulate processing
+            await new Promise((resolve) => setTimeout(resolve, 30));
+            
+            return new Response(JSON.stringify({ client: secret, received: body.webhookId }), {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            });
+          },
+        });
+
+        const disposable = client.connect();
+        clientConnections.push(disposable);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Send webhooks to all clients concurrently
+      const promises: Promise<{ client: string; webhookId: string; status: number }>[] = [];
+      
+      for (const secret of clientSecrets) {
+        const devhookId = await generateDevhookId(secret, SERVER_SECRET);
+        
+        // Send 5 webhooks to each client
+        for (let i = 0; i < 5; i++) {
+          const webhookId = `${secret}-webhook-${i}`;
+          promises.push(
+            fetch(
+              `http://localhost:${serverPort}/devhook/${devhookId}/webhook`,
+              {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ clientId: secret, webhookId }),
+              }
+            ).then(async (response) => ({
+              client: secret,
+              webhookId,
+              status: response.status,
+            }))
+          );
+        }
+      }
+
+      const results = await Promise.all(promises);
+
+      // All requests should succeed
+      expect(results.every(r => r.status === 200)).toBe(true);
+
+      // Each client should receive exactly 5 webhooks
+      for (const secret of clientSecrets) {
+        const received = clientResults.get(secret)!;
+        expect(received.length).toBe(5);
+        
+        // Verify the webhooks belong to this client
+        expect(received.every(id => id.startsWith(secret))).toBe(true);
+      }
+    });
+
+    it("should preserve request body integrity for signature verification with concurrent requests", async () => {
+      const webhookSecret = "integrity-test-secret";
+      const verificationResults: Array<{ id: string; valid: boolean }> = [];
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "integrity-client",
+        onRequest: async (req) => {
+          const rawBody = await req.text();
+          const signature = req.headers.get("x-signature");
+          const webhookId = req.headers.get("x-webhook-id") || "unknown";
+
+          const isValid = signature ? await verifySignature(rawBody, signature, webhookSecret) : false;
+          
+          verificationResults.push({ id: webhookId, valid: isValid });
+
+          return new Response(JSON.stringify({ verified: isValid }), {
+            status: isValid ? 200 : 401,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("integrity-client", SERVER_SECRET);
+
+      // Send 20 webhooks concurrently with different payloads
+      const webhookCount = 20;
+      const promises = Array.from({ length: webhookCount }, async (_, i) => {
+        const payload = JSON.stringify({ 
+          event: "test", 
+          index: i, 
+          data: `payload-data-${i}-${Math.random()}`,
+          timestamp: Date.now(),
+        });
+        const signature = await createSignature(payload, webhookSecret);
+
+        const response = await fetch(
+          `http://localhost:${serverPort}/devhook/${devhookId}/webhook`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-signature": signature,
+              "x-webhook-id": `webhook-${i}`,
+            },
+            body: payload,
+          }
+        );
+        return { index: i, status: response.status };
+      });
+
+      const results = await Promise.all(promises);
+
+      // All requests should succeed with valid signatures
+      expect(results.every(r => r.status === 200)).toBe(true);
+      expect(verificationResults.length).toBe(webhookCount);
+      expect(verificationResults.every(r => r.valid)).toBe(true);
+    });
+
+    it("should handle webhooks with varying payload sizes concurrently", async () => {
+      const receivedSizes: number[] = [];
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "varying-size-client",
+        onRequest: async (req) => {
+          const body = await req.text();
+          receivedSizes.push(body.length);
+          return new Response(JSON.stringify({ size: body.length }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("varying-size-client", SERVER_SECRET);
+
+      // Send webhooks with varying sizes: 100B, 1KB, 10KB, 50KB
+      const sizes = [100, 1000, 10000, 50000];
+      const promises = sizes.flatMap((size, sizeIndex) => 
+        // Send 3 webhooks of each size
+        Array.from({ length: 3 }, async (_, i) => {
+          const payload = JSON.stringify({
+            index: sizeIndex * 3 + i,
+            data: "x".repeat(size),
+          });
+
+          const response = await fetch(
+            `http://localhost:${serverPort}/devhook/${devhookId}/webhook`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: payload,
+            }
+          );
+          const result = await response.json() as { size: number };
+          return { expectedMinSize: size, actualSize: result.size, status: response.status };
+        })
+      );
+
+      const results = await Promise.all(promises);
+
+      // All requests should succeed
+      expect(results.every(r => r.status === 200)).toBe(true);
+      
+      // All sizes should be received correctly (payload includes JSON overhead)
+      expect(results.every(r => r.actualSize >= r.expectedMinSize)).toBe(true);
+      expect(receivedSizes.length).toBe(12); // 4 sizes * 3 requests each
+    });
+
+    it("should handle rapid sequential webhooks", async () => {
+      const receivedOrder: number[] = [];
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "sequential-client",
+        onRequest: async (req) => {
+          const body = await req.json() as { index: number };
+          receivedOrder.push(body.index);
+          return new Response(JSON.stringify({ received: body.index }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("sequential-client", SERVER_SECRET);
+
+      // Send 50 webhooks as fast as possible (but sequentially)
+      const webhookCount = 50;
+      for (let i = 0; i < webhookCount; i++) {
+        const response = await fetch(
+          `http://localhost:${serverPort}/devhook/${devhookId}/webhook`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ index: i }),
+          }
+        );
+        expect(response.status).toBe(200);
+      }
+
+      // All webhooks should be received in order
+      expect(receivedOrder.length).toBe(webhookCount);
+      expect(receivedOrder).toEqual(Array.from({ length: webhookCount }, (_, i) => i));
+    });
+
+    it("should handle webhook with slow processing without blocking others", async () => {
+      const processingTimes: Array<{ id: string; duration: number }> = [];
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "slow-processing-client",
+        onRequest: async (req) => {
+          const start = Date.now();
+          const body = await req.json() as { id: string; delay: number };
+          
+          // Simulate variable processing time
+          await new Promise((resolve) => setTimeout(resolve, body.delay));
+          
+          processingTimes.push({ id: body.id, duration: Date.now() - start });
+
+          return new Response(JSON.stringify({ processed: body.id }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("slow-processing-client", SERVER_SECRET);
+
+      const startTime = Date.now();
+
+      // Send webhooks with different delays concurrently
+      // One slow (500ms), several fast (10ms)
+      const promises = [
+        fetch(`http://localhost:${serverPort}/devhook/${devhookId}/webhook`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: "slow", delay: 500 }),
+        }),
+        ...Array.from({ length: 5 }, (_, i) =>
+          fetch(`http://localhost:${serverPort}/devhook/${devhookId}/webhook`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ id: `fast-${i}`, delay: 10 }),
+          })
+        ),
+      ];
+
+      const results = await Promise.all(promises);
+      const totalTime = Date.now() - startTime;
+
+      // All requests should succeed
+      expect(results.every(r => r.status === 200)).toBe(true);
+
+      // Fast requests should not be blocked by the slow one
+      // Total time should be closer to 500ms (slow request) than 500 + 5*10 = 550ms
+      // Allow some overhead but it should complete in reasonable time
+      expect(totalTime).toBeLessThan(1000);
+      
+      // All webhooks should be processed
+      expect(processingTimes.length).toBe(6);
+    });
+
+    it("should handle GitHub-style webhook with all headers", async () => {
+      let receivedHeaders: Record<string, string | null> = {};
+      let receivedBody: string | undefined;
+      const webhookSecret = "github-webhook-secret";
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "github-style-client",
+        onRequest: async (req) => {
+          receivedBody = await req.text();
+          receivedHeaders = {
+            "x-github-event": req.headers.get("x-github-event"),
+            "x-github-delivery": req.headers.get("x-github-delivery"),
+            "x-hub-signature-256": req.headers.get("x-hub-signature-256"),
+            "content-type": req.headers.get("content-type"),
+            "user-agent": req.headers.get("user-agent"),
+          };
+
+          // Verify signature
+          const signature = req.headers.get("x-hub-signature-256");
+          if (signature && receivedBody) {
+            const isValid = await verifySignature(receivedBody, signature, webhookSecret);
+            if (!isValid) {
+              return new Response("Invalid signature", { status: 401 });
+            }
+          }
+
+          return new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("github-style-client", SERVER_SECRET);
+
+      const payload = JSON.stringify({
+        action: "opened",
+        pull_request: {
+          number: 42,
+          title: "Test PR",
+        },
+        repository: {
+          full_name: "owner/repo",
+        },
+      });
+
+      const signature = await createSignature(payload, webhookSecret);
+      const deliveryId = crypto.randomUUID();
+
+      const response = await fetch(
+        `http://localhost:${serverPort}/devhook/${devhookId}/webhook/github`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-github-event": "pull_request",
+            "x-github-delivery": deliveryId,
+            "x-hub-signature-256": signature,
+            "user-agent": "GitHub-Hookshot/test",
+          },
+          body: payload,
+        }
+      );
+
+      expect(response.status).toBe(200);
+      expect(receivedHeaders["x-github-event"]).toBe("pull_request");
+      expect(receivedHeaders["x-github-delivery"]).toBe(deliveryId);
+      expect(receivedHeaders["x-hub-signature-256"]).toBe(signature);
+      expect(receivedHeaders["content-type"]).toBe("application/json");
+      expect(receivedHeaders["user-agent"]).toBe("GitHub-Hookshot/test");
+      expect(receivedBody).toBe(payload);
+    });
+
+    it("should handle Stripe-style webhook", async () => {
+      const stripeSecret = "whsec_test_secret";
+      let receivedEvent: unknown;
+      let signatureValid = false;
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "stripe-style-client",
+        onRequest: async (req) => {
+          const rawBody = await req.text();
+          const signature = req.headers.get("stripe-signature");
+
+          // Stripe uses a different signature format: t=timestamp,v1=signature
+          if (signature) {
+            const parts = signature.split(",");
+            const timestamp = parts.find(p => p.startsWith("t="))?.slice(2);
+            const v1Sig = parts.find(p => p.startsWith("v1="))?.slice(3);
+
+            if (timestamp && v1Sig) {
+              const signedPayload = `${timestamp}.${rawBody}`;
+              const expectedSig = await createSignature(signedPayload, stripeSecret);
+              // Remove the "sha256=" prefix for comparison
+              signatureValid = v1Sig === expectedSig.slice(7);
+            }
+          }
+
+          if (!signatureValid) {
+            return new Response("Invalid signature", { status: 400 });
+          }
+
+          receivedEvent = JSON.parse(rawBody);
+          return new Response(JSON.stringify({ received: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("stripe-style-client", SERVER_SECRET);
+
+      const payload = JSON.stringify({
+        id: "evt_test_123",
+        type: "payment_intent.succeeded",
+        data: {
+          object: {
+            id: "pi_test_123",
+            amount: 2000,
+            currency: "usd",
+          },
+        },
+      });
+
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const signedPayload = `${timestamp}.${payload}`;
+      const sig = await createSignature(signedPayload, stripeSecret);
+      const stripeSignature = `t=${timestamp},v1=${sig.slice(7)}`; // Remove "sha256=" prefix
+
+      const response = await fetch(
+        `http://localhost:${serverPort}/devhook/${devhookId}/webhook/stripe`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "stripe-signature": stripeSignature,
+          },
+          body: payload,
+        }
+      );
+
+      expect(response.status).toBe(200);
+      expect(signatureValid).toBe(true);
+      expect(receivedEvent).toEqual(JSON.parse(payload));
+    });
+
+    it("should handle webhook retry scenarios", async () => {
+      let attemptCount = 0;
+      const maxAttempts = 3;
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "retry-client",
+        onRequest: async (req) => {
+          attemptCount++;
+          const body = await req.json() as { attempt: number };
+
+          // Fail first 2 attempts, succeed on 3rd
+          if (attemptCount < maxAttempts) {
+            return new Response("Service unavailable", { status: 503 });
+          }
+
+          return new Response(JSON.stringify({ success: true, attempts: attemptCount }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("retry-client", SERVER_SECRET);
+
+      // Simulate webhook retries
+      let lastResponse: Response | undefined;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        lastResponse = await fetch(
+          `http://localhost:${serverPort}/devhook/${devhookId}/webhook`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ attempt }),
+          }
+        );
+
+        if (lastResponse.status === 200) {
+          break;
+        }
+
+        // Wait before retry (simulating webhook provider behavior)
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      expect(lastResponse?.status).toBe(200);
+      expect(attemptCount).toBe(maxAttempts);
+    });
+
+    it("should handle binary webhook payloads", async () => {
+      let receivedBytes: Uint8Array | undefined;
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "binary-client",
+        onRequest: async (req) => {
+          const buffer = await req.arrayBuffer();
+          receivedBytes = new Uint8Array(buffer);
+          return new Response(JSON.stringify({ size: receivedBytes.length }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("binary-client", SERVER_SECRET);
+
+      // Create binary payload
+      const binaryData = new Uint8Array([0x00, 0x01, 0x02, 0xFF, 0xFE, 0xFD, 0x00, 0x00]);
+
+      const response = await fetch(
+        `http://localhost:${serverPort}/devhook/${devhookId}/webhook`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/octet-stream" },
+          body: binaryData,
+        }
+      );
+
+      expect(response.status).toBe(200);
+      expect(receivedBytes).toBeDefined();
+      expect(receivedBytes!.length).toBe(binaryData.length);
+      expect(Array.from(receivedBytes!)).toEqual(Array.from(binaryData));
+    });
+  });
+
   describe("server callbacks", () => {
     it("should call onClientConnect and onClientDisconnect", async () => {
       const connectedIds: string[] = [];
