@@ -1,62 +1,39 @@
 /**
  * Cryptographic utilities for devhook URL generation.
  *
- * The client presents a secret, and the server signs it with HMAC-SHA256
- * using its own server secret. The resulting signature is used to generate
- * a deterministic 16-character subdomain that cannot be guessed without
- * knowing the client secret.
+ * Deterministically derives a uniform 16-character base36 string from:
+ *   - a client secret (password), and
+ *   - a server secret key for HMAC.
+ *
+ * Core idea:
+ *   - HMAC-SHA-256 is used as a deterministic pseudorandom function (PRF).
+ *   - We map the PRF output into [0, 36^16) using rejection sampling to avoid modulo bias.
  *
  * We use base36 encoding (a-z, 0-9) to maximize entropy per character.
  * With 16 characters and 36 possible values each, we get:
  * 36^16 ≈ 7.96 × 10^24 ≈ 2^82.7 possible IDs
- *
- * This is significantly better than hex encoding which only provides:
- * 16^16 = 2^64 possible IDs
  */
 
-/** Base36 alphabet: 0-9, a-z */
-const BASE36_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
+/** Domain separation constant for devhook ID generation */
+const DOMAIN = "blink-devhook";
 
 /**
- * Convert a Uint8Array to a base36 string.
- * Uses the full entropy of the input bytes.
- *
- * @param bytes - The bytes to convert
- * @param length - The desired output length
- * @returns A base36 string of the specified length
+ * Convert 16 bytes to an unsigned 128-bit BigInt (big-endian).
  */
-function bytesToBase36(bytes: Uint8Array, length: number): string {
-  // We need to convert arbitrary bytes to base36.
-  // To do this properly and use all entropy, we treat the bytes as a big integer
-  // and repeatedly divide by 36, taking the remainder as each character.
-  //
-  // For 16 base36 characters, we need at least ceil(16 * log2(36) / 8) = ceil(82.7 / 8) = 11 bytes
-  // SHA-256 gives us 32 bytes, so we have plenty of entropy.
-
-  // Convert bytes to a BigInt (big-endian)
-  let num = BigInt(0);
-  for (const byte of bytes) {
-    num = (num << BigInt(8)) | BigInt(byte);
+function bytesToBigInt128(bytes: Uint8Array, off: number): bigint {
+  let x = 0n;
+  for (let i = 0; i < 16; i++) {
+    x = (x << 8n) + BigInt(bytes[off + i]!);
   }
-
-  // Convert to base36
-  const result: string[] = [];
-  const base = BigInt(36);
-
-  for (let i = 0; i < length; i++) {
-    const remainder = num % base;
-    result.unshift(BASE36_ALPHABET[Number(remainder)]!);
-    num = num / base;
-  }
-
-  return result.join("");
+  return x;
 }
 
 /**
  * Generate a secure devhook ID from a client secret.
- * Uses HMAC-SHA256 with the server secret, then converts to base36.
+ * Uses HMAC-SHA256 with the server secret, then converts to base36 using
+ * rejection sampling to ensure uniform distribution.
  *
- * @param clientSecret - The secret provided by the client
+ * @param clientSecret - The secret provided by the client (password)
  * @param serverSecret - The server's secret key for signing
  * @returns A 16-character base36 devhook ID (a-z, 0-9)
  */
@@ -64,26 +41,65 @@ export async function generateDevhookId(
   clientSecret: string,
   serverSecret: string
 ): Promise<string> {
-  const encoder = new TextEncoder();
+  const enc = new TextEncoder();
 
-  // Import the server secret as an HMAC key
-  const key = await crypto.subtle.importKey(
+  // WebCrypto works with bytes; TextEncoder gives deterministic UTF-8 bytes.
+  const keyBytes = enc.encode(serverSecret);
+
+  // Import the HMAC key into WebCrypto.
+  const cryptoKey = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(serverSecret),
+    keyBytes,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
   );
 
-  // Sign the client secret
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(clientSecret)
-  );
+  // We want a 16-character base36 string. That's exactly the integers in [0, 36^16).
+  const N = 36n ** 16n; // size of the output space
 
-  // Convert to base36 (using all 32 bytes of SHA-256 output)
-  return bytesToBase36(new Uint8Array(signature), 16);
+  // We'll draw 128-bit candidates from the PRF output and "reject" ones that would bias the mapping.
+  const TWO128 = 1n << 128n;
+
+  // Rejection sampling threshold:
+  // limit is the largest multiple of N that is < 2^128.
+  // If we only accept x < limit, then x % N is perfectly uniform in [0, N).
+  const limit = (TWO128 / N) * N;
+
+  // One HMAC-SHA-256 output is 32 bytes, which conveniently contains two independent
+  // 128-bit candidates (first 16 bytes and last 16 bytes).
+  //
+  // Rejection sampling very rarely rejects when N is close to 2^k, but we still implement
+  // the correct rejection loop to guarantee uniformity.
+  for (let ctr = 0; ctr < 1000; ctr++) {
+    // Build the message to MAC:
+    // - DOMAIN: separates different uses / versions
+    // - clientSecret: user input
+    // - ctr: deterministic retry stream
+    //
+    // The \0 separators avoid ambiguous concatenations like ("ab", "c") vs ("a", "bc").
+    const msg = enc.encode(`${DOMAIN}\0${clientSecret}\0${ctr}`);
+
+    // HMAC the message. WebCrypto returns an ArrayBuffer; wrap in Uint8Array for byte access.
+    const mac = new Uint8Array(await crypto.subtle.sign("HMAC", cryptoKey, msg));
+
+    // Try two 128-bit candidates per MAC output.
+    for (const off of [0, 16]) {
+      const x = bytesToBigInt128(mac, off);
+
+      // Reject values in the "tail" [limit, 2^128) because modulo would make some outputs
+      // slightly more likely than others (modulo bias).
+      if (x < limit) {
+        const y = x % N; // now y is uniform in [0, 36^16)
+
+        // Convert to base36 and left-pad with '0' to ensure fixed length of 16 chars.
+        return y.toString(36).padStart(16, "0");
+      }
+    }
+  }
+
+  // If you ever hit this (extremely unlikely), increase the loop bound.
+  throw new Error("Unexpected: too many rejections; increase loop bound.");
 }
 
 /**
