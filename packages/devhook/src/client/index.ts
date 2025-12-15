@@ -331,13 +331,20 @@ export class DevhookClient {
       // Send response headers
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
-        headers[key] = value;
+        // Skip Set-Cookie - handled separately to preserve multiple cookies
+        if (key.toLowerCase() !== "set-cookie") {
+          headers[key] = value;
+        }
       });
+
+      // Extract Set-Cookie headers separately (preserves multiple cookies)
+      const setCookies = response.headers.getSetCookie();
 
       const proxyInit: ProxyInitResponse = {
         status_code: response.status,
         status_message: response.statusText,
         headers,
+        set_cookies: setCookies.length > 0 ? setCookies : undefined,
       };
 
       stream.writeTyped(

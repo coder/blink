@@ -182,10 +182,20 @@ export function createLocalServer(opts: LocalServerOptions): {
       }
 
       // Write response headers
-      const responseHeaders: Record<string, string> = {};
+      const responseHeaders: Record<string, string | string[]> = {};
       response.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
+        // Skip Set-Cookie - handled separately to preserve multiple cookies
+        if (key.toLowerCase() !== "set-cookie") {
+          responseHeaders[key] = value;
+        }
       });
+
+      // Handle multiple Set-Cookie headers (Node.js requires array for multiple values)
+      const setCookies = response.headers.getSetCookie();
+      if (setCookies.length > 0) {
+        responseHeaders["Set-Cookie"] = setCookies;
+      }
+
       res.writeHead(response.status, response.statusText, responseHeaders);
 
       // Stream response body

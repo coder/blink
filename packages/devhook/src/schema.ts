@@ -49,6 +49,8 @@ export interface ProxyInitResponse {
   status_code: number;
   status_message: string;
   headers: Record<string, string>;
+  /** Set-Cookie headers must be sent separately to preserve multiple cookies */
+  set_cookies?: string[];
 }
 
 /**

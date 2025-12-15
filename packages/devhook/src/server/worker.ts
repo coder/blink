@@ -101,9 +101,19 @@ export class Worker {
           const parsed = JSON.parse(
             this.decoder.decode(payload)
           ) as ProxyInitResponse;
+
+          const headers = new Headers(parsed.headers);
+
+          // Restore multiple Set-Cookie headers
+          if (parsed.set_cookies) {
+            for (const cookie of parsed.set_cookies) {
+              headers.append("Set-Cookie", cookie);
+            }
+          }
+
           resolveResponse({
             status: parsed.status_code,
-            headers: new Headers(parsed.headers),
+            headers,
             statusText: parsed.status_message,
             body: body.readable,
             stream: stream.id,

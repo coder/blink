@@ -883,7 +883,7 @@ export function runSharedTests(
         clientConnections = [];
       });
 
-      it.fails("should preserve multiple Set-Cookie headers", async () => {
+      it("should preserve multiple Set-Cookie headers", async () => {
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "multi-cookie-test",
@@ -913,7 +913,7 @@ export function runSharedTests(
         expect(setCookieHeaders).toContain("c=3; Path=/");
       });
 
-      it.fails("should handle Set-Cookie with comma in Expires date", async () => {
+      it("should handle Set-Cookie with comma in Expires date", async () => {
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "cookie-expires-test",
