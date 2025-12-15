@@ -1336,6 +1336,796 @@ describe("devhook", () => {
     });
   });
 
+  describe("websocket proxying", () => {
+    let server: ReturnType<typeof createLocalServer>;
+    let serverPort: number;
+    let clientConnections: Array<{ dispose: () => void }> = [];
+
+    beforeAll(async () => {
+      serverPort = 22080 + Math.floor(Math.random() * 1000);
+      server = createLocalServer({
+        port: serverPort,
+        secret: SERVER_SECRET,
+        baseUrl: `http://localhost:${serverPort}`,
+        mode: "subpath",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+
+    afterAll(() => {
+      server?.close();
+    });
+
+    afterEach(() => {
+      for (const conn of clientConnections) {
+        conn.dispose();
+      }
+      clientConnections = [];
+    });
+
+    it("should proxy WebSocket connections", async () => {
+      const receivedMessages: string[] = [];
+      let localWsConnected = false;
+
+      // Create a simple WebSocket server to simulate the local target FIRST
+      const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+      const localWsServer = new WebSocketServer({ port: 0 });
+      const localWsPort = (localWsServer.address() as { port: number }).port;
+
+      localWsServer.on("connection", (ws) => {
+        localWsConnected = true;
+        ws.on("message", (data) => {
+          receivedMessages.push(data.toString());
+          // Echo back the message
+          ws.send(`echo: ${data.toString()}`);
+        });
+      });
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "ws-test-client",
+        transformUrl: (url) => {
+          url.host = `localhost:${localWsPort}`;
+          return url;
+        },
+        onRequest: async (req) => {
+          const url = new URL(req.url);
+          url.host = `localhost:${localWsPort}`;
+          return fetch(new Request(url.toString(), req));
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("ws-test-client", SERVER_SECRET);
+
+      // Connect to the devhook URL via WebSocket
+      const externalWs = new WsClient(
+        `ws://localhost:${serverPort}/devhook/${devhookId}/ws`
+      );
+
+      const externalMessages: string[] = [];
+      await new Promise<void>((resolve, reject) => {
+        externalWs.on("open", () => {
+          externalWs.send("hello from external");
+        });
+
+        externalWs.on("message", (data) => {
+          externalMessages.push(data.toString());
+          if (externalMessages.length >= 1) {
+            resolve();
+          }
+        });
+
+        externalWs.on("error", reject);
+
+        setTimeout(() => reject(new Error("Timeout waiting for WebSocket")), 5000);
+      });
+
+      expect(localWsConnected).toBe(true);
+      expect(receivedMessages).toContain("hello from external");
+      expect(externalMessages).toContain("echo: hello from external");
+
+      externalWs.close();
+      localWsServer.close();
+    });
+
+    it("should handle WebSocket close from external client", async () => {
+      let localWsClosed = false;
+      let closeCode: number | undefined;
+
+      const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+      const localWsServer = new WebSocketServer({ port: 0 });
+      const localWsPort = (localWsServer.address() as { port: number }).port;
+
+      localWsServer.on("connection", (ws) => {
+        ws.on("close", (code) => {
+          localWsClosed = true;
+          closeCode = code;
+        });
+      });
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "ws-close-test",
+        transformUrl: (url) => {
+          url.host = `localhost:${localWsPort}`;
+          return url;
+        },
+        onRequest: async (req) => {
+          const url = new URL(req.url);
+          url.host = `localhost:${localWsPort}`;
+          return fetch(new Request(url.toString(), req));
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("ws-close-test", SERVER_SECRET);
+
+      const externalWs = new WsClient(
+        `ws://localhost:${serverPort}/devhook/${devhookId}/ws`
+      );
+
+      await new Promise<void>((resolve, reject) => {
+        externalWs.on("open", () => {
+          // Close with a specific code
+          externalWs.close(1000, "Normal closure");
+        });
+
+        externalWs.on("close", () => {
+          // Give time for the close to propagate
+          setTimeout(resolve, 100);
+        });
+
+        externalWs.on("error", reject);
+        setTimeout(() => reject(new Error("Timeout")), 5000);
+      });
+
+      expect(localWsClosed).toBe(true);
+      expect(closeCode).toBe(1000);
+
+      localWsServer.close();
+    });
+
+    it("should handle WebSocket close from local server", async () => {
+      let externalWsClosed = false;
+      let externalCloseCode: number | undefined;
+
+      const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+      const localWsServer = new WebSocketServer({ port: 0 });
+      const localWsPort = (localWsServer.address() as { port: number }).port;
+
+      localWsServer.on("connection", (ws) => {
+        // Close immediately after connection
+        setTimeout(() => ws.close(1001, "Going away"), 50);
+      });
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "ws-server-close-test",
+        transformUrl: (url) => {
+          url.host = `localhost:${localWsPort}`;
+          return url;
+        },
+        onRequest: async (req) => {
+          const url = new URL(req.url);
+          url.host = `localhost:${localWsPort}`;
+          return fetch(new Request(url.toString(), req));
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("ws-server-close-test", SERVER_SECRET);
+
+      const externalWs = new WsClient(
+        `ws://localhost:${serverPort}/devhook/${devhookId}/ws`
+      );
+
+      await new Promise<void>((resolve, reject) => {
+        externalWs.on("close", (code) => {
+          externalWsClosed = true;
+          externalCloseCode = code;
+          resolve();
+        });
+
+        externalWs.on("error", reject);
+        setTimeout(() => reject(new Error("Timeout")), 5000);
+      });
+
+      expect(externalWsClosed).toBe(true);
+      expect(externalCloseCode).toBe(1001);
+
+      localWsServer.close();
+    });
+
+    it("should handle binary WebSocket messages", async () => {
+      const receivedBinary: Uint8Array[] = [];
+
+      const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+      const localWsServer = new WebSocketServer({ port: 0 });
+      const localWsPort = (localWsServer.address() as { port: number }).port;
+
+      localWsServer.on("connection", (ws) => {
+        ws.on("message", (data) => {
+          const bytes = data instanceof Buffer ? new Uint8Array(data) : new Uint8Array(data as ArrayBuffer);
+          receivedBinary.push(bytes);
+          // Echo back
+          ws.send(bytes);
+        });
+      });
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "ws-binary-test",
+        transformUrl: (url) => {
+          url.host = `localhost:${localWsPort}`;
+          return url;
+        },
+        onRequest: async (req) => {
+          const url = new URL(req.url);
+          url.host = `localhost:${localWsPort}`;
+          return fetch(new Request(url.toString(), req));
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("ws-binary-test", SERVER_SECRET);
+
+      const externalWs = new WsClient(
+        `ws://localhost:${serverPort}/devhook/${devhookId}/ws`
+      );
+
+      const receivedEcho: Uint8Array[] = [];
+      const testData = new Uint8Array([0x00, 0x01, 0xFF, 0xFE, 0x42]);
+
+      await new Promise<void>((resolve, reject) => {
+        externalWs.on("open", () => {
+          externalWs.send(testData);
+        });
+
+        externalWs.on("message", (data) => {
+          const bytes = data instanceof Buffer ? new Uint8Array(data) : new Uint8Array(data as ArrayBuffer);
+          receivedEcho.push(bytes);
+          resolve();
+        });
+
+        externalWs.on("error", reject);
+        setTimeout(() => reject(new Error("Timeout")), 5000);
+      });
+
+      // Wait a bit for any stray messages to settle
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(receivedBinary.length).toBeGreaterThanOrEqual(1);
+      expect(Array.from(receivedBinary[0]!)).toEqual(Array.from(testData));
+      expect(receivedEcho.length).toBeGreaterThanOrEqual(1);
+      expect(Array.from(receivedEcho[0]!)).toEqual(Array.from(testData));
+
+      externalWs.close();
+      localWsServer.close();
+    });
+
+    it("should return 503 when no client is connected for WebSocket", async () => {
+      const { WebSocket: WsClient } = await import("ws");
+      const devhookId = await generateDevhookId("nonexistent-ws", SERVER_SECRET);
+
+      const externalWs = new WsClient(
+        `ws://localhost:${serverPort}/devhook/${devhookId}/ws`
+      );
+
+      await new Promise<void>((resolve) => {
+        externalWs.on("error", () => {
+          // Expected - connection should fail
+          resolve();
+        });
+
+        externalWs.on("open", () => {
+          // This shouldn't happen
+          externalWs.close();
+          resolve();
+        });
+
+        setTimeout(resolve, 1000);
+      });
+
+      expect(externalWs.readyState).not.toBe(WsClient.OPEN);
+    });
+
+    it("should handle multiple concurrent WebSocket connections to the same client", async () => {
+      const messagesPerConnection: Map<number, string[]> = new Map();
+      const localConnections: Set<number> = new Set();
+      let connectionCounter = 0;
+
+      const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+      const localWsServer = new WebSocketServer({ port: 0 });
+      const localWsPort = (localWsServer.address() as { port: number }).port;
+
+      localWsServer.on("connection", (ws) => {
+        const connId = connectionCounter++;
+        localConnections.add(connId);
+        messagesPerConnection.set(connId, []);
+
+        ws.on("message", (data) => {
+          const msg = data.toString();
+          messagesPerConnection.get(connId)!.push(msg);
+          // Echo back with connection ID
+          ws.send(`conn${connId}: ${msg}`);
+        });
+
+        ws.on("close", () => {
+          localConnections.delete(connId);
+        });
+      });
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "ws-concurrent-test",
+        transformUrl: (url) => {
+          url.host = `localhost:${localWsPort}`;
+          return url;
+        },
+        onRequest: async (req) => {
+          const url = new URL(req.url);
+          url.host = `localhost:${localWsPort}`;
+          return fetch(new Request(url.toString(), req));
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("ws-concurrent-test", SERVER_SECRET);
+
+      // Create 5 concurrent WebSocket connections
+      const numConnections = 5;
+      const externalWsConnections: InstanceType<typeof WsClient>[] = [];
+      const receivedMessages: Map<number, string[]> = new Map();
+
+      for (let i = 0; i < numConnections; i++) {
+        receivedMessages.set(i, []);
+        const ws = new WsClient(
+          `ws://localhost:${serverPort}/devhook/${devhookId}/ws${i}`
+        );
+        externalWsConnections.push(ws);
+      }
+
+      // Wait for all connections to open
+      await Promise.all(
+        externalWsConnections.map(
+          (ws, i) =>
+            new Promise<void>((resolve, reject) => {
+              ws.on("open", resolve);
+              ws.on("error", reject);
+              ws.on("message", (data) => {
+                receivedMessages.get(i)!.push(data.toString());
+              });
+              setTimeout(() => reject(new Error(`Connection ${i} timeout`)), 5000);
+            })
+        )
+      );
+
+      expect(localConnections.size).toBe(numConnections);
+
+      // Send messages from each connection
+      for (let i = 0; i < numConnections; i++) {
+        externalWsConnections[i]!.send(`hello from ws${i}`);
+      }
+
+      // Wait for responses
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Verify each connection received its own response
+      for (let i = 0; i < numConnections; i++) {
+        expect(receivedMessages.get(i)!.length).toBeGreaterThanOrEqual(1);
+        expect(receivedMessages.get(i)![0]).toContain(`hello from ws${i}`);
+      }
+
+      // Verify local server received all messages
+      const allLocalMessages = Array.from(messagesPerConnection.values()).flat();
+      expect(allLocalMessages.length).toBe(numConnections);
+
+      // Close all connections
+      for (const ws of externalWsConnections) {
+        ws.close();
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      localWsServer.close();
+    });
+
+    it("should handle WebSocket connections from multiple devhook clients simultaneously", async () => {
+      const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+
+      // Create two separate local WebSocket servers for two different devhook clients
+      const localWsServer1 = new WebSocketServer({ port: 0 });
+      const localWsPort1 = (localWsServer1.address() as { port: number }).port;
+      const localWsServer2 = new WebSocketServer({ port: 0 });
+      const localWsPort2 = (localWsServer2.address() as { port: number }).port;
+
+      const messages1: string[] = [];
+      const messages2: string[] = [];
+
+      localWsServer1.on("connection", (ws) => {
+        ws.on("message", (data) => {
+          messages1.push(data.toString());
+          ws.send(`server1: ${data.toString()}`);
+        });
+      });
+
+      localWsServer2.on("connection", (ws) => {
+        ws.on("message", (data) => {
+          messages2.push(data.toString());
+          ws.send(`server2: ${data.toString()}`);
+        });
+      });
+
+      // Create two devhook clients with different secrets
+      const client1 = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "ws-multi-client-1",
+        transformUrl: (url) => {
+          url.host = `localhost:${localWsPort1}`;
+          return url;
+        },
+        onRequest: async (req) => {
+          const url = new URL(req.url);
+          url.host = `localhost:${localWsPort1}`;
+          return fetch(new Request(url.toString(), req));
+        },
+      });
+
+      const client2 = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "ws-multi-client-2",
+        transformUrl: (url) => {
+          url.host = `localhost:${localWsPort2}`;
+          return url;
+        },
+        onRequest: async (req) => {
+          const url = new URL(req.url);
+          url.host = `localhost:${localWsPort2}`;
+          return fetch(new Request(url.toString(), req));
+        },
+      });
+
+      const disposable1 = client1.connect();
+      const disposable2 = client2.connect();
+      clientConnections.push(disposable1, disposable2);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId1 = await generateDevhookId("ws-multi-client-1", SERVER_SECRET);
+      const devhookId2 = await generateDevhookId("ws-multi-client-2", SERVER_SECRET);
+
+      // Connect external WebSockets to each devhook
+      const externalWs1 = new WsClient(
+        `ws://localhost:${serverPort}/devhook/${devhookId1}/ws`
+      );
+      const externalWs2 = new WsClient(
+        `ws://localhost:${serverPort}/devhook/${devhookId2}/ws`
+      );
+
+      const received1: string[] = [];
+      const received2: string[] = [];
+
+      // Wait for both connections to open and set up message handlers
+      await Promise.all([
+        new Promise<void>((resolve, reject) => {
+          externalWs1.on("open", resolve);
+          externalWs1.on("error", reject);
+          externalWs1.on("message", (data) => received1.push(data.toString()));
+          setTimeout(() => reject(new Error("Timeout ws1")), 5000);
+        }),
+        new Promise<void>((resolve, reject) => {
+          externalWs2.on("open", resolve);
+          externalWs2.on("error", reject);
+          externalWs2.on("message", (data) => received2.push(data.toString()));
+          setTimeout(() => reject(new Error("Timeout ws2")), 5000);
+        }),
+      ]);
+
+      // Send messages to each devhook
+      externalWs1.send("message to client 1");
+      externalWs2.send("message to client 2");
+
+      // Wait for responses
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Verify messages were routed correctly
+      expect(messages1).toContain("message to client 1");
+      expect(messages2).toContain("message to client 2");
+      expect(messages1).not.toContain("message to client 2");
+      expect(messages2).not.toContain("message to client 1");
+
+      // Verify responses came from correct servers
+      expect(received1.length).toBeGreaterThanOrEqual(1);
+      expect(received1[0]).toContain("server1:");
+      expect(received2.length).toBeGreaterThanOrEqual(1);
+      expect(received2[0]).toContain("server2:");
+
+      // Cleanup
+      externalWs1.close();
+      externalWs2.close();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      localWsServer1.close();
+      localWsServer2.close();
+    });
+
+    it("should handle rapid WebSocket message exchange across multiple connections", async () => {
+      const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+      const localWsServer = new WebSocketServer({ port: 0 });
+      const localWsPort = (localWsServer.address() as { port: number }).port;
+
+      const allReceivedByServer: string[] = [];
+
+      localWsServer.on("connection", (ws) => {
+        ws.on("message", (data) => {
+          allReceivedByServer.push(data.toString());
+          // Echo back immediately
+          ws.send(data);
+        });
+      });
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "ws-rapid-test",
+        transformUrl: (url) => {
+          url.host = `localhost:${localWsPort}`;
+          return url;
+        },
+        onRequest: async (req) => {
+          const url = new URL(req.url);
+          url.host = `localhost:${localWsPort}`;
+          return fetch(new Request(url.toString(), req));
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("ws-rapid-test", SERVER_SECRET);
+
+      // Create 3 connections that will all send messages rapidly
+      const numConnections = 3;
+      const messagesPerConnection = 10;
+      const connections: InstanceType<typeof WsClient>[] = [];
+      const receivedByClient: Map<number, string[]> = new Map();
+
+      for (let i = 0; i < numConnections; i++) {
+        receivedByClient.set(i, []);
+        const ws = new WsClient(
+          `ws://localhost:${serverPort}/devhook/${devhookId}/rapid${i}`
+        );
+        connections.push(ws);
+      }
+
+      // Wait for all connections to open
+      await Promise.all(
+        connections.map(
+          (ws, i) =>
+            new Promise<void>((resolve, reject) => {
+              ws.on("open", resolve);
+              ws.on("error", reject);
+              ws.on("message", (data) => {
+                receivedByClient.get(i)!.push(data.toString());
+              });
+              setTimeout(() => reject(new Error(`Connection ${i} timeout`)), 5000);
+            })
+        )
+      );
+
+      // Send messages rapidly from all connections
+      const sendPromises: Promise<void>[] = [];
+      for (let i = 0; i < numConnections; i++) {
+        for (let j = 0; j < messagesPerConnection; j++) {
+          connections[i]!.send(`conn${i}-msg${j}`);
+        }
+      }
+
+      // Wait for all messages to be processed
+      const totalExpectedMessages = numConnections * messagesPerConnection;
+      await new Promise<void>((resolve) => {
+        const checkComplete = () => {
+          if (allReceivedByServer.length >= totalExpectedMessages) {
+            resolve();
+          } else {
+            setTimeout(checkComplete, 50);
+          }
+        };
+        checkComplete();
+        // Timeout after 5 seconds
+        setTimeout(resolve, 5000);
+      });
+
+      // Verify all messages were received by the server
+      expect(allReceivedByServer.length).toBe(totalExpectedMessages);
+
+      // Verify each connection's messages are present
+      for (let i = 0; i < numConnections; i++) {
+        for (let j = 0; j < messagesPerConnection; j++) {
+          expect(allReceivedByServer).toContain(`conn${i}-msg${j}`);
+        }
+      }
+
+      // Wait a bit more for echo responses
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // Verify each client received echo responses
+      // Note: Each connection receives echoes for all messages sent on that connection
+      for (let i = 0; i < numConnections; i++) {
+        expect(receivedByClient.get(i)!.length).toBeGreaterThanOrEqual(messagesPerConnection);
+      }
+
+      // Cleanup
+      for (const ws of connections) {
+        ws.close();
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      localWsServer.close();
+    });
+
+    it("should isolate WebSocket connections - closing one doesn't affect others", async () => {
+      const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+      const localWsServer = new WebSocketServer({ port: 0 });
+      const localWsPort = (localWsServer.address() as { port: number }).port;
+
+      let activeLocalConnections = 0;
+
+      localWsServer.on("connection", (ws) => {
+        activeLocalConnections++;
+        ws.on("message", (data) => ws.send(data));
+        ws.on("close", () => activeLocalConnections--);
+      });
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "ws-isolate-test",
+        transformUrl: (url) => {
+          url.host = `localhost:${localWsPort}`;
+          return url;
+        },
+        onRequest: async (req) => {
+          const url = new URL(req.url);
+          url.host = `localhost:${localWsPort}`;
+          return fetch(new Request(url.toString(), req));
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("ws-isolate-test", SERVER_SECRET);
+
+      // Create 3 connections
+      const ws1 = new WsClient(`ws://localhost:${serverPort}/devhook/${devhookId}/a`);
+      const ws2 = new WsClient(`ws://localhost:${serverPort}/devhook/${devhookId}/b`);
+      const ws3 = new WsClient(`ws://localhost:${serverPort}/devhook/${devhookId}/c`);
+
+      const received2: string[] = [];
+      const received3: string[] = [];
+
+      await Promise.all([
+        new Promise<void>((resolve, reject) => {
+          ws1.on("open", resolve);
+          ws1.on("error", reject);
+          setTimeout(() => reject(new Error("Timeout")), 5000);
+        }),
+        new Promise<void>((resolve, reject) => {
+          ws2.on("open", resolve);
+          ws2.on("error", reject);
+          ws2.on("message", (data) => received2.push(data.toString()));
+          setTimeout(() => reject(new Error("Timeout")), 5000);
+        }),
+        new Promise<void>((resolve, reject) => {
+          ws3.on("open", resolve);
+          ws3.on("error", reject);
+          ws3.on("message", (data) => received3.push(data.toString()));
+          setTimeout(() => reject(new Error("Timeout")), 5000);
+        }),
+      ]);
+
+      expect(activeLocalConnections).toBe(3);
+
+      // Close ws1
+      ws1.close();
+      // Wait for close to propagate through the devhook proxy
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // ws2 and ws3 should still work and be able to send/receive messages
+      expect(ws2.readyState).toBe(WsClient.OPEN);
+      expect(ws3.readyState).toBe(WsClient.OPEN);
+
+      // Send messages on remaining connections - this is the key test
+      ws2.send("still alive 2");
+      ws3.send("still alive 3");
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      // The important assertion: closing ws1 didn't break ws2 and ws3
+      expect(received2).toContain("still alive 2");
+      expect(received3).toContain("still alive 3");
+
+      // Cleanup
+      ws2.close();
+      ws3.close();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      localWsServer.close();
+    });
+
+    it("should close proxied WebSockets when devhook client disconnects", async () => {
+      let externalWsClosed = false;
+
+      const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+      const localWsServer = new WebSocketServer({ port: 0 });
+      const localWsPort = (localWsServer.address() as { port: number }).port;
+
+      localWsServer.on("connection", (ws) => {
+        // Keep connection open
+        ws.on("message", (data) => {
+          ws.send(data);
+        });
+      });
+
+      const client = new DevhookClient({
+        serverUrl: `http://localhost:${serverPort}`,
+        secret: "ws-disconnect-test",
+        transformUrl: (url) => {
+          url.host = `localhost:${localWsPort}`;
+          return url;
+        },
+        onRequest: async (req) => {
+          const url = new URL(req.url);
+          url.host = `localhost:${localWsPort}`;
+          return fetch(new Request(url.toString(), req));
+        },
+      });
+
+      const disposable = client.connect();
+      clientConnections.push(disposable);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const devhookId = await generateDevhookId("ws-disconnect-test", SERVER_SECRET);
+
+      const externalWs = new WsClient(
+        `ws://localhost:${serverPort}/devhook/${devhookId}/ws`
+      );
+
+      await new Promise<void>((resolve, reject) => {
+        externalWs.on("open", resolve);
+        externalWs.on("error", reject);
+        setTimeout(() => reject(new Error("Timeout")), 5000);
+      });
+
+      externalWs.on("close", () => {
+        externalWsClosed = true;
+      });
+
+      // Disconnect the devhook client
+      disposable.dispose();
+      clientConnections.pop();
+
+      // Wait for close to propagate
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(externalWsClosed).toBe(true);
+
+      localWsServer.close();
+    });
+  });
+
   describe("server callbacks", () => {
     it("should call onClientConnect and onClientDisconnect", async () => {
       const connectedIds: string[] = [];

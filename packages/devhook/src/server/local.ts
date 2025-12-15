@@ -168,14 +168,14 @@ export function createLocalServer(opts: LocalServerOptions): {
       const worker = session.worker!;
       const response = await worker.proxy(proxyRequest);
 
-      // Handle WebSocket upgrade
+      // Handle WebSocket upgrade - this shouldn't happen for HTTP requests
+      // WebSocket upgrades are handled in the httpServer.on("upgrade") handler
       if (response.upgrade) {
-        // WebSocket upgrade on proxy is complex in Node, skip for now
-        res.writeHead(501, { "content-type": "application/json" });
+        res.writeHead(400, { "content-type": "application/json" });
         res.end(
           JSON.stringify({
-            error: "Not implemented",
-            message: "WebSocket proxying is not yet supported in local mode.",
+            error: "Bad request",
+            message: "WebSocket upgrade requests must use the WebSocket protocol.",
           })
         );
         return;
@@ -218,79 +218,190 @@ export function createLocalServer(opts: LocalServerOptions): {
 
   const wss = new WebSocketServer({ noServer: true });
 
+  // WebSocket server for proxied connections (external -> local)
+  const proxyWss = new WebSocketServer({ noServer: true });
+
   httpServer.on("upgrade", async (req, socket, head) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
-    if (url.pathname !== "/api/devhook/connect") {
-      socket.destroy();
-      return;
-    }
+    // Handle devhook client connections
+    if (url.pathname === "/api/devhook/connect") {
+      // Get client secret
+      const clientSecret = req.headers["x-devhook-secret"] as string;
+      if (!clientSecret) {
+        socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+        socket.destroy();
+        return;
+      }
 
-    // Get client secret
-    const clientSecret = req.headers["x-devhook-secret"] as string;
-    if (!clientSecret) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-      socket.destroy();
-      return;
-    }
+      // Generate devhook ID
+      const devhookId = await generateDevhookId(clientSecret, opts.secret);
 
-    // Generate devhook ID
-    const devhookId = await generateDevhookId(clientSecret, opts.secret);
+      // Get or create session
+      let session = sessions.get(devhookId);
+      if (session && session.ws && session.ws.readyState === WebSocket.OPEN) {
+        // Close existing connection
+        session.ws.close(1000, "A new client has connected.");
+      }
 
-    // Get or create session
-    let session = sessions.get(devhookId);
-    if (session && session.ws && session.ws.readyState === WebSocket.OPEN) {
-      // Close existing connection
-      session.ws.close(1000, "A new client has connected.");
-    }
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        // Create worker for this session
+        const worker = new Worker({
+          initialNextStreamID: session?.worker ? undefined : 1,
+          sendToClient: (data: Uint8Array) => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(data);
+            }
+          },
+        });
 
-    wss.handleUpgrade(req, socket, head, (ws) => {
-      // Create worker for this session
-      const worker = new Worker({
-        initialNextStreamID: session?.worker ? undefined : 1,
-        sendToClient: (data: Uint8Array) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(data);
+        session = {
+          id: devhookId,
+          clientSecret,
+          ws,
+          worker,
+          proxiedWebSockets: session?.proxiedWebSockets ?? new Map(),
+        };
+        sessions.set(devhookId, session);
+
+        // Subscribe to WebSocket messages from the devhook client
+        worker.onWebSocketMessage((event) => {
+          const proxyWs = session!.proxiedWebSockets.get(event.stream);
+          if (proxyWs && proxyWs.readyState === WebSocket.OPEN) {
+            proxyWs.send(event.message);
           }
-        },
+        });
+
+        // Subscribe to WebSocket close events from the devhook client
+        worker.onWebSocketClose((event) => {
+          const proxyWs = session!.proxiedWebSockets.get(event.stream);
+          if (proxyWs) {
+            proxyWs.close(event.code, event.reason);
+            session!.proxiedWebSockets.delete(event.stream);
+          }
+        });
+
+        // Send connection info
+        const publicUrl = getPublicUrl(devhookId, opts.baseUrl, mode);
+        const connectionInfo: ConnectionEstablished = {
+          url: publicUrl,
+          id: devhookId,
+        };
+        ws.send(JSON.stringify(connectionInfo));
+
+        opts.onClientConnect?.(devhookId);
+
+        ws.on("message", (data: Buffer) => {
+          worker.handleClientMessage(new Uint8Array(data));
+        });
+
+        ws.on("close", () => {
+          if (sessions.get(devhookId)?.ws === ws) {
+            const s = sessions.get(devhookId)!;
+            // Close all proxied WebSockets when client disconnects
+            for (const proxyWs of s.proxiedWebSockets.values()) {
+              try {
+                proxyWs.close(1001, "Devhook client disconnected");
+              } catch {
+                // Ignore close errors
+              }
+            }
+            s.proxiedWebSockets.clear();
+            s.ws = null;
+            s.worker = null;
+          }
+          opts.onClientDisconnect?.(devhookId);
+        });
+
+        ws.on("error", () => {
+          // Ignore errors
+        });
       });
+      return;
+    }
 
-      session = {
-        id: devhookId,
-        clientSecret,
-        ws,
-        worker,
-        proxiedWebSockets: session?.proxiedWebSockets ?? new Map(),
-      };
-      sessions.set(devhookId, session);
+    // Handle proxied WebSocket connections (external -> devhook -> local)
+    const devhookId = extractDevhookId(url, opts.baseUrl, mode, req.headers.host);
+    if (!devhookId) {
+      socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+      socket.destroy();
+      return;
+    }
 
-      // Send connection info
-      const publicUrl = getPublicUrl(devhookId, opts.baseUrl, mode);
-      const connectionInfo: ConnectionEstablished = {
-        url: publicUrl,
-        id: devhookId,
-      };
-      ws.send(JSON.stringify(connectionInfo));
+    const session = sessions.get(devhookId);
+    if (!session || !session.ws || session.ws.readyState !== WebSocket.OPEN || !session.worker) {
+      socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
+      socket.destroy();
+      return;
+    }
 
-      opts.onClientConnect?.(devhookId);
+    // Build proxy URL (strip devhook prefix in subpath mode)
+    let proxyPath: string;
+    if (mode === "subpath") {
+      proxyPath = url.pathname.replace(/^\/devhook\/[a-z0-9]+/, "") || "/";
+    } else {
+      proxyPath = url.pathname;
+    }
+    const proxyUrl = new URL(proxyPath + url.search, url.origin);
 
-      ws.on("message", (data: Buffer) => {
-        worker.handleClientMessage(new Uint8Array(data));
-      });
+    // Build headers
+    const headers: Record<string, string> = {};
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (value) {
+        headers[key] = Array.isArray(value) ? value.join(", ") : value;
+      }
+    }
 
-      ws.on("close", () => {
-        if (sessions.get(devhookId)?.ws === ws) {
-          const s = sessions.get(devhookId)!;
-          s.ws = null;
-          s.worker = null;
-        }
-        opts.onClientDisconnect?.(devhookId);
-      });
-
-      ws.on("error", () => {
-        // Ignore errors
-      });
+    // Send the WebSocket upgrade request through the worker to the devhook client
+    const worker = session.worker;
+    const proxyRequest = new Request(proxyUrl.toString(), {
+      method: "GET",
+      headers,
     });
+
+    try {
+      const response = await worker.proxy(proxyRequest);
+
+      if (!response.upgrade) {
+        // The local server didn't accept the WebSocket upgrade
+        socket.write(`HTTP/1.1 ${response.status} ${response.statusText}\r\n\r\n`);
+        socket.destroy();
+        return;
+      }
+
+      const streamID = response.stream;
+
+      // Upgrade the external connection
+      proxyWss.handleUpgrade(req, socket, head, (externalWs) => {
+        // Store the proxied WebSocket
+        session.proxiedWebSockets.set(streamID, externalWs);
+
+        // Forward messages from external WebSocket to devhook client
+        externalWs.on("message", (data: Buffer | ArrayBuffer | Buffer[]) => {
+          const payload = data instanceof ArrayBuffer
+            ? new Uint8Array(data)
+            : Array.isArray(data)
+              ? Buffer.concat(data)
+              : data;
+          worker.sendProxiedWebSocketMessage(streamID, payload);
+        });
+
+        // Handle close from external WebSocket
+        externalWs.on("close", (code, reason) => {
+          worker.sendProxiedWebSocketClose(streamID, code, reason.toString());
+          session.proxiedWebSockets.delete(streamID);
+        });
+
+        // Handle errors from external WebSocket
+        externalWs.on("error", () => {
+          worker.sendProxiedWebSocketClose(streamID, 1011, "WebSocket error");
+          session.proxiedWebSockets.delete(streamID);
+        });
+      });
+    } catch (err) {
+      socket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+      socket.destroy();
+    }
   });
 
   httpServer.listen(opts.port, () => {
@@ -309,6 +420,7 @@ export function createLocalServer(opts: LocalServerOptions): {
       }
       sessions.clear();
       wss.close();
+      proxyWss.close();
       httpServer.close();
     },
   };

@@ -47,6 +47,21 @@ export interface DevhookClientOptions {
    * Called when an error occurs.
    */
   onError?: (error: unknown) => void;
+
+  /**
+   * Transform the incoming URL to point to the local target.
+   * This is used for both HTTP requests (via onRequest) and WebSocket connections.
+   * If not provided, URLs are used as-is.
+   *
+   * @example
+   * ```ts
+   * transformUrl: (url) => {
+   *   url.host = "localhost:3000";
+   *   return url;
+   * }
+   * ```
+   */
+  transformUrl?: (url: URL) => URL;
 }
 
 /**
@@ -378,10 +393,17 @@ export class DevhookClient {
     init: ProxyInitRequest
   ): Promise<void> {
     try {
-      const url = new URL(init.url);
-      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      // Transform the URL using the same pattern as onRequest
+      // This allows the user to map the devhook URL to the local target
+      let targetUrl = new URL(init.url);
 
-      const ws = new WebSocket(url.toString(), init.headers["sec-websocket-protocol"], {
+      if (this.opts.transformUrl) {
+        targetUrl = this.opts.transformUrl(targetUrl);
+      }
+
+      targetUrl.protocol = targetUrl.protocol === "https:" ? "wss:" : "ws:";
+
+      const ws = new WebSocket(targetUrl.toString(), init.headers["sec-websocket-protocol"], {
         headers: init.headers,
         perMessageDeflate: false,
       });
@@ -413,27 +435,35 @@ export class DevhookClient {
       });
 
       ws.on("close", (code, reason) => {
-        const closePayload: WebSocketClosePayload = {
-          code,
-          reason: reason.toString(),
-        };
-        stream.writeTyped(
-          ClientMessageType.PROXY_WEBSOCKET_CLOSE,
-          this.encoder.encode(JSON.stringify(closePayload))
-        );
-        stream.close();
+        try {
+          const closePayload: WebSocketClosePayload = {
+            code,
+            reason: reason.toString(),
+          };
+          stream.writeTyped(
+            ClientMessageType.PROXY_WEBSOCKET_CLOSE,
+            this.encoder.encode(JSON.stringify(closePayload))
+          );
+          stream.close();
+        } catch {
+          // Stream may already be disposed, ignore
+        }
       });
 
       ws.on("error", (err) => {
-        const closePayload: WebSocketClosePayload = {
-          code: 1011,
-          reason: err.message,
-        };
-        stream.writeTyped(
-          ClientMessageType.PROXY_WEBSOCKET_CLOSE,
-          this.encoder.encode(JSON.stringify(closePayload))
-        );
-        stream.close();
+        try {
+          const closePayload: WebSocketClosePayload = {
+            code: 1011,
+            reason: err.message,
+          };
+          stream.writeTyped(
+            ClientMessageType.PROXY_WEBSOCKET_CLOSE,
+            this.encoder.encode(JSON.stringify(closePayload))
+          );
+          stream.close();
+        } catch {
+          // Stream may already be disposed, ignore
+        }
       });
 
       // Handle messages from the server to forward to the local WebSocket
@@ -448,10 +478,21 @@ export class DevhookClient {
             break;
           }
           case ServerMessageType.PROXY_WEBSOCKET_CLOSE: {
-            const closePayload = JSON.parse(
-              this.decoder.decode(payload)
-            ) as WebSocketClosePayload;
-            ws.close(closePayload.code, closePayload.reason);
+            try {
+              const closePayload = JSON.parse(
+                this.decoder.decode(payload)
+              ) as WebSocketClosePayload;
+              // ws.close requires a valid code (1000 or 3000-4999) or no arguments
+              const code = closePayload.code;
+              if (code !== undefined && code >= 1000 && code <= 4999) {
+                ws.close(code, closePayload.reason);
+              } else {
+                ws.close();
+              }
+            } catch {
+              // Ignore close errors
+              ws.close();
+            }
             break;
           }
         }

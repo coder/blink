@@ -24,8 +24,13 @@ import { DevhookClient } from "@blink-sdk/devhook";
 const client = new DevhookClient({
   serverUrl: "https://devhook.example.com",
   secret: "my-secret-key",
+  // Transform URLs to point to your local server (used for WebSocket connections)
+  transformUrl: (url) => {
+    url.host = "localhost:3000";
+    return url;
+  },
+  // Handle HTTP requests
   onRequest: async (req) => {
-    // Forward to your local server
     const url = new URL(req.url);
     url.host = "localhost:3000";
     return fetch(new Request(url.toString(), req));
@@ -173,7 +178,10 @@ interface DevhookClientOptions {
   /** Client secret for URL generation */
   secret: string;
 
-  /** Handle incoming proxied requests */
+  /** Transform URL to point to local server (used for WebSocket connections) */
+  transformUrl?: (url: URL) => URL;
+
+  /** Handle incoming proxied HTTP requests */
   onRequest: (request: Request) => Promise<Response>;
 
   /** Called when connected (with public URL) */
