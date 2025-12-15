@@ -1,0 +1,41 @@
+# Example wrangler.toml for deploying the devhook server.
+#
+# To deploy:
+# 1. Copy this file to your project
+# 2. Update the configuration values
+# 3. Run: wrangler deploy
+
+name = "devhook-server"
+main = "src/server/cloudflare.ts"
+compatibility_date = "2025-01-01"
+
+# For wildcard subdomains, configure routes like:
+# routes = [
+#   { pattern = "*.devhook.example.com/*", zone_name = "example.com" },
+#   { pattern = "devhook.example.com/*", zone_name = "example.com" }
+# ]
+#
+# For subpath mode, a single route suffices:
+# routes = [
+#   { pattern = "example.com/devhook/*", zone_name = "example.com" }
+# ]
+
+[vars]
+# Server secret for HMAC signing. Change this!
+DEVHOOK_SECRET = "change-me-to-a-secure-random-string"
+
+# Base URL for generating public URLs
+# For wildcard mode: https://devhook.example.com
+# For subpath mode: https://example.com
+DEVHOOK_BASE_URL = "https://devhook.example.com"
+
+# Routing mode: "wildcard" or "subpath"
+DEVHOOK_MODE = "wildcard"
+
+[[durable_objects.bindings]]
+name = "DEVHOOK_SESSION"
+class_name = "DevhookSession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DevhookSession"]

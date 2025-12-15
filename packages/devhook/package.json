@@ -1,0 +1,53 @@
+{
+  "name": "@blink-sdk/devhook",
+  "description": "Devhook - expose local servers via a public URL",
+  "version": "0.0.1",
+  "type": "module",
+  "keywords": [
+    "blink",
+    "devhook",
+    "tunnel",
+    "proxy",
+    "webhook"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Coder",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coder/blink.git"
+  },
+  "homepage": "https://github.com/coder/blink/tree/main/packages/devhook",
+  "bugs": {
+    "url": "https://github.com/coder/blink/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsgo --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "dependencies": {
+    "@blink-sdk/multiplexer": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "@types/ws": "^8.5.10",
+    "hono": "^4.7.10",
+    "tsdown": "^0.11.12",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.22.0"
+  }
+}
