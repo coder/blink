@@ -87,28 +87,18 @@ async function handleClientConnect(request: Request, env: Env): Promise<Response
 
   // Get or create the Durable Object for this session
   const sessionId = env.DEVHOOK_SESSION.idFromName(devhookId);
-  const session = env.DEVHOOK_SESSION.get(sessionId) as unknown as DevhookSession;
+  const session = env.DEVHOOK_SESSION.get(sessionId);
 
-  // Initialize the session if needed
-  const existingSecret = session.getClientSecret();
-  if (!existingSecret) {
-    await session.initialize(devhookId, clientSecret);
-  } else if (existingSecret !== clientSecret) {
-    // This shouldn't happen due to HMAC, but verify anyway
-    return new Response(
-      JSON.stringify({
-        error: "Invalid secret",
-        message: "The provided secret does not match the existing session.",
-      }),
-      {
-        status: 403,
-        headers: { "content-type": "application/json" },
-      }
-    );
-  }
+  // Forward to the Durable Object with the devhook ID in a header
+  // The DO will handle initialization internally
+  const headers = new Headers(request.headers);
+  headers.set("x-devhook-id", devhookId);
 
-  // Forward to the Durable Object
-  return session.fetch(request);
+  return session.fetch(new Request(request.url, {
+    method: request.method,
+    headers,
+    body: request.body,
+  }));
 }
 
 /**

@@ -29,7 +29,9 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsgo --noEmit",
-    "test": "vitest run",
+    "test": "vitest run src/devhook.test.ts",
+    "test:cloudflare": "vitest run src/cloudflare.test.ts",
+    "test:all": "vitest run",
     "test:watch": "vitest"
   },
   "exports": {

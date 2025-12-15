@@ -48,23 +48,6 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
   }
 
   /**
-   * Initialize the session with a devhook ID and client secret.
-   */
-  public async initialize(id: string, clientSecret: string): Promise<void> {
-    this.id = id;
-    this.clientSecret = clientSecret;
-    await this.ctx.storage.put("id", id);
-    await this.ctx.storage.put("clientSecret", clientSecret);
-  }
-
-  /**
-   * Get the stored client secret for verification.
-   */
-  public getClientSecret(): string | undefined {
-    return this.clientSecret;
-  }
-
-  /**
    * Check if a client is currently connected.
    */
   public isConnected(): boolean {
@@ -79,6 +62,17 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
 
     // Client connecting via WebSocket
     if (request.headers.get("upgrade") === "websocket") {
+      // Initialize session from the headers if needed
+      const devhookId = request.headers.get("x-devhook-id");
+      const clientSecret = request.headers.get("x-devhook-secret");
+
+      if (devhookId && clientSecret && !this.id) {
+        this.id = devhookId;
+        this.clientSecret = clientSecret;
+        await this.ctx.storage.put("id", devhookId);
+        await this.ctx.storage.put("clientSecret", clientSecret);
+      }
+
       return this.handleClientConnect(request);
     }
 
@@ -118,7 +112,10 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
       (async () => {
         // Small delay to ensure WebSocket is ready
         await new Promise((resolve) => setTimeout(resolve, 10));
-        server.send(JSON.stringify(connectionInfo));
+        // Check if WebSocket is still open before sending (1 = OPEN)
+        if (server.readyState === 1) {
+          server.send(JSON.stringify(connectionInfo));
+        }
       })()
     );
 
@@ -324,7 +321,7 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
     const mode = this.env.DEVHOOK_MODE || "wildcard";
 
     if (mode === "subpath") {
-      return `${baseUrl}/${this.id}`;
+      return `${baseUrl}/devhook/${this.id}`;
     } else {
       // Wildcard mode: insert ID as subdomain
       const url = new URL(baseUrl);
