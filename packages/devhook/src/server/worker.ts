@@ -115,24 +115,9 @@ export class Worker {
           writeQueue = writeQueue.then(() => writer.write(payload));
           break;
         }
-        case ClientMessageType.PROXY_WEBSOCKET_MESSAGE: {
-          this._onWebSocketMessage.emit({
-            stream: stream.id,
-            message: parseWebSocketMessagePayload(payload, this.decoder),
-          });
-          break;
-        }
-        case ClientMessageType.PROXY_WEBSOCKET_CLOSE: {
-          const closePayload = JSON.parse(
-            this.decoder.decode(payload)
-          ) as WebSocketClosePayload;
-          this._onWebSocketClose.emit({
-            stream: stream.id,
-            code: closePayload.code ?? 1000,
-            reason: closePayload.reason ?? "",
-          });
-          break;
-        }
+        // Note: PROXY_WEBSOCKET_MESSAGE and PROXY_WEBSOCKET_CLOSE are handled
+        // by bindStream() which is called for WebSocket upgrades. We don't
+        // handle them here to avoid duplicate event emissions.
       }
     });
 
