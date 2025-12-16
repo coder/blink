@@ -198,7 +198,7 @@ describe("compaction", () => {
       const tools = createCompactionTool();
       const compactionTool = tools[COMPACT_CONVERSATION_TOOL_NAME];
 
-      const result = (await compactionTool!.execute(
+      const result = (await compactionTool.execute!(
         { summary: "Test summary content" },
         { abortSignal: new AbortController().signal } as any
       )) as { summary: string; compacted_at: string; message: string };

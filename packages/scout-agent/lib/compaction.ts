@@ -1,4 +1,4 @@
-import { tool, type ModelMessage, APICallError } from "ai";
+import { tool, type Tool, type ModelMessage, APICallError } from "ai";
 import { z } from "zod";
 import type { Message } from "./types";
 
@@ -151,7 +151,10 @@ export function applyCompaction(messages: Message[]): Message[] {
  * Creates the compact_conversation tool.
  * This tool should be called by the model when the conversation is getting too long.
  */
-export function createCompactionTool() {
+export function createCompactionTool(): Record<
+  typeof COMPACT_CONVERSATION_TOOL_NAME,
+  Tool
+> {
   return {
     [COMPACT_CONVERSATION_TOOL_NAME]: tool({
       description: `Compact the conversation history to save context space. Call this tool when instructed that the conversation is approaching context limits. Provide a detailed and thorough summary that captures:

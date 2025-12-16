@@ -29,6 +29,7 @@ import {
   githubAppContextFactory,
   handleGitHubWebhook,
 } from "./github";
+import { applyCompaction, createCompactionTool } from "./compaction";
 import { defaultSystemPrompt } from "./prompt";
 import { createSlackApp, createSlackTools, getSlackMetadata } from "./slack";
 import type { Message } from "./types";
@@ -346,7 +347,16 @@ export class Scout {
         )()
       : undefined;
 
-    const slackMetadata = getSlackMetadata(messages);
+    // Apply compaction if a compaction summary exists in the message history
+    const compactedMessages = applyCompaction(messages);
+    const wasCompacted = compactedMessages.length !== messages.length;
+    if (wasCompacted) {
+      this.logger.info(
+        `Applied conversation compaction: ${messages.length} messages -> ${compactedMessages.length} messages`
+      );
+    }
+
+    const slackMetadata = getSlackMetadata(compactedMessages);
     const respondingInSlack =
       this.slack.app !== undefined && slackMetadata !== undefined;
 
@@ -447,6 +457,7 @@ export class Scout {
     }
 
     const tools = {
+      ...createCompactionTool(),
       ...(this.webSearch.config
         ? createWebSearchTools({ exaApiKey: this.webSearch.config.exaApiKey })
         : {}),
@@ -473,7 +484,7 @@ ${slack.formattingRules}
 </formatting-rules>`;
     }
 
-    const converted = convertToModelMessages(messages, {
+    const converted = convertToModelMessages(compactedMessages, {
       ignoreIncompleteToolCalls: true,
       tools,
     });
