@@ -171,16 +171,16 @@ describe("compaction", () => {
       expect(result.length).toBe(3);
 
       // First message should be the summary
-      expect(result[0].id).toBe("compaction-summary");
-      expect(result[0].role).toBe("user");
-      expect(result[0].parts[0].type).toBe("text");
-      expect((result[0].parts[0] as { text: string }).text).toInclude(
+      expect(result[0]!.id).toBe("compaction-summary");
+      expect(result[0]!.role).toBe("user");
+      expect(result[0]!.parts[0]!.type).toBe("text");
+      expect((result[0]!.parts[0] as { text: string }).text).toInclude(
         "Summary of old messages"
       );
 
       // Should include messages from compaction point onwards
-      expect(result[1].id).toBe("3");
-      expect(result[2].id).toBe("4");
+      expect(result[1]!.id).toBe("3");
+      expect(result[2]!.id).toBe("4");
     });
   });
 
@@ -198,7 +198,7 @@ describe("compaction", () => {
       const tools = createCompactionTool();
       const compactionTool = tools[COMPACT_CONVERSATION_TOOL_NAME];
 
-      const result = (await compactionTool.execute(
+      const result = (await compactionTool!.execute(
         { summary: "Test summary content" },
         { abortSignal: new AbortController().signal } as any
       )) as { summary: string; compacted_at: string; message: string };
