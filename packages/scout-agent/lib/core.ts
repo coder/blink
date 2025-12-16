@@ -7,6 +7,11 @@ import type { App } from "@slack/bolt";
 import { convertToModelMessages, type LanguageModel, type Tool } from "ai";
 import type * as blink from "blink";
 import {
+  DEFAULT_HARD_TOKEN_THRESHOLD,
+  DEFAULT_SOFT_TOKEN_THRESHOLD,
+  processCompaction,
+} from "./compaction";
+import {
   type CoderApiClient,
   type CoderWorkspaceInfo,
   getCoderWorkspaceClient,
@@ -29,13 +34,6 @@ import {
   githubAppContextFactory,
   handleGitHubWebhook,
 } from "./github";
-import {
-  applyCompaction,
-  countConversationTokens,
-  createCompactionTool,
-  createCompactionWarningMessage,
-  DEFAULT_TOKEN_THRESHOLD,
-} from "./compaction";
 import { defaultSystemPrompt } from "./prompt";
 import { createSlackApp, createSlackTools, getSlackMetadata } from "./slack";
 import type { Message } from "./types";
@@ -69,17 +67,19 @@ export interface BuildStreamTextParamsOptions {
   compaction?:
     | {
         /**
-         * Token threshold at which to show a compaction warning.
-         * When the conversation exceeds this threshold, a warning message
-         * is injected asking the model to call the compact_conversation tool.
-         * Default: 80,000 tokens
+         * Soft token threshold at which to trigger compaction.
+         * When the conversation exceeds this threshold, a message is injected
+         * asking the model to call the compact_conversation tool.
+         * Default: 180 000 tokens
          */
-        warningThreshold?: number;
+        softThreshold?: number;
         /**
-         * Model name used for token counting.
-         * Default: derived from the model parameter or "anthropic/claude-sonnet-4"
+         * Hard token threshold - max tokens to send for compaction.
+         * Messages beyond this limit are preserved and restored after compaction.
+         * Must be greater than softThreshold.
+         * Default: 190 000 tokens
          */
-        modelName?: string;
+        hardThreshold?: number;
       }
     | false;
 }
@@ -375,59 +375,26 @@ export class Scout {
         )()
       : undefined;
 
-    // Determine if compaction is enabled and get config values
+    // Process compaction if enabled
     const compactionEnabled = compactionConfig !== false;
-    const warningThreshold =
-      (compactionConfig !== false && compactionConfig?.warningThreshold) ||
-      Math.floor(DEFAULT_TOKEN_THRESHOLD * 0.8);
-    const compactionModelName =
-      (compactionConfig !== false && compactionConfig?.modelName) ||
-      (typeof model === "object" && "modelId" in model
-        ? model.modelId
-        : typeof model === "string"
-          ? model
-          : "anthropic/claude-sonnet-4");
+    const softTokenThreshold =
+      (compactionConfig !== false
+        ? compactionConfig?.softThreshold
+        : undefined) ?? DEFAULT_SOFT_TOKEN_THRESHOLD;
+    const hardTokenThreshold =
+      (compactionConfig !== false
+        ? compactionConfig?.hardThreshold
+        : undefined) ?? DEFAULT_HARD_TOKEN_THRESHOLD;
 
-    // Apply compaction if a compaction summary exists in the message history
-    let compactedMessages = applyCompaction(messages);
-    const wasCompacted = compactedMessages.length !== messages.length;
-    if (wasCompacted) {
-      this.logger.info(
-        `Applied conversation compaction: ${messages.length} messages -> ${compactedMessages.length} messages`
-      );
-    }
-
-    // Check token count and inject warning message if needed
-    let tokenCount: number | undefined;
-    let compactionWarningInjected = false;
-    if (compactionEnabled && compactedMessages.length > 0) {
-      // We need to convert messages to count tokens accurately
-      // For now, use a temporary conversion to count
-      const tempConverted = convertToModelMessages(compactedMessages, {
-        ignoreIncompleteToolCalls: true,
-      });
-      tokenCount = await countConversationTokens(
-        tempConverted,
-        compactionModelName
-      );
-
-      if (tokenCount >= warningThreshold) {
-        this.logger.warn(
-          `Conversation approaching context limit: ${tokenCount.toLocaleString()} tokens (threshold: ${warningThreshold.toLocaleString()})`
-        );
-
-        // Inject a compaction warning message at the end of the conversation
-        const warningMessage = createCompactionWarningMessage(
-          tokenCount,
-          warningThreshold
-        );
-        compactedMessages = [...compactedMessages, warningMessage];
-        compactionWarningInjected = true;
-        this.logger.info(
-          "Injected compaction warning message to prompt model to compact conversation"
-        );
-      }
-    }
+    const { messages: compactedMessages, compactionTool } = compactionEnabled
+      ? await processCompaction({
+          messages,
+          softTokenThreshold,
+          hardTokenThreshold,
+          model,
+          logger: this.logger,
+        })
+      : { messages, compactionTool: {} };
 
     const slackMetadata = getSlackMetadata(compactedMessages);
     const respondingInSlack =
@@ -530,7 +497,7 @@ export class Scout {
     }
 
     const tools = {
-      ...(compactionWarningInjected ? createCompactionTool() : {}),
+      ...compactionTool,
       ...(this.webSearch.config
         ? createWebSearchTools({ exaApiKey: this.webSearch.config.exaApiKey })
         : {}),
