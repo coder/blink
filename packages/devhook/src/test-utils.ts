@@ -5,7 +5,11 @@
  * so the same tests can run against both.
  */
 
-import { DevhookClient, type DevhookClientOptions } from "./client";
+import {
+  DevhookClient,
+  type DevhookClientOptions,
+  type WebSocketRequest,
+} from "./client";
 import { generateDevhookId } from "./server/crypto";
 
 /**
@@ -35,7 +39,7 @@ export interface TestClientOptions {
   server: TestServer;
   secret: string;
   localTargetPort?: number;
-  transformUrl?: (url: URL) => URL;
+  transformWebSocketRequest?: (request: WebSocketRequest) => WebSocketRequest;
   onRequest?: DevhookClientOptions["onRequest"];
   onConnect?: DevhookClientOptions["onConnect"];
   onDisconnect?: DevhookClientOptions["onDisconnect"];
@@ -46,25 +50,36 @@ export interface TestClientOptions {
  * Create a DevhookClient configured for testing.
  */
 export function createTestClient(opts: TestClientOptions): DevhookClient {
-  const { server, secret, localTargetPort, transformUrl, onRequest, ...rest } = opts;
+  const {
+    server,
+    secret,
+    localTargetPort,
+    transformWebSocketRequest,
+    onRequest,
+    ...rest
+  } = opts;
 
   return new DevhookClient({
     serverUrl: server.url,
     secret,
-    transformUrl: transformUrl ?? (localTargetPort
-      ? (url) => {
+    transformWebSocketRequest:
+      transformWebSocketRequest ??
+      (localTargetPort
+        ? ({ url, headers }) => {
+            url.host = `localhost:${localTargetPort}`;
+            return { url, headers };
+          }
+        : undefined),
+    onRequest:
+      onRequest ??
+      (async (req) => {
+        if (localTargetPort) {
+          const url = new URL(req.url);
           url.host = `localhost:${localTargetPort}`;
-          return url;
+          return fetch(new Request(url.toString(), req));
         }
-      : undefined),
-    onRequest: onRequest ?? (async (req) => {
-      if (localTargetPort) {
-        const url = new URL(req.url);
-        url.host = `localhost:${localTargetPort}`;
-        return fetch(new Request(url.toString(), req));
-      }
-      return new Response("No handler configured", { status: 500 });
-    }),
+        return new Response("No handler configured", { status: 500 });
+      }),
     ...rest,
   });
 }
@@ -72,21 +87,32 @@ export function createTestClient(opts: TestClientOptions): DevhookClient {
 /**
  * Helper to generate a devhook ID for testing.
  */
-export async function getDevhookId(clientSecret: string, serverSecret: string): Promise<string> {
+export async function getDevhookId(
+  clientSecret: string,
+  serverSecret: string
+): Promise<string> {
   return generateDevhookId(clientSecret, serverSecret);
 }
 
 /**
  * Helper to build the devhook URL for a given ID.
  */
-export function getDevhookUrl(server: TestServer, devhookId: string, path = ""): string {
+export function getDevhookUrl(
+  server: TestServer,
+  devhookId: string,
+  path = ""
+): string {
   return `${server.url}/devhook/${devhookId}${path}`;
 }
 
 /**
  * Helper to build the WebSocket URL for a devhook.
  */
-export function getDevhookWsUrl(server: TestServer, devhookId: string, path = ""): string {
+export function getDevhookWsUrl(
+  server: TestServer,
+  devhookId: string,
+  path = ""
+): string {
   const url = new URL(getDevhookUrl(server, devhookId, path));
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.toString();

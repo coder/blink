@@ -117,7 +117,9 @@ export function runSharedTests(
         await delay(200);
 
         const devhookId = await getDevhookId("get-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/api/data"));
+        const response = await fetch(
+          getDevhookUrl(server, devhookId, "/api/data")
+        );
 
         expect(response.status).toBe(200);
         expect(await response.text()).toBe("GET response");
@@ -144,11 +146,14 @@ export function runSharedTests(
         await delay(200);
 
         const devhookId = await getDevhookId("post-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/api/submit"), {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ name: "test", value: 123 }),
-        });
+        const response = await fetch(
+          getDevhookUrl(server, devhookId, "/api/submit"),
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ name: "test", value: 123 }),
+          }
+        );
 
         expect(response.status).toBe(200);
         const body = (await response.json()) as { received: boolean };
@@ -203,7 +208,7 @@ export function runSharedTests(
         await fetch(getDevhookUrl(server, devhookId, "/"), {
           headers: {
             "x-custom-header": "custom-value",
-            "authorization": "Bearer token123",
+            authorization: "Bearer token123",
           },
         });
 
@@ -232,7 +237,9 @@ export function runSharedTests(
         const devhookId = await getDevhookId("resp-headers-test", serverSecret);
         const response = await fetch(getDevhookUrl(server, devhookId, "/"));
 
-        expect(response.headers.get("x-custom-response")).toBe("response-value");
+        expect(response.headers.get("x-custom-response")).toBe(
+          "response-value"
+        );
         expect(response.headers.get("cache-control")).toBe("no-cache");
       });
 
@@ -253,13 +260,19 @@ export function runSharedTests(
 
         const devhookId = await getDevhookId("status-test", serverSecret);
 
-        const response201 = await fetch(getDevhookUrl(server, devhookId, "/?status=201"));
+        const response201 = await fetch(
+          getDevhookUrl(server, devhookId, "/?status=201")
+        );
         expect(response201.status).toBe(201);
 
-        const response404 = await fetch(getDevhookUrl(server, devhookId, "/?status=404"));
+        const response404 = await fetch(
+          getDevhookUrl(server, devhookId, "/?status=404")
+        );
         expect(response404.status).toBe(404);
 
-        const response500 = await fetch(getDevhookUrl(server, devhookId, "/?status=500"));
+        const response500 = await fetch(
+          getDevhookUrl(server, devhookId, "/?status=500")
+        );
         expect(response500.status).toBe(500);
       });
 
@@ -412,9 +425,9 @@ export function runSharedTests(
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-test",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -428,7 +441,9 @@ export function runSharedTests(
         await delay(200);
 
         const devhookId = await getDevhookId("ws-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
+        const externalWs = new WsClient(
+          getDevhookWsUrl(server, devhookId, "/ws")
+        );
 
         const externalMessages: string[] = [];
         await new Promise<void>((resolve, reject) => {
@@ -473,9 +488,9 @@ export function runSharedTests(
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-close-test",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -489,7 +504,9 @@ export function runSharedTests(
         await delay(200);
 
         const devhookId = await getDevhookId("ws-close-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
+        const externalWs = new WsClient(
+          getDevhookWsUrl(server, devhookId, "/ws")
+        );
 
         await new Promise<void>((resolve, reject) => {
           externalWs.on("open", () => {
@@ -534,9 +551,9 @@ export function runSharedTests(
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-concurrent-test",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -549,7 +566,10 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("ws-concurrent-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "ws-concurrent-test",
+          serverSecret
+        );
 
         // Create 5 concurrent WebSocket connections
         const numConnections = 5;
@@ -558,7 +578,9 @@ export function runSharedTests(
 
         for (let i = 0; i < numConnections; i++) {
           receivedMessages.set(i, []);
-          const ws = new WsClient(getDevhookWsUrl(server, devhookId, `/ws${i}`));
+          const ws = new WsClient(
+            getDevhookWsUrl(server, devhookId, `/ws${i}`)
+          );
           externalWsConnections.push(ws);
         }
 
@@ -572,7 +594,10 @@ export function runSharedTests(
                 ws.on("message", (data) => {
                   receivedMessages.get(i)!.push(data.toString());
                 });
-                setTimeout(() => reject(new Error(`Connection ${i} timeout`)), 5000);
+                setTimeout(
+                  () => reject(new Error(`Connection ${i} timeout`)),
+                  5000
+                );
               })
           )
         );
@@ -605,9 +630,11 @@ export function runSharedTests(
         const { WebSocketServer, WebSocket: WsClient } = await import("ws");
 
         const localWsServer1 = new WebSocketServer({ port: 0 });
-        const localWsPort1 = (localWsServer1.address() as { port: number }).port;
+        const localWsPort1 = (localWsServer1.address() as { port: number })
+          .port;
         const localWsServer2 = new WebSocketServer({ port: 0 });
-        const localWsPort2 = (localWsServer2.address() as { port: number }).port;
+        const localWsPort2 = (localWsServer2.address() as { port: number })
+          .port;
 
         const messages1: string[] = [];
         const messages2: string[] = [];
@@ -629,9 +656,9 @@ export function runSharedTests(
         const client1 = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-multi-1",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort1}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -643,9 +670,9 @@ export function runSharedTests(
         const client2 = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-multi-2",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort2}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -662,8 +689,12 @@ export function runSharedTests(
         const devhookId1 = await getDevhookId("ws-multi-1", serverSecret);
         const devhookId2 = await getDevhookId("ws-multi-2", serverSecret);
 
-        const externalWs1 = new WsClient(getDevhookWsUrl(server, devhookId1, "/ws"));
-        const externalWs2 = new WsClient(getDevhookWsUrl(server, devhookId2, "/ws"));
+        const externalWs1 = new WsClient(
+          getDevhookWsUrl(server, devhookId1, "/ws")
+        );
+        const externalWs2 = new WsClient(
+          getDevhookWsUrl(server, devhookId2, "/ws")
+        );
 
         const received1: string[] = [];
         const received2: string[] = [];
@@ -672,13 +703,17 @@ export function runSharedTests(
           new Promise<void>((resolve, reject) => {
             externalWs1.on("open", resolve);
             externalWs1.on("error", reject);
-            externalWs1.on("message", (data) => received1.push(data.toString()));
+            externalWs1.on("message", (data) =>
+              received1.push(data.toString())
+            );
             setTimeout(() => reject(new Error("Timeout ws1")), 5000);
           }),
           new Promise<void>((resolve, reject) => {
             externalWs2.on("open", resolve);
             externalWs2.on("error", reject);
-            externalWs2.on("message", (data) => received2.push(data.toString()));
+            externalWs2.on("message", (data) =>
+              received2.push(data.toString())
+            );
             setTimeout(() => reject(new Error("Timeout ws2")), 5000);
           }),
         ]);
@@ -719,9 +754,9 @@ export function runSharedTests(
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-isolate-test",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -788,73 +823,89 @@ export function runSharedTests(
 
       // Note: miniflare/wrangler dev can be slow with WebSocket close propagation
       // See: https://github.com/cloudflare/workers-sdk/issues/10307
-      it("should close proxied WebSockets when devhook client disconnects", { timeout: 30000 }, async () => {
-        let externalWsClosed = false;
+      it(
+        "should close proxied WebSockets when devhook client disconnects",
+        { timeout: 30000 },
+        async () => {
+          let externalWsClosed = false;
 
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
+          const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+          const localWsServer = new WebSocketServer({ port: 0 });
+          const localWsPort = (localWsServer.address() as { port: number })
+            .port;
 
-        localWsServer.on("connection", (ws) => {
-          ws.on("message", (data) => {
-            ws.send(data);
-          });
-        });
-
-        const client = new DevhookClient({
-          serverUrl: server.url,
-          secret: "ws-disconnect-test",
-          transformUrl: (url) => {
-            url.host = `localhost:${localWsPort}`;
-            return url;
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
-        });
-
-        const disposable = client.connect();
-        // Don't add to clientConnections - we'll manually dispose
-        await delay(200);
-
-        const devhookId = await getDevhookId("ws-disconnect-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
-
-        await new Promise<void>((resolve, reject) => {
-          externalWs.on("open", () => {
-            resolve();
-          });
-          externalWs.on("error", reject);
-          setTimeout(() => reject(new Error("Timeout connecting")), 5000);
-        });
-
-        // Disconnect the devhook client and wait for external WS to close
-        await new Promise<void>((resolve, reject) => {
-          externalWs.on("close", () => {
-            externalWsClosed = true;
-            resolve();
+          localWsServer.on("connection", (ws) => {
+            ws.on("message", (data) => {
+              ws.send(data);
+            });
           });
 
-          disposable.dispose();
+          const client = new DevhookClient({
+            serverUrl: server.url,
+            secret: "ws-disconnect-test",
+            transformWebSocketRequest: ({ url, headers }) => {
+              url.host = `localhost:${localWsPort}`;
+              return { url, headers };
+            },
+            onRequest: async (req) => {
+              const url = new URL(req.url);
+              url.host = `localhost:${localWsPort}`;
+              return fetch(new Request(url.toString(), req));
+            },
+          });
 
-          // Longer timeout for miniflare's slow WebSocket close handling
-          setTimeout(() => {
-            reject(new Error("External WS did not close after devhook client disconnect"));
-          }, 20000);
-        });
+          const disposable = client.connect();
+          // Don't add to clientConnections - we'll manually dispose
+          await delay(200);
 
-        expect(externalWsClosed).toBe(true);
+          const devhookId = await getDevhookId(
+            "ws-disconnect-test",
+            serverSecret
+          );
+          const externalWs = new WsClient(
+            getDevhookWsUrl(server, devhookId, "/ws")
+          );
 
-        localWsServer.close();
-      });
+          await new Promise<void>((resolve, reject) => {
+            externalWs.on("open", () => {
+              resolve();
+            });
+            externalWs.on("error", reject);
+            setTimeout(() => reject(new Error("Timeout connecting")), 5000);
+          });
+
+          // Disconnect the devhook client and wait for external WS to close
+          await new Promise<void>((resolve, reject) => {
+            externalWs.on("close", () => {
+              externalWsClosed = true;
+              resolve();
+            });
+
+            disposable.dispose();
+
+            // Longer timeout for miniflare's slow WebSocket close handling
+            setTimeout(() => {
+              reject(
+                new Error(
+                  "External WS did not close after devhook client disconnect"
+                )
+              );
+            }, 20000);
+          });
+
+          expect(externalWsClosed).toBe(true);
+
+          localWsServer.close();
+        }
+      );
 
       it("should return 503 when no client is connected for WebSocket", async () => {
         const { WebSocket: WsClient } = await import("ws");
         const devhookId = await getDevhookId("nonexistent-ws", serverSecret);
 
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
+        const externalWs = new WsClient(
+          getDevhookWsUrl(server, devhookId, "/ws")
+        );
 
         await new Promise<void>((resolve) => {
           externalWs.on("error", () => {
@@ -920,8 +971,14 @@ export function runSharedTests(
           onRequest: async () => {
             const headers = new Headers();
             // Expires date contains a comma - if joined with ", " this breaks
-            headers.append("Set-Cookie", "session=abc123; Expires=Thu, 01 Jan 2026 00:00:00 GMT; Path=/");
-            headers.append("Set-Cookie", "user=xyz; Expires=Fri, 02 Jan 2026 00:00:00 GMT; Path=/");
+            headers.append(
+              "Set-Cookie",
+              "session=abc123; Expires=Thu, 01 Jan 2026 00:00:00 GMT; Path=/"
+            );
+            headers.append(
+              "Set-Cookie",
+              "user=xyz; Expires=Fri, 02 Jan 2026 00:00:00 GMT; Path=/"
+            );
             return new Response("OK", { headers });
           },
         });
@@ -930,7 +987,10 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("cookie-expires-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "cookie-expires-test",
+          serverSecret
+        );
         const response = await fetch(getDevhookUrl(server, devhookId, "/"));
 
         expect(response.status).toBe(200);
@@ -938,8 +998,17 @@ export function runSharedTests(
         const setCookieHeaders = response.headers.getSetCookie();
         expect(setCookieHeaders).toHaveLength(2);
         // Each cookie should be intact with its Expires date
-        expect(setCookieHeaders.some(c => c.includes("session=abc123") && c.includes("Thu, 01 Jan 2026"))).toBe(true);
-        expect(setCookieHeaders.some(c => c.includes("user=xyz") && c.includes("Fri, 02 Jan 2026"))).toBe(true);
+        expect(
+          setCookieHeaders.some(
+            (c) =>
+              c.includes("session=abc123") && c.includes("Thu, 01 Jan 2026")
+          )
+        ).toBe(true);
+        expect(
+          setCookieHeaders.some(
+            (c) => c.includes("user=xyz") && c.includes("Fri, 02 Jan 2026")
+          )
+        ).toBe(true);
       });
 
       it("should preserve Set-Cookie with all attributes", async () => {
@@ -949,7 +1018,8 @@ export function runSharedTests(
           onRequest: async () => {
             return new Response("OK", {
               headers: {
-                "Set-Cookie": "session=abc; Path=/app; Domain=example.com; Secure; HttpOnly; SameSite=Strict; Max-Age=3600",
+                "Set-Cookie":
+                  "session=abc; Path=/app; Domain=example.com; Secure; HttpOnly; SameSite=Strict; Max-Age=3600",
               },
             });
           },
@@ -1028,10 +1098,13 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("multi-req-cookie-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "multi-req-cookie-test",
+          serverSecret
+        );
         await fetch(getDevhookUrl(server, devhookId, "/"), {
           headers: {
-            "Cookie": "a=1; b=2; c=3",
+            Cookie: "a=1; b=2; c=3",
           },
         });
 
@@ -1054,11 +1127,14 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("encoded-cookie-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "encoded-cookie-test",
+          serverSecret
+        );
         // URL-encoded value with special chars: hello=world; foo=bar
         await fetch(getDevhookUrl(server, devhookId, "/"), {
           headers: {
-            "Cookie": "data=hello%3Dworld%3B%20foo%3Dbar",
+            Cookie: "data=hello%3Dworld%3B%20foo%3Dbar",
           },
         });
 
@@ -1085,7 +1161,7 @@ export function runSharedTests(
         const devhookId = await getDevhookId("long-cookie-test", serverSecret);
         await fetch(getDevhookUrl(server, devhookId, "/"), {
           headers: {
-            "Cookie": `longcookie=${longValue}`,
+            Cookie: `longcookie=${longValue}`,
           },
         });
 
@@ -1111,7 +1187,7 @@ export function runSharedTests(
         const devhookId = await getDevhookId("empty-cookie-test", serverSecret);
         await fetch(getDevhookUrl(server, devhookId, "/"), {
           headers: {
-            "Cookie": "empty=",
+            Cookie: "empty=",
           },
         });
 
@@ -1134,11 +1210,14 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("unicode-cookie-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "unicode-cookie-test",
+          serverSecret
+        );
         // URL-encoded "值" (Chinese character for "value")
         await fetch(getDevhookUrl(server, devhookId, "/"), {
           headers: {
-            "Cookie": "name=%E5%80%BC",
+            Cookie: "name=%E5%80%BC",
           },
         });
 
@@ -1297,7 +1376,10 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("content-type-charset-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "content-type-charset-test",
+          serverSecret
+        );
         const response = await fetch(getDevhookUrl(server, devhookId, "/"));
 
         expect(response.status).toBe(200);
@@ -1322,12 +1404,17 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("accept-quality-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "accept-quality-test",
+          serverSecret
+        );
         await fetch(getDevhookUrl(server, devhookId, "/"), {
-          headers: { "Accept": "text/html, application/json;q=0.9, */*;q=0.8" },
+          headers: { Accept: "text/html, application/json;q=0.9, */*;q=0.8" },
         });
 
-        expect(receivedAccept).toBe("text/html, application/json;q=0.9, */*;q=0.8");
+        expect(receivedAccept).toBe(
+          "text/html, application/json;q=0.9, */*;q=0.8"
+        );
       });
 
       it("should handle headers with leading/trailing whitespace in values", async () => {
@@ -1346,7 +1433,10 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("whitespace-header-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "whitespace-header-test",
+          serverSecret
+        );
         await fetch(getDevhookUrl(server, devhookId, "/"), {
           headers: { "x-whitespace": "  value with spaces  " },
         });
@@ -1386,9 +1476,9 @@ export function runSharedTests(
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-utf8-test",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -1402,7 +1492,9 @@ export function runSharedTests(
         await delay(200);
 
         const devhookId = await getDevhookId("ws-utf8-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
+        const externalWs = new WsClient(
+          getDevhookWsUrl(server, devhookId, "/ws")
+        );
 
         await new Promise<void>((resolve, reject) => {
           externalWs.on("open", () => {
@@ -1425,69 +1517,79 @@ export function runSharedTests(
         localWsServer.close();
       });
 
-      it("should handle large binary messages", { timeout: 30000 }, async () => {
-        // Use 64KB - a reasonable size that should work across implementations
-        const largeData = new Uint8Array(64 * 1024);
-        for (let i = 0; i < largeData.length; i++) {
-          largeData[i] = i % 256;
+      it(
+        "should handle large binary messages",
+        { timeout: 30000 },
+        async () => {
+          // Use 64KB - a reasonable size that should work across implementations
+          const largeData = new Uint8Array(64 * 1024);
+          for (let i = 0; i < largeData.length; i++) {
+            largeData[i] = i % 256;
+          }
+
+          let receivedSize = 0;
+
+          const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+          const localWsServer = new WebSocketServer({ port: 0 });
+          const localWsPort = (localWsServer.address() as { port: number })
+            .port;
+
+          localWsServer.on("connection", (ws) => {
+            ws.on("message", (data) => {
+              const buf = data as Buffer;
+              receivedSize = buf.length;
+              ws.send(buf);
+            });
+          });
+
+          const client = new DevhookClient({
+            serverUrl: server.url,
+            secret: "ws-large-binary-test",
+            transformWebSocketRequest: ({ url, headers }) => {
+              url.host = `localhost:${localWsPort}`;
+              return { url, headers };
+            },
+            onRequest: async (req) => {
+              const url = new URL(req.url);
+              url.host = `localhost:${localWsPort}`;
+              return fetch(new Request(url.toString(), req));
+            },
+          });
+
+          const disposable = client.connect();
+          clientConnections.push(disposable);
+          await delay(200);
+
+          const devhookId = await getDevhookId(
+            "ws-large-binary-test",
+            serverSecret
+          );
+          const externalWs = new WsClient(
+            getDevhookWsUrl(server, devhookId, "/ws")
+          );
+
+          let echoedSize = 0;
+          await new Promise<void>((resolve, reject) => {
+            externalWs.on("open", () => {
+              externalWs.send(largeData);
+            });
+
+            externalWs.on("message", (data) => {
+              echoedSize = (data as Buffer).length;
+              resolve();
+            });
+
+            externalWs.on("error", reject);
+            setTimeout(() => reject(new Error("Timeout")), 25000);
+          });
+
+          expect(receivedSize).toBe(64 * 1024);
+          expect(echoedSize).toBe(64 * 1024);
+
+          externalWs.close();
+          localWsServer.close();
         }
-
-        let receivedSize = 0;
-
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
-
-        localWsServer.on("connection", (ws) => {
-          ws.on("message", (data) => {
-            const buf = data as Buffer;
-            receivedSize = buf.length;
-            ws.send(buf);
-          });
-        });
-
-        const client = new DevhookClient({
-          serverUrl: server.url,
-          secret: "ws-large-binary-test",
-          transformUrl: (url) => {
-            url.host = `localhost:${localWsPort}`;
-            return url;
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const devhookId = await getDevhookId("ws-large-binary-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
-
-        let echoedSize = 0;
-        await new Promise<void>((resolve, reject) => {
-          externalWs.on("open", () => {
-            externalWs.send(largeData);
-          });
-
-          externalWs.on("message", (data) => {
-            echoedSize = (data as Buffer).length;
-            resolve();
-          });
-
-          externalWs.on("error", reject);
-          setTimeout(() => reject(new Error("Timeout")), 25000);
-        });
-
-        expect(receivedSize).toBe(64 * 1024);
-        expect(echoedSize).toBe(64 * 1024);
-
-        externalWs.close();
-        localWsServer.close();
-      });
+      );
 
       it("should handle empty WebSocket messages", async () => {
         let receivedEmpty = false;
@@ -1508,9 +1610,9 @@ export function runSharedTests(
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-empty-msg-test",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -1524,7 +1626,9 @@ export function runSharedTests(
         await delay(200);
 
         const devhookId = await getDevhookId("ws-empty-msg-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
+        const externalWs = new WsClient(
+          getDevhookWsUrl(server, devhookId, "/ws")
+        );
 
         let receivedEmptyEcho = false;
         await new Promise<void>((resolve, reject) => {
@@ -1567,9 +1671,9 @@ export function runSharedTests(
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-rapid-test",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -1583,7 +1687,9 @@ export function runSharedTests(
         await delay(200);
 
         const devhookId = await getDevhookId("ws-rapid-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
+        const externalWs = new WsClient(
+          getDevhookWsUrl(server, devhookId, "/ws")
+        );
 
         await new Promise<void>((resolve, reject) => {
           externalWs.on("open", () => {
@@ -1629,9 +1735,9 @@ export function runSharedTests(
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-close-3000-test",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -1644,8 +1750,13 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("ws-close-3000-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
+        const devhookId = await getDevhookId(
+          "ws-close-3000-test",
+          serverSecret
+        );
+        const externalWs = new WsClient(
+          getDevhookWsUrl(server, devhookId, "/ws")
+        );
 
         await new Promise<void>((resolve, reject) => {
           externalWs.on("open", () => {
@@ -1681,9 +1792,9 @@ export function runSharedTests(
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-close-4000-test",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -1696,8 +1807,13 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("ws-close-4000-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
+        const devhookId = await getDevhookId(
+          "ws-close-4000-test",
+          serverSecret
+        );
+        const externalWs = new WsClient(
+          getDevhookWsUrl(server, devhookId, "/ws")
+        );
 
         await new Promise<void>((resolve, reject) => {
           externalWs.on("open", () => {
@@ -1717,59 +1833,69 @@ export function runSharedTests(
         localWsServer.close();
       });
 
-      it("should handle server-initiated WebSocket close", { timeout: 15000 }, async () => {
-        let clientReceivedClose = false;
-        let clientCloseCode: number | undefined;
+      it(
+        "should handle server-initiated WebSocket close",
+        { timeout: 15000 },
+        async () => {
+          let clientReceivedClose = false;
+          let clientCloseCode: number | undefined;
 
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
+          const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+          const localWsServer = new WebSocketServer({ port: 0 });
+          const localWsPort = (localWsServer.address() as { port: number })
+            .port;
 
-        localWsServer.on("connection", (ws) => {
-          // Server initiates close after connection
-          setTimeout(() => {
-            ws.close(1000, "Server closing");
-          }, 100);
-        });
-
-        const client = new DevhookClient({
-          serverUrl: server.url,
-          secret: "ws-server-close-test",
-          transformUrl: (url) => {
-            url.host = `localhost:${localWsPort}`;
-            return url;
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const devhookId = await getDevhookId("ws-server-close-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
-
-        await new Promise<void>((resolve, reject) => {
-          externalWs.on("close", (code) => {
-            clientReceivedClose = true;
-            clientCloseCode = code;
-            resolve();
+          localWsServer.on("connection", (ws) => {
+            // Server initiates close after connection
+            setTimeout(() => {
+              ws.close(1000, "Server closing");
+            }, 100);
           });
 
-          externalWs.on("error", reject);
-          // Miniflare can be slow with WebSocket close propagation
-          setTimeout(() => reject(new Error("Timeout")), 12000);
-        });
+          const client = new DevhookClient({
+            serverUrl: server.url,
+            secret: "ws-server-close-test",
+            transformWebSocketRequest: ({ url, headers }) => {
+              url.host = `localhost:${localWsPort}`;
+              return { url, headers };
+            },
+            onRequest: async (req) => {
+              const url = new URL(req.url);
+              url.host = `localhost:${localWsPort}`;
+              return fetch(new Request(url.toString(), req));
+            },
+          });
 
-        expect(clientReceivedClose).toBe(true);
-        expect(clientCloseCode).toBe(1000);
+          const disposable = client.connect();
+          clientConnections.push(disposable);
+          await delay(200);
 
-        localWsServer.close();
-      });
+          const devhookId = await getDevhookId(
+            "ws-server-close-test",
+            serverSecret
+          );
+          const externalWs = new WsClient(
+            getDevhookWsUrl(server, devhookId, "/ws")
+          );
+
+          await new Promise<void>((resolve, reject) => {
+            externalWs.on("close", (code) => {
+              clientReceivedClose = true;
+              clientCloseCode = code;
+              resolve();
+            });
+
+            externalWs.on("error", reject);
+            // Miniflare can be slow with WebSocket close propagation
+            setTimeout(() => reject(new Error("Timeout")), 12000);
+          });
+
+          expect(clientReceivedClose).toBe(true);
+          expect(clientCloseCode).toBe(1000);
+
+          localWsServer.close();
+        }
+      );
 
       it("should handle multiple WebSocket message exchanges", async () => {
         const { WebSocketServer, WebSocket: WsClient } = await import("ws");
@@ -1787,9 +1913,9 @@ export function runSharedTests(
         const client = new DevhookClient({
           serverUrl: server.url,
           secret: "ws-exchange-test",
-          transformUrl: (url) => {
+          transformWebSocketRequest: ({ url, headers }) => {
             url.host = `localhost:${localWsPort}`;
-            return url;
+            return { url, headers };
           },
           onRequest: async (req) => {
             const url = new URL(req.url);
@@ -1803,7 +1929,9 @@ export function runSharedTests(
         await delay(200);
 
         const devhookId = await getDevhookId("ws-exchange-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws"));
+        const externalWs = new WsClient(
+          getDevhookWsUrl(server, devhookId, "/ws")
+        );
 
         let clientMessageCount = 0;
 
@@ -1837,63 +1965,70 @@ export function runSharedTests(
         localWsServer.close();
       });
 
-      it("should handle WebSocket with query parameters", { timeout: 10000 }, async () => {
-        let receivedUrl: string | undefined;
+      it(
+        "should handle WebSocket with query parameters",
+        { timeout: 10000 },
+        async () => {
+          let receivedUrl: string | undefined;
 
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
+          const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+          const localWsServer = new WebSocketServer({ port: 0 });
+          const localWsPort = (localWsServer.address() as { port: number })
+            .port;
 
-        localWsServer.on("connection", (ws, req) => {
-          receivedUrl = req.url;
-          ws.send("connected");
-        });
-
-        const client = new DevhookClient({
-          serverUrl: server.url,
-          secret: "ws-query-test",
-          transformUrl: (url) => {
-            url.host = `localhost:${localWsPort}`;
-            return url;
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const devhookId = await getDevhookId("ws-query-test", serverSecret);
-        const externalWs = new WsClient(getDevhookWsUrl(server, devhookId, "/ws?token=abc123&user=test"));
-
-        await new Promise<void>((resolve, reject) => {
-          externalWs.on("open", () => {
-            // Give some time for the message to arrive
-            setTimeout(() => {
-              if (receivedUrl) {
-                resolve();
-              }
-            }, 500);
+          localWsServer.on("connection", (ws, req) => {
+            receivedUrl = req.url;
+            ws.send("connected");
           });
 
-          externalWs.on("message", () => {
-            resolve();
+          const client = new DevhookClient({
+            serverUrl: server.url,
+            secret: "ws-query-test",
+            transformWebSocketRequest: ({ url, headers }) => {
+              url.host = `localhost:${localWsPort}`;
+              return { url, headers };
+            },
+            onRequest: async (req) => {
+              const url = new URL(req.url);
+              url.host = `localhost:${localWsPort}`;
+              return fetch(new Request(url.toString(), req));
+            },
           });
 
-          externalWs.on("error", reject);
-          setTimeout(() => reject(new Error("Timeout")), 8000);
-        });
+          const disposable = client.connect();
+          clientConnections.push(disposable);
+          await delay(200);
 
-        expect(receivedUrl).toContain("token=abc123");
-        expect(receivedUrl).toContain("user=test");
+          const devhookId = await getDevhookId("ws-query-test", serverSecret);
+          const externalWs = new WsClient(
+            getDevhookWsUrl(server, devhookId, "/ws?token=abc123&user=test")
+          );
 
-        externalWs.close();
-        localWsServer.close();
-      });
+          await new Promise<void>((resolve, reject) => {
+            externalWs.on("open", () => {
+              // Give some time for the message to arrive
+              setTimeout(() => {
+                if (receivedUrl) {
+                  resolve();
+                }
+              }, 500);
+            });
+
+            externalWs.on("message", () => {
+              resolve();
+            });
+
+            externalWs.on("error", reject);
+            setTimeout(() => reject(new Error("Timeout")), 8000);
+          });
+
+          expect(receivedUrl).toContain("token=abc123");
+          expect(receivedUrl).toContain("user=test");
+
+          externalWs.close();
+          localWsServer.close();
+        }
+      );
     });
 
     describe("request/response body edge cases", () => {
@@ -1953,7 +2088,10 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("large-req-body-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "large-req-body-test",
+          serverSecret
+        );
         const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
           method: "POST",
           body: largeBody,
@@ -1978,7 +2116,10 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("large-resp-body-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "large-resp-body-test",
+          serverSecret
+        );
         const response = await fetch(getDevhookUrl(server, devhookId, "/"));
 
         expect(response.status).toBe(200);
@@ -1989,8 +2130,8 @@ export function runSharedTests(
       it("should handle binary request/response bodies", async () => {
         // PNG-like binary data with null bytes
         const binaryData = new Uint8Array([
-          0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-          0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+          0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+          0x0d, 0x49, 0x48, 0x44, 0x52,
         ]);
         let receivedBinary: Uint8Array | undefined;
 
@@ -2025,7 +2166,9 @@ export function runSharedTests(
       });
 
       it("should handle body with null bytes", async () => {
-        const dataWithNulls = new Uint8Array([0x00, 0x01, 0x00, 0x02, 0x00, 0x03]);
+        const dataWithNulls = new Uint8Array([
+          0x00, 0x01, 0x00, 0x02, 0x00, 0x03,
+        ]);
         let receivedData: Uint8Array | undefined;
 
         const client = new DevhookClient({
@@ -2112,7 +2255,9 @@ export function runSharedTests(
         });
 
         expect(response.status).toBe(200);
-        expect(receivedBody).toBe("name=test&value=hello%20world&special=%26%3D%3F");
+        expect(receivedBody).toBe(
+          "name=test&value=hello%20world&special=%26%3D%3F"
+        );
       });
     });
 
@@ -2155,7 +2300,10 @@ export function runSharedTests(
 
       it("should handle rapid reconnect cycles", async () => {
         const cycles = 5;
-        const devhookId = await getDevhookId("rapid-reconnect-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "rapid-reconnect-test",
+          serverSecret
+        );
 
         for (let i = 0; i < cycles; i++) {
           const client = new DevhookClient({
@@ -2176,38 +2324,42 @@ export function runSharedTests(
         }
       });
 
-      it("should handle many concurrent requests", { timeout: 30000 }, async () => {
-        const numRequests = 50;
-        let requestCount = 0;
+      it(
+        "should handle many concurrent requests",
+        { timeout: 30000 },
+        async () => {
+          const numRequests = 50;
+          let requestCount = 0;
 
-        const client = new DevhookClient({
-          serverUrl: server.url,
-          secret: "concurrent-test",
-          onRequest: async (req) => {
-            requestCount++;
-            const url = new URL(req.url);
-            return new Response(`request-${url.searchParams.get("n")}`);
-          },
-        });
+          const client = new DevhookClient({
+            serverUrl: server.url,
+            secret: "concurrent-test",
+            onRequest: async (req) => {
+              requestCount++;
+              const url = new URL(req.url);
+              return new Response(`request-${url.searchParams.get("n")}`);
+            },
+          });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+          const disposable = client.connect();
+          clientConnections.push(disposable);
+          await delay(200);
 
-        const devhookId = await getDevhookId("concurrent-test", serverSecret);
+          const devhookId = await getDevhookId("concurrent-test", serverSecret);
 
-        const promises = Array.from({ length: numRequests }, (_, i) =>
-          fetch(getDevhookUrl(server, devhookId, `/?n=${i}`))
-        );
+          const promises = Array.from({ length: numRequests }, (_, i) =>
+            fetch(getDevhookUrl(server, devhookId, `/?n=${i}`))
+          );
 
-        const responses = await Promise.all(promises);
+          const responses = await Promise.all(promises);
 
-        for (let i = 0; i < numRequests; i++) {
-          expect(responses[i]!.status).toBe(200);
+          for (let i = 0; i < numRequests; i++) {
+            expect(responses[i]!.status).toBe(200);
+          }
+
+          expect(requestCount).toBe(numRequests);
         }
-
-        expect(requestCount).toBe(numRequests);
-      });
+      );
 
       it("should return 503 immediately after client disconnect", async () => {
         const client = new DevhookClient({
@@ -2219,7 +2371,10 @@ export function runSharedTests(
         const disposable = client.connect();
         await delay(200);
 
-        const devhookId = await getDevhookId("immediate-503-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "immediate-503-test",
+          serverSecret
+        );
 
         // Verify client works
         const response1 = await fetch(getDevhookUrl(server, devhookId, "/"));
@@ -2233,41 +2388,48 @@ export function runSharedTests(
         expect(response2.status).toBe(503);
       });
 
-      it("should handle new client connection with same secret", { timeout: 10000 }, async () => {
-        const client1 = new DevhookClient({
-          serverUrl: server.url,
-          secret: "replace-client-test",
-          onRequest: async () => new Response("client1"),
-        });
+      it(
+        "should handle new client connection with same secret",
+        { timeout: 10000 },
+        async () => {
+          const client1 = new DevhookClient({
+            serverUrl: server.url,
+            secret: "replace-client-test",
+            onRequest: async () => new Response("client1"),
+          });
 
-        const disposable1 = client1.connect();
-        await delay(300);
+          const disposable1 = client1.connect();
+          await delay(300);
 
-        const devhookId = await getDevhookId("replace-client-test", serverSecret);
+          const devhookId = await getDevhookId(
+            "replace-client-test",
+            serverSecret
+          );
 
-        // Verify client1 works
-        const response1 = await fetch(getDevhookUrl(server, devhookId, "/"));
-        expect(await response1.text()).toBe("client1");
+          // Verify client1 works
+          const response1 = await fetch(getDevhookUrl(server, devhookId, "/"));
+          expect(await response1.text()).toBe("client1");
 
-        // Disconnect client1 first
-        disposable1.dispose();
-        await delay(100);
+          // Disconnect client1 first
+          disposable1.dispose();
+          await delay(100);
 
-        // Connect client2 with same secret
-        const client2 = new DevhookClient({
-          serverUrl: server.url,
-          secret: "replace-client-test",
-          onRequest: async () => new Response("client2"),
-        });
+          // Connect client2 with same secret
+          const client2 = new DevhookClient({
+            serverUrl: server.url,
+            secret: "replace-client-test",
+            onRequest: async () => new Response("client2"),
+          });
 
-        const disposable2 = client2.connect();
-        clientConnections.push(disposable2);
-        await delay(300);
+          const disposable2 = client2.connect();
+          clientConnections.push(disposable2);
+          await delay(300);
 
-        // Requests should now go to client2
-        const response2 = await fetch(getDevhookUrl(server, devhookId, "/"));
-        expect(await response2.text()).toBe("client2");
-      });
+          // Requests should now go to client2
+          const response2 = await fetch(getDevhookUrl(server, devhookId, "/"));
+          expect(await response2.text()).toBe("client2");
+        }
+      );
     });
 
     describe("error handling", () => {
@@ -2293,7 +2455,10 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("error-message-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "error-message-test",
+          serverSecret
+        );
         const response = await fetch(getDevhookUrl(server, devhookId, "/"));
 
         expect(response.status).toBe(502);
@@ -2315,14 +2480,19 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("rejected-promise-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "rejected-promise-test",
+          serverSecret
+        );
         const response = await fetch(getDevhookUrl(server, devhookId, "/"));
 
         expect(response.status).toBe(502);
       });
 
       it("should handle various HTTP status codes correctly", async () => {
-        const statusCodes = [200, 201, 204, 301, 302, 400, 401, 403, 404, 500, 502, 503];
+        const statusCodes = [
+          200, 201, 204, 301, 302, 400, 401, 403, 404, 500, 502, 503,
+        ];
 
         const client = new DevhookClient({
           serverUrl: server.url,
@@ -2345,7 +2515,9 @@ export function runSharedTests(
         const devhookId = await getDevhookId("status-codes-test", serverSecret);
 
         for (const status of statusCodes) {
-          const response = await fetch(getDevhookUrl(server, devhookId, `/?status=${status}`));
+          const response = await fetch(
+            getDevhookUrl(server, devhookId, `/?status=${status}`)
+          );
           expect(response.status).toBe(status);
         }
       });
@@ -2378,7 +2550,9 @@ export function runSharedTests(
         await delay(200);
 
         const devhookId = await getDevhookId("encoded-path-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/api/users/name%20with%20spaces"));
+        const response = await fetch(
+          getDevhookUrl(server, devhookId, "/api/users/name%20with%20spaces")
+        );
 
         expect(response.status).toBe(200);
         // Path should be decoded or preserved depending on implementation
@@ -2401,9 +2575,18 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("special-query-test", serverSecret);
+        const devhookId = await getDevhookId(
+          "special-query-test",
+          serverSecret
+        );
         // Encoded: & = ? in values
-        const response = await fetch(getDevhookUrl(server, devhookId, "/?search=hello%26world&name=foo%3Dbar"));
+        const response = await fetch(
+          getDevhookUrl(
+            server,
+            devhookId,
+            "/?search=hello%26world&name=foo%3Dbar"
+          )
+        );
 
         expect(response.status).toBe(200);
         expect(receivedQuery).toContain("search=hello%26world");
@@ -2427,7 +2610,9 @@ export function runSharedTests(
         await delay(200);
 
         const devhookId = await getDevhookId("double-slash-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/api//data///test"));
+        const response = await fetch(
+          getDevhookUrl(server, devhookId, "/api//data///test")
+        );
 
         expect(response.status).toBe(200);
         // Browsers/fetch may normalize slashes, but we should handle it
@@ -2546,7 +2731,9 @@ export function runSharedTests(
 
         expect(response.status).toBe(204);
         expect(response.headers.get("access-control-allow-origin")).toBe("*");
-        expect(response.headers.get("access-control-allow-methods")).toContain("POST");
+        expect(response.headers.get("access-control-allow-methods")).toContain(
+          "POST"
+        );
       });
     });
   });

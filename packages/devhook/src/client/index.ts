@@ -12,6 +12,15 @@ import {
   type WebSocketClosePayload,
 } from "../schema";
 
+/**
+ * Represents a WebSocket connection request that can be transformed
+ * before the connection is established to the local server.
+ */
+export interface WebSocketRequest {
+  url: URL;
+  headers: Record<string, string>;
+}
+
 export interface DevhookClientOptions {
   /**
    * The devhook server URL.
@@ -49,19 +58,22 @@ export interface DevhookClientOptions {
   onError?: (error: unknown) => void;
 
   /**
-   * Transform the incoming URL to point to the local target.
-   * This is used for both HTTP requests (via onRequest) and WebSocket connections.
-   * If not provided, URLs are used as-is.
+   * Transform WebSocket connection requests before they are proxied to the local server.
+   * Allows modifying both the target URL and headers.
+   * If not provided, WebSocket requests are proxied as-is.
+   *
+   * Note: This only applies to WebSocket connections. HTTP requests should be
+   * transformed in the `onRequest` callback.
    *
    * @example
    * ```ts
-   * transformUrl: (url) => {
+   * transformWebSocketRequest: ({ url, headers }) => {
    *   url.host = "localhost:3000";
-   *   return url;
+   *   return { url, headers };
    * }
    * ```
    */
-  transformUrl?: (url: URL) => URL;
+  transformWebSocketRequest?: (request: WebSocketRequest) => WebSocketRequest;
 }
 
 /**
@@ -400,20 +412,29 @@ export class DevhookClient {
     init: ProxyInitRequest
   ): Promise<void> {
     try {
-      // Transform the URL using the same pattern as onRequest
-      // This allows the user to map the devhook URL to the local target
+      // Transform the WebSocket request (URL and headers) before connecting
       let targetUrl = new URL(init.url);
+      let targetHeaders = { ...init.headers };
 
-      if (this.opts.transformUrl) {
-        targetUrl = this.opts.transformUrl(targetUrl);
+      if (this.opts.transformWebSocketRequest) {
+        const transformed = this.opts.transformWebSocketRequest({
+          url: targetUrl,
+          headers: targetHeaders,
+        });
+        targetUrl = transformed.url;
+        targetHeaders = transformed.headers;
       }
 
       targetUrl.protocol = targetUrl.protocol === "https:" ? "wss:" : "ws:";
 
-      const ws = new WebSocket(targetUrl.toString(), init.headers["sec-websocket-protocol"], {
-        headers: init.headers,
-        perMessageDeflate: false,
-      });
+      const ws = new WebSocket(
+        targetUrl.toString(),
+        targetHeaders["sec-websocket-protocol"],
+        {
+          headers: targetHeaders,
+          perMessageDeflate: false,
+        }
+      );
 
       ws.on("open", () => {
         const proxyInit: ProxyInitResponse = {

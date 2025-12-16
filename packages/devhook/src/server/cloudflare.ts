@@ -52,7 +52,10 @@ export default {
 /**
  * Handle a client connecting to establish a devhook.
  */
-async function handleClientConnect(request: Request, env: Env): Promise<Response> {
+async function handleClientConnect(
+  request: Request,
+  env: Env
+): Promise<Response> {
   // Verify WebSocket upgrade
   if (request.headers.get("upgrade") !== "websocket") {
     return new Response(
@@ -94,11 +97,13 @@ async function handleClientConnect(request: Request, env: Env): Promise<Response
   const headers = new Headers(request.headers);
   headers.set("x-devhook-id", devhookId);
 
-  return session.fetch(new Request(request.url, {
-    method: request.method,
-    headers,
-    body: request.body,
-  }));
+  return session.fetch(
+    new Request(request.url, {
+      method: request.method,
+      headers,
+      body: request.body,
+    })
+  );
 }
 
 /**
@@ -140,7 +145,9 @@ async function handleProxyRequest(
   devhookId: string
 ): Promise<Response> {
   const sessionId = env.DEVHOOK_SESSION.idFromName(devhookId);
-  const session = env.DEVHOOK_SESSION.get(sessionId) as unknown as DevhookSession;
+  const session = env.DEVHOOK_SESSION.get(
+    sessionId
+  ) as unknown as DevhookSession;
 
   // Build the proxy URL
   const url = new URL(request.url);

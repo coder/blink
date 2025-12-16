@@ -81,7 +81,9 @@ export async function generateDevhookId(
     const msg = enc.encode(`${DOMAIN}\0${clientSecret}\0${ctr}`);
 
     // HMAC the message. WebCrypto returns an ArrayBuffer; wrap in Uint8Array for byte access.
-    const mac = new Uint8Array(await crypto.subtle.sign("HMAC", cryptoKey, msg));
+    const mac = new Uint8Array(
+      await crypto.subtle.sign("HMAC", cryptoKey, msg)
+    );
 
     // Try two 128-bit candidates per MAC output.
     for (const off of [0, 16]) {

@@ -45,7 +45,11 @@ describe("devhook", () => {
       const isValid = await verifyDevhookId(id, CLIENT_SECRET, SERVER_SECRET);
       expect(isValid).toBe(true);
 
-      const isInvalid = await verifyDevhookId(id, "wrong-secret", SERVER_SECRET);
+      const isInvalid = await verifyDevhookId(
+        id,
+        "wrong-secret",
+        SERVER_SECRET
+      );
       expect(isInvalid).toBe(false);
     });
 
@@ -80,5 +84,9 @@ describe("devhook", () => {
   });
 
   // Run shared tests against local server
-  runSharedTests("local", createLocalServerFactory(SERVER_SECRET), SERVER_SECRET);
+  runSharedTests(
+    "local",
+    createLocalServerFactory(SERVER_SECRET),
+    SERVER_SECRET
+  );
 });

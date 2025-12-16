@@ -62,6 +62,10 @@
  * ```
  */
 
-export { DevhookClient, type DevhookClientOptions } from "./client";
+export {
+  DevhookClient,
+  type DevhookClientOptions,
+  type WebSocketRequest,
+} from "./client";
 export type { Disposable } from "./emitter";
 export type { ConnectionEstablished } from "./schema";

@@ -61,7 +61,10 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
     const url = new URL(request.url);
 
     // Proxy request (check BEFORE WebSocket upgrade since proxied WS also has upgrade header)
-    if (url.pathname === "/proxy" || request.headers.has("x-devhook-proxy-url")) {
+    if (
+      url.pathname === "/proxy" ||
+      request.headers.has("x-devhook-proxy-url")
+    ) {
       return this.handleProxyRequest(request);
     }
 
@@ -168,7 +171,10 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
           type: "proxied",
           streamID: response.stream,
         });
-        this.ctx.acceptWebSocket(server, ["proxied", response.stream.toString()]);
+        this.ctx.acceptWebSocket(server, [
+          "proxied",
+          response.stream.toString(),
+        ]);
 
         return new Response(null, {
           status: 101,
@@ -241,7 +247,10 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
   /**
    * Handle WebSocket close.
    */
-  public override async webSocketClose(ws: WebSocket, code: number): Promise<void> {
+  public override async webSocketClose(
+    ws: WebSocket,
+    code: number
+  ): Promise<void> {
     const state = ws.deserializeAttachment();
 
     switch (state.type) {

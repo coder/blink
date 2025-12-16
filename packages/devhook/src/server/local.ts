@@ -107,7 +107,12 @@ export function createLocalServer(opts: LocalServerOptions): {
     }
 
     // Extract devhook ID
-    const devhookId = extractDevhookId(url, opts.baseUrl, mode, req.headers.host);
+    const devhookId = extractDevhookId(
+      url,
+      opts.baseUrl,
+      mode,
+      req.headers.host
+    );
     if (!devhookId) {
       res.writeHead(404, { "content-type": "application/json" });
       res.end(
@@ -175,7 +180,8 @@ export function createLocalServer(opts: LocalServerOptions): {
         res.end(
           JSON.stringify({
             error: "Bad request",
-            message: "WebSocket upgrade requests must use the WebSocket protocol.",
+            message:
+              "WebSocket upgrade requests must use the WebSocket protocol.",
           })
         );
         return;
@@ -331,7 +337,12 @@ export function createLocalServer(opts: LocalServerOptions): {
     }
 
     // Handle proxied WebSocket connections (external -> devhook -> local)
-    const devhookId = extractDevhookId(url, opts.baseUrl, mode, req.headers.host);
+    const devhookId = extractDevhookId(
+      url,
+      opts.baseUrl,
+      mode,
+      req.headers.host
+    );
     if (!devhookId) {
       socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
       socket.destroy();
@@ -339,7 +350,12 @@ export function createLocalServer(opts: LocalServerOptions): {
     }
 
     const session = sessions.get(devhookId);
-    if (!session || !session.ws || session.ws.readyState !== WebSocket.OPEN || !session.worker) {
+    if (
+      !session ||
+      !session.ws ||
+      session.ws.readyState !== WebSocket.OPEN ||
+      !session.worker
+    ) {
       socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
       socket.destroy();
       return;
@@ -374,7 +390,9 @@ export function createLocalServer(opts: LocalServerOptions): {
 
       if (!response.upgrade) {
         // The local server didn't accept the WebSocket upgrade
-        socket.write(`HTTP/1.1 ${response.status} ${response.statusText}\r\n\r\n`);
+        socket.write(
+          `HTTP/1.1 ${response.status} ${response.statusText}\r\n\r\n`
+        );
         socket.destroy();
         return;
       }
@@ -388,11 +406,12 @@ export function createLocalServer(opts: LocalServerOptions): {
 
         // Forward messages from external WebSocket to devhook client
         externalWs.on("message", (data: Buffer | ArrayBuffer | Buffer[]) => {
-          const payload = data instanceof ArrayBuffer
-            ? new Uint8Array(data)
-            : Array.isArray(data)
-              ? Buffer.concat(data)
-              : data;
+          const payload =
+            data instanceof ArrayBuffer
+              ? new Uint8Array(data)
+              : Array.isArray(data)
+                ? Buffer.concat(data)
+                : data;
           worker.sendProxiedWebSocketMessage(streamID, payload);
         });
 

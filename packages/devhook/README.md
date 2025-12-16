@@ -24,10 +24,10 @@ import { DevhookClient } from "@blink-sdk/devhook";
 const client = new DevhookClient({
   serverUrl: "https://devhook.example.com",
   secret: "my-secret-key",
-  // Transform URLs to point to your local server (used for WebSocket connections)
-  transformUrl: (url) => {
+  // Transform WebSocket requests to point to your local server
+  transformWebSocketRequest: ({ url, headers }) => {
     url.host = "localhost:3000";
-    return url;
+    return { url, headers };
   },
   // Handle HTTP requests
   onRequest: async (req) => {
@@ -132,6 +132,7 @@ const server = createLocalServer({
 4. This becomes the devhook ID (subdomain or path prefix)
 
 This means:
+
 - The same client secret always produces the same URL
 - URLs cannot be guessed without knowing the client secret
 - Different server secrets produce different URLs
@@ -178,8 +179,11 @@ interface DevhookClientOptions {
   /** Client secret for URL generation */
   secret: string;
 
-  /** Transform URL to point to local server (used for WebSocket connections) */
-  transformUrl?: (url: URL) => URL;
+  /** Transform WebSocket requests before proxying to local server */
+  transformWebSocketRequest?: (request: {
+    url: URL;
+    headers: Record<string, string>;
+  }) => { url: URL; headers: Record<string, string> };
 
   /** Handle incoming proxied HTTP requests */
   onRequest: (request: Request) => Promise<Response>;

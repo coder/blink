@@ -20,29 +20,28 @@ interface CloudflareTestServer extends TestServer {
 /**
  * Create a Cloudflare Worker server for testing using wrangler's unstable_dev.
  */
-export async function createCloudflareTestServer(secret: string): Promise<CloudflareTestServer> {
+export async function createCloudflareTestServer(
+  secret: string
+): Promise<CloudflareTestServer> {
   // Use a specific port for the worker
   const port = 9787 + Math.floor(Math.random() * 1000);
 
   // Use the wrangler.toml for proper Durable Object configuration
-  const worker = await unstable_dev(
-    join(__dirname, "cloudflare.ts"),
-    {
-      experimental: {
-        disableExperimentalWarning: true,
-      },
-      // Use wrangler.toml for DO bindings but override vars
-      config: join(packageRoot, "wrangler.toml"),
-      vars: {
-        DEVHOOK_SECRET: secret,
-        DEVHOOK_BASE_URL: `http://localhost:${port}`,
-        DEVHOOK_MODE: "subpath",
-      },
-      local: true,
-      persist: false,
-      port,
-    }
-  );
+  const worker = await unstable_dev(join(__dirname, "cloudflare.ts"), {
+    experimental: {
+      disableExperimentalWarning: true,
+    },
+    // Use wrangler.toml for DO bindings but override vars
+    config: join(packageRoot, "wrangler.toml"),
+    vars: {
+      DEVHOOK_SECRET: secret,
+      DEVHOOK_BASE_URL: `http://localhost:${port}`,
+      DEVHOOK_MODE: "subpath",
+    },
+    local: true,
+    persist: false,
+    port,
+  });
 
   const url = `http://127.0.0.1:${port}`;
 
@@ -73,6 +72,8 @@ export async function createCloudflareTestServer(secret: string): Promise<Cloudf
 /**
  * Factory for creating Cloudflare test servers.
  */
-export const createCloudflareServerFactory = (secret: string): TestServerFactory => {
+export const createCloudflareServerFactory = (
+  secret: string
+): TestServerFactory => {
   return async () => createCloudflareTestServer(secret);
 };
