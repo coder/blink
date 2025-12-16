@@ -530,7 +530,7 @@ export class Scout {
     }
 
     const tools = {
-      ...createCompactionTool(),
+      ...(compactionWarningInjected ? createCompactionTool() : {}),
       ...(this.webSearch.config
         ? createWebSearchTools({ exaApiKey: this.webSearch.config.exaApiKey })
         : {}),

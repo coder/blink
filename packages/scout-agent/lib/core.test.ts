@@ -954,7 +954,7 @@ describe("coder integration", () => {
 });
 
 describe("compaction", () => {
-  test("buildStreamTextParams includes compaction tool by default", async () => {
+  test("buildStreamTextParams does not include compaction tool when under threshold", async () => {
     const agent = new blink.Agent<Message>();
     const scout = new Scout({
       agent,
@@ -973,8 +973,8 @@ describe("compaction", () => {
       model: newMockModel({ textResponse: "test" }),
     });
 
-    // Verify compaction tool is included
-    expect(params.tools[COMPACT_CONVERSATION_TOOL_NAME]).toBeDefined();
+    // Verify compaction tool is NOT included when under threshold
+    expect(params.tools[COMPACT_CONVERSATION_TOOL_NAME]).toBeUndefined();
   });
 
   test("buildStreamTextParams applies existing compaction summary", async () => {
@@ -1106,6 +1106,9 @@ describe("compaction", () => {
         m.content.includes("CONTEXT LIMIT WARNING")
     );
     expect(lastUserMessage).toBeDefined();
+
+    // Verify compaction tool IS available when warning is injected
+    expect(params.tools[COMPACT_CONVERSATION_TOOL_NAME]).toBeDefined();
   });
 
   test("buildStreamTextParams respects compaction: false to disable", async () => {
@@ -1136,8 +1139,8 @@ describe("compaction", () => {
       compaction: false,
     });
 
-    // Compaction tool should still be available (for manual use)
-    expect(params.tools[COMPACT_CONVERSATION_TOOL_NAME]).toBeDefined();
+    // Compaction tool should NOT be available when compaction is disabled
+    expect(params.tools[COMPACT_CONVERSATION_TOOL_NAME]).toBeUndefined();
 
     // No warning should be logged even with messages
     const warningLog = warnLogs.find((l) =>
