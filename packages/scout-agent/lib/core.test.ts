@@ -17,7 +17,11 @@ import {
   mockCoderWorkspace,
   noopLogger,
 } from "./compute/test-utils";
-import { type Message, Scout } from "./index";
+import {
+  COMPACT_CONVERSATION_TOOL_NAME,
+  type Message,
+  Scout,
+} from "./index";
 import { createMockBlinkApiServer, withBlinkApiUrl } from "./test-helpers";
 
 // Add async iterator support to ReadableStream for testing
@@ -946,5 +950,245 @@ describe("coder integration", () => {
 
     // Verify getAppHost was called (may be called multiple times during init and client creation)
     expect(mockClient.getAppHost).toHaveBeenCalled();
+  });
+});
+
+describe("compaction", () => {
+  test("buildStreamTextParams includes compaction tool by default", async () => {
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger: noopLogger,
+    });
+
+    const params = await scout.buildStreamTextParams({
+      chatID: "test-chat-id" as blink.ID,
+      messages: [
+        {
+          id: "1",
+          role: "user",
+          parts: [{ type: "text", text: "Hello" }],
+        },
+      ],
+      model: newMockModel({ textResponse: "test" }),
+    });
+
+    // Verify compaction tool is included
+    expect(params.tools[COMPACT_CONVERSATION_TOOL_NAME]).toBeDefined();
+  });
+
+  test("buildStreamTextParams applies existing compaction summary", async () => {
+    const infoLogs: string[] = [];
+    const mockLogger = {
+      ...noopLogger,
+      info: (...args: unknown[]) => {
+        infoLogs.push(args.map(String).join(" "));
+      },
+    };
+
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger: mockLogger,
+    });
+
+    // Create messages with an existing compaction summary
+    const messagesWithCompaction: Message[] = [
+      {
+        id: "1",
+        role: "user",
+        parts: [{ type: "text", text: "Old message 1" }],
+      },
+      {
+        id: "2",
+        role: "assistant",
+        parts: [{ type: "text", text: "Old response 1" }],
+      },
+      {
+        id: "3",
+        role: "assistant",
+        parts: [
+          {
+            type: `tool-${COMPACT_CONVERSATION_TOOL_NAME}`,
+            toolCallId: "tool-call-1",
+            state: "output-available",
+            input: { summary: "Summary of old messages" },
+            output: { summary: "Summary of old messages" },
+          } as unknown as Message["parts"][number],
+        ],
+      },
+      {
+        id: "4",
+        role: "user",
+        parts: [{ type: "text", text: "New message after compaction" }],
+      },
+    ];
+
+    const params = await scout.buildStreamTextParams({
+      chatID: "test-chat-id" as blink.ID,
+      messages: messagesWithCompaction,
+      model: newMockModel({ textResponse: "test" }),
+      // Disable warning threshold to avoid token counting affecting message count
+      compaction: {
+        warningThreshold: Number.MAX_SAFE_INTEGER,
+      },
+    });
+
+    // Verify that compaction was applied (log message)
+    const compactionLog = infoLogs.find((l) =>
+      l.includes("Applied conversation compaction")
+    );
+    expect(compactionLog).toBeDefined();
+    expect(compactionLog).toInclude("4 messages -> 3 messages");
+
+    // Verify messages were processed: should have system + summary + compaction msg + new msg
+    // The converted messages include: system prompt, compaction-summary user msg, 
+    // the assistant msg with tool output, and the new user msg
+    expect(params.messages.length).toBe(4);
+  });
+
+  test("buildStreamTextParams injects warning when token threshold exceeded", async () => {
+    const warnLogs: string[] = [];
+    const infoLogs: string[] = [];
+    const mockLogger = {
+      ...noopLogger,
+      warn: (...args: unknown[]) => {
+        warnLogs.push(args.map(String).join(" "));
+      },
+      info: (...args: unknown[]) => {
+        infoLogs.push(args.map(String).join(" "));
+      },
+    };
+
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger: mockLogger,
+    });
+
+    // Create a message that will exceed a very low threshold
+    const params = await scout.buildStreamTextParams({
+      chatID: "test-chat-id" as blink.ID,
+      messages: [
+        {
+          id: "1",
+          role: "user",
+          parts: [{ type: "text", text: "Hello world, this is a test message." }],
+        },
+      ],
+      model: newMockModel({ textResponse: "test" }),
+      compaction: {
+        // Set a very low threshold so any message exceeds it
+        warningThreshold: 1,
+        maxTokenThreshold: 100,
+      },
+    });
+
+    // Verify warning was logged
+    const warningLog = warnLogs.find((l) =>
+      l.includes("approaching context limit")
+    );
+    expect(warningLog).toBeDefined();
+
+    // Verify info log about injection
+    const injectionLog = infoLogs.find((l) =>
+      l.includes("Injected compaction warning")
+    );
+    expect(injectionLog).toBeDefined();
+
+    // Verify warning message was injected (system + user + warning = 3 messages)
+    expect(params.messages.length).toBe(3);
+
+    // Check that the last message (before system prepend) contains compaction warning
+    const lastUserMessage = params.messages.find(
+      (m) =>
+        m.role === "user" &&
+        typeof m.content === "string" &&
+        m.content.includes("CONTEXT LIMIT WARNING")
+    );
+    expect(lastUserMessage).toBeDefined();
+  });
+
+  test("buildStreamTextParams respects compaction: false to disable", async () => {
+    const warnLogs: string[] = [];
+    const mockLogger = {
+      ...noopLogger,
+      warn: (...args: unknown[]) => {
+        warnLogs.push(args.map(String).join(" "));
+      },
+    };
+
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger: mockLogger,
+    });
+
+    const params = await scout.buildStreamTextParams({
+      chatID: "test-chat-id" as blink.ID,
+      messages: [
+        {
+          id: "1",
+          role: "user",
+          parts: [{ type: "text", text: "Hello world, this is a test message." }],
+        },
+      ],
+      model: newMockModel({ textResponse: "test" }),
+      compaction: false,
+    });
+
+    // Compaction tool should still be available (for manual use)
+    expect(params.tools[COMPACT_CONVERSATION_TOOL_NAME]).toBeDefined();
+
+    // No warning should be logged even with messages
+    const warningLog = warnLogs.find((l) =>
+      l.includes("approaching context limit")
+    );
+    expect(warningLog).toBeUndefined();
+
+    // Only system + user message (no warning injected)
+    expect(params.messages.length).toBe(2);
+  });
+
+  test("buildStreamTextParams uses custom thresholds", async () => {
+    const warnLogs: string[] = [];
+    const mockLogger = {
+      ...noopLogger,
+      warn: (...args: unknown[]) => {
+        warnLogs.push(args.map(String).join(" "));
+      },
+    };
+
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger: mockLogger,
+    });
+
+    // With a very high threshold, no warning should be injected
+    const params = await scout.buildStreamTextParams({
+      chatID: "test-chat-id" as blink.ID,
+      messages: [
+        {
+          id: "1",
+          role: "user",
+          parts: [{ type: "text", text: "Hello" }],
+        },
+      ],
+      model: newMockModel({ textResponse: "test" }),
+      compaction: {
+        warningThreshold: 1_000_000, // Very high threshold
+        maxTokenThreshold: 2_000_000,
+      },
+    });
+
+    // No warning should be logged
+    const warningLog = warnLogs.find((l) =>
+      l.includes("approaching context limit")
+    );
+    expect(warningLog).toBeUndefined();
+
+    // Only system + user message
+    expect(params.messages.length).toBe(2);
   });
 });
