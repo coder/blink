@@ -1080,7 +1080,6 @@ describe("compaction", () => {
       compaction: {
         // Set a very low threshold so any message exceeds it
         warningThreshold: 1,
-        maxTokenThreshold: 100,
       },
     });
 
@@ -1178,7 +1177,6 @@ describe("compaction", () => {
       model: newMockModel({ textResponse: "test" }),
       compaction: {
         warningThreshold: 1_000_000, // Very high threshold
-        maxTokenThreshold: 2_000_000,
       },
     });
 

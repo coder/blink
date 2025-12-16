@@ -72,15 +72,9 @@ export interface BuildStreamTextParamsOptions {
          * Token threshold at which to show a compaction warning.
          * When the conversation exceeds this threshold, a warning message
          * is injected asking the model to call the compact_conversation tool.
-         * Default: 80% of maxTokenThreshold (80,000 tokens)
+         * Default: 80,000 tokens
          */
         warningThreshold?: number;
-        /**
-         * Maximum token threshold for the conversation.
-         * Used to calculate the percentage in the warning message.
-         * Default: 100,000 tokens
-         */
-        maxTokenThreshold?: number;
         /**
          * Model name used for token counting.
          * Default: derived from the model parameter or "anthropic/claude-sonnet-4"
@@ -383,12 +377,9 @@ export class Scout {
 
     // Determine if compaction is enabled and get config values
     const compactionEnabled = compactionConfig !== false;
-    const maxTokenThreshold =
-      (compactionConfig !== false && compactionConfig?.maxTokenThreshold) ||
-      DEFAULT_TOKEN_THRESHOLD;
     const warningThreshold =
       (compactionConfig !== false && compactionConfig?.warningThreshold) ||
-      Math.floor(maxTokenThreshold * 0.8);
+      Math.floor(DEFAULT_TOKEN_THRESHOLD * 0.8);
     const compactionModelName =
       (compactionConfig !== false && compactionConfig?.modelName) ||
       (typeof model === "object" && "modelId" in model
@@ -428,7 +419,7 @@ export class Scout {
         // Inject a compaction warning message at the end of the conversation
         const warningMessage = createCompactionWarningMessage(
           tokenCount,
-          maxTokenThreshold
+          warningThreshold
         );
         compactedMessages = [...compactedMessages, warningMessage];
         compactionWarningInjected = true;
