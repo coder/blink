@@ -7,11 +7,6 @@ import type { App } from "@slack/bolt";
 import { convertToModelMessages, type LanguageModel, type Tool } from "ai";
 import type * as blink from "blink";
 import {
-  DEFAULT_HARD_TOKEN_THRESHOLD,
-  DEFAULT_SOFT_TOKEN_THRESHOLD,
-  processCompaction,
-} from "./compaction";
-import {
   type CoderApiClient,
   type CoderWorkspaceInfo,
   getCoderWorkspaceClient,
@@ -59,29 +54,6 @@ export interface BuildStreamTextParamsOptions {
    * If not provided, the GitHub auth context will be created using the app ID and private key from the GitHub config.
    */
   getGithubAppContext?: () => Promise<github.AppAuthOptions | undefined>;
-  /**
-   * Configuration for conversation compaction.
-   * If not provided, compaction features are enabled with default thresholds.
-   * Set to `false` to disable compaction entirely.
-   */
-  compaction?:
-    | {
-        /**
-         * Soft token threshold at which to trigger compaction.
-         * When the conversation exceeds this threshold, a message is injected
-         * asking the model to call the compact_conversation tool.
-         * Default: 180 000 tokens
-         */
-        softThreshold?: number;
-        /**
-         * Hard token threshold - max tokens to send for compaction.
-         * Messages beyond this limit are preserved and restored after compaction.
-         * Must be greater than softThreshold.
-         * Default: 190 000 tokens
-         */
-        hardThreshold?: number;
-      }
-    | false;
 }
 
 interface Logger {
@@ -354,7 +326,6 @@ export class Scout {
     tools: providedTools,
     getGithubAppContext,
     systemPrompt = defaultSystemPrompt,
-    compaction: compactionConfig,
   }: BuildStreamTextParamsOptions): Promise<{
     model: LanguageModel;
     messages: ModelMessage[];
@@ -375,28 +346,7 @@ export class Scout {
         )()
       : undefined;
 
-    // Process compaction if enabled
-    const compactionEnabled = compactionConfig !== false;
-    const softTokenThreshold =
-      (compactionConfig !== false
-        ? compactionConfig?.softThreshold
-        : undefined) ?? DEFAULT_SOFT_TOKEN_THRESHOLD;
-    const hardTokenThreshold =
-      (compactionConfig !== false
-        ? compactionConfig?.hardThreshold
-        : undefined) ?? DEFAULT_HARD_TOKEN_THRESHOLD;
-
-    const { messages: compactedMessages, compactionTool } = compactionEnabled
-      ? await processCompaction({
-          messages,
-          softTokenThreshold,
-          hardTokenThreshold,
-          model,
-          logger: this.logger,
-        })
-      : { messages, compactionTool: {} };
-
-    const slackMetadata = getSlackMetadata(compactedMessages);
+    const slackMetadata = getSlackMetadata(messages);
     const respondingInSlack =
       this.slack.app !== undefined && slackMetadata !== undefined;
 
@@ -497,7 +447,6 @@ export class Scout {
     }
 
     const tools = {
-      ...compactionTool,
       ...(this.webSearch.config
         ? createWebSearchTools({ exaApiKey: this.webSearch.config.exaApiKey })
         : {}),
@@ -524,7 +473,7 @@ ${slack.formattingRules}
 </formatting-rules>`;
     }
 
-    const converted = convertToModelMessages(compactedMessages, {
+    const converted = convertToModelMessages(messages, {
       ignoreIncompleteToolCalls: true,
       tools,
     });
