@@ -1,6 +1,8 @@
 import * as http from "node:http";
 import { createServerAdapter } from "@whatwg-node/server";
+import { readUIMessageStream, type UIMessage, type UIMessageChunk } from "ai";
 import type * as blink from "blink";
+import { Client } from "blink/client";
 import { api as controlApi } from "blink/control";
 
 /**
@@ -131,3 +133,122 @@ export const noopLogger = {
   warn: () => {},
   error: () => {},
 };
+
+// Port counter to avoid port collisions between tests
+let testPortCounter = 35000;
+
+export interface RunChatTurnResult {
+  chunks: UIMessageChunk[];
+  assistantMessage: UIMessage;
+}
+
+export interface AgentTestHelper extends AsyncDisposable {
+  client: Client;
+  /** Current message history */
+  readonly messages: UIMessage[];
+  /**
+   * Adds a message to the history.
+   */
+  addMessage: (role: "user" | "assistant", text: string) => void;
+  /**
+   * Adds a user message to the history.
+   */
+  addUserMessage: (text: string) => void;
+  /**
+   * Runs a chat turn with the current message history.
+   * Automatically appends the assistant response to the history.
+   * Returns the result including chunks and the assistant message.
+   */
+  runChatTurn: () => Promise<RunChatTurnResult>;
+}
+
+export interface CreateAgentTestHelperOptions {
+  /** Initial messages to seed the conversation */
+  initialMessages?: UIMessage[];
+}
+
+/**
+ * Creates a test helper for a blink agent.
+ * Starts an HTTP server for the agent and provides methods to interact with it.
+ * Manages message history automatically.
+ *
+ * Usage:
+ * ```ts
+ * await using helper = createAgentTestHelper(agent, {
+ *   initialMessages: [{ id: "1", role: "user", parts: [{ type: "text", text: "Hello" }] }]
+ * });
+ * const result = await helper.runChatTurn();
+ * // Assistant message is automatically added to helper.messages
+ * ```
+ */
+export function createAgentTestHelper(
+  agent: blink.Agent<UIMessage>,
+  options?: CreateAgentTestHelperOptions
+): AgentTestHelper {
+  const port = testPortCounter++;
+  const server = agent.serve({ port });
+  const client = new Client({
+    baseUrl: `http://localhost:${port}`,
+  });
+
+  const messages: UIMessage[] = options?.initialMessages
+    ? [...options.initialMessages]
+    : [];
+
+  const addMessage = (role: "user" | "assistant", text: string) => {
+    messages.push({
+      id: crypto.randomUUID(),
+      role,
+      parts: [{ type: "text", text }],
+    });
+  };
+
+  const runChatTurn = async (): Promise<RunChatTurnResult> => {
+    const stream = await client.chat({
+      id: crypto.randomUUID() as blink.ID,
+      messages,
+    });
+
+    const chunks: UIMessageChunk[] = [];
+    let assistantMessage: UIMessage | null = null;
+
+    const messageStream = readUIMessageStream({
+      stream: stream.pipeThrough(
+        new TransformStream<UIMessageChunk, UIMessageChunk>({
+          transform(chunk, controller) {
+            chunks.push(chunk);
+            controller.enqueue(chunk);
+          },
+        })
+      ),
+    });
+
+    for await (const message of messageStream) {
+      assistantMessage = message;
+    }
+
+    if (!assistantMessage) {
+      throw new Error("No assistant message received from stream");
+    }
+
+    // Automatically append assistant message to history
+    messages.push(assistantMessage);
+
+    return { chunks, assistantMessage };
+  };
+
+  return {
+    client,
+    get messages() {
+      return messages;
+    },
+    addMessage,
+    addUserMessage: (text: string) => addMessage("user", text),
+    runChatTurn,
+    [Symbol.asyncDispose]: async () => {
+      const closed = server[Symbol.asyncDispose]();
+      server.closeAllConnections();
+      await closed;
+    },
+  };
+}

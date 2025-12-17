@@ -7,6 +7,12 @@ import type { App } from "@slack/bolt";
 import { convertToModelMessages, type LanguageModel, type Tool } from "ai";
 import type * as blink from "blink";
 import {
+  applyCompactionToMessages,
+  createCompactionMarkerPart,
+  createCompactionTool,
+  isOutOfContextError,
+} from "./compaction";
+import {
   type CoderApiClient,
   type CoderWorkspaceInfo,
   getCoderWorkspaceClient,
@@ -54,6 +60,12 @@ export interface BuildStreamTextParamsOptions {
    * If not provided, the GitHub auth context will be created using the app ID and private key from the GitHub config.
    */
   getGithubAppContext?: () => Promise<github.AppAuthOptions | undefined>;
+  /**
+   * Whether to enable conversation compaction. When enabled, the compact_conversation tool
+   * will be included and compaction state in messages will be handled automatically.
+   * Default: true
+   */
+  compaction?: boolean;
 }
 
 interface Logger {
@@ -326,6 +338,7 @@ export class Scout {
     tools: providedTools,
     getGithubAppContext,
     systemPrompt = defaultSystemPrompt,
+    compaction = true,
   }: BuildStreamTextParamsOptions): Promise<{
     model: LanguageModel;
     messages: ModelMessage[];
@@ -346,6 +359,9 @@ export class Scout {
         )()
       : undefined;
 
+    // it's important to look in the original messages, not the processed messages
+    // the processed ones may have been compacted and not include slack metadata
+    // anymore
     const slackMetadata = getSlackMetadata(messages);
     const respondingInSlack =
       this.slack.app !== undefined && slackMetadata !== undefined;
@@ -461,6 +477,8 @@ export class Scout {
           })
         : undefined),
       ...computeTools,
+      // Always include compaction tool when compaction is enabled (for caching purposes)
+      ...(compaction ? createCompactionTool() : {}),
       ...providedTools,
     };
 
@@ -473,7 +491,11 @@ ${slack.formattingRules}
 </formatting-rules>`;
     }
 
-    const converted = convertToModelMessages(messages, {
+    const messagesToConvert = compaction
+      ? applyCompactionToMessages(messages)
+      : messages;
+
+    const converted = convertToModelMessages(messagesToConvert, {
       ignoreIncompleteToolCalls: true,
       tools,
     });
@@ -497,5 +519,108 @@ ${slack.formattingRules}
       providerOptions,
       tools: withModelIntent(tools),
     };
+  }
+
+  /**
+   * Process the output from streamText, intercepting out-of-context errors
+   * and replacing them with compaction markers.
+   *
+   * @param stream - The StreamTextResult from the AI SDK's streamText()
+   * @param options - Optional callbacks
+   * @returns The same stream, but with toUIMessageStream wrapped to handle errors
+   */
+  processStreamTextOutput<
+    // biome-ignore lint/suspicious/noExplicitAny: toUIMessageStream has complex overloaded signature
+    T extends { toUIMessageStream: (...args: any[]) => any },
+  >(
+    stream: T,
+    options?: {
+      onCompactionTriggered?: () => void;
+    }
+  ): T {
+    // Use a Proxy to wrap toUIMessageStream
+    return new Proxy(stream, {
+      get(target, prop) {
+        // Wrap toUIMessageStream to intercept out-of-context errors
+        if (prop === "toUIMessageStream") {
+          const originalMethod = target.toUIMessageStream;
+          return (...args: unknown[]) => {
+            const uiStream = originalMethod.apply(target, args);
+
+            // Helper to emit compaction marker chunks
+            const emitCompactionMarker = (
+              controller: ReadableStreamDefaultController
+            ) => {
+              options?.onCompactionTriggered?.();
+              const markerPart = createCompactionMarkerPart();
+              controller.enqueue({
+                type: "tool-input-start",
+                toolCallId: markerPart.toolCallId,
+                toolName: markerPart.toolName,
+              });
+              controller.enqueue({
+                type: "tool-input-available",
+                toolCallId: markerPart.toolCallId,
+                toolName: markerPart.toolName,
+                input: markerPart.input,
+              });
+              controller.enqueue({
+                type: "tool-output-available",
+                toolCallId: markerPart.toolCallId,
+                output: markerPart.output,
+                preliminary: false,
+              });
+            };
+
+            // Use a custom ReadableStream to handle both error chunks and mid-stream errors
+            // This approach catches errors from controller.error() which TransformStream doesn't handle
+            return new ReadableStream({
+              async start(controller) {
+                const reader = uiStream.getReader();
+                try {
+                  while (true) {
+                    const { done, value: chunk } = await reader.read();
+                    if (done) break;
+
+                    // Check if this is an error chunk in UI format
+                    if (
+                      chunk &&
+                      typeof chunk === "object" &&
+                      "type" in chunk &&
+                      chunk.type === "error" &&
+                      "errorText" in chunk &&
+                      typeof chunk.errorText === "string" &&
+                      isOutOfContextError(new Error(chunk.errorText))
+                    ) {
+                      emitCompactionMarker(controller);
+                      continue;
+                    }
+                    controller.enqueue(chunk);
+                  }
+                  controller.close();
+                } catch (error) {
+                  // Mid-stream error via controller.error() - check if it's out of context
+                  if (isOutOfContextError(error)) {
+                    emitCompactionMarker(controller);
+                    controller.close();
+                  } else {
+                    controller.error(error);
+                  }
+                } finally {
+                  reader.releaseLock();
+                }
+              },
+            });
+          };
+        }
+
+        const value = target[prop as keyof T];
+        // Bind functions to the original target to preserve 'this' context
+        if (typeof value === "function") {
+          return value.bind(target);
+        }
+        return value;
+      },
+    }) as T;
   }
 }

@@ -64,7 +64,8 @@ agent.on("chat", async ({ id, messages }) => {
       }),
     },
   });
-  return streamText(params);
+  const stream = streamText(params);
+  return scout.processStreamTextOutput(stream);
 });
 
 agent.serve();
