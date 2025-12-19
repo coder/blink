@@ -1,4 +1,11 @@
-import { type Tool, tool } from "ai";
+import {
+  APICallError,
+  type StreamTextTransform,
+  type TextStreamPart,
+  type Tool,
+  type ToolSet,
+  tool,
+} from "ai";
 import { z } from "zod";
 import type { Message } from "./types";
 
@@ -21,27 +28,76 @@ const OUT_OF_CONTEXT_PATTERNS = [
 ];
 
 /**
+ * Recursively search for an APICallError in the error's cause chain.
+ */
+export function findAPICallError(error: unknown): APICallError | null {
+  if (APICallError.isInstance(error)) {
+    return error;
+  }
+  if (error && typeof error === "object" && "cause" in error) {
+    const cause = (error as { cause?: unknown }).cause;
+    return findAPICallError(cause);
+  }
+  return null;
+}
+
+/**
  * Check if an error is an out-of-context error based on known patterns.
  */
 export function isOutOfContextError(error: unknown): boolean {
-  let message: string;
-
-  if (error instanceof Error) {
-    message = error.message;
-  } else if (typeof error === "string") {
-    message = error;
-  } else if (
-    error !== null &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof error.message === "string"
-  ) {
-    message = error.message;
-  } else {
+  const apiError = findAPICallError(error);
+  if (!apiError) {
     return false;
   }
+  return OUT_OF_CONTEXT_PATTERNS.some((pattern) =>
+    pattern.test(apiError.message)
+  );
+}
 
-  return OUT_OF_CONTEXT_PATTERNS.some((pattern) => pattern.test(message));
+/**
+ * Creates a stream transform that detects out-of-context errors and emits a compaction marker.
+ */
+export function createCompactionTransform<T extends ToolSet>(
+  onCompactionTriggered?: () => void
+): StreamTextTransform<T> {
+  return ({ stopStream }) =>
+    new TransformStream<TextStreamPart<T>, TextStreamPart<T>>({
+      transform(chunk, controller) {
+        if (
+          chunk?.type === "error" &&
+          isOutOfContextError((chunk as { error?: unknown }).error)
+        ) {
+          onCompactionTriggered?.();
+          const markerPart = createCompactionMarkerPart();
+          controller.enqueue({
+            type: "tool-call",
+            toolCallType: "function",
+            toolCallId: markerPart.toolCallId,
+            toolName: markerPart.toolName,
+            input: markerPart.input,
+            dynamic: true,
+          } as TextStreamPart<T>);
+          controller.enqueue({
+            type: "tool-result",
+            toolCallId: markerPart.toolCallId,
+            toolName: markerPart.toolName,
+            input: markerPart.input,
+            output: markerPart.output,
+            providerExecuted: false,
+            dynamic: true,
+          } as TextStreamPart<T>);
+          controller.enqueue({
+            type: "finish",
+            finishReason: "tool-calls",
+            logprobs: undefined,
+            totalUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          } as TextStreamPart<T>);
+          stopStream();
+          return;
+        }
+        controller.enqueue(chunk);
+      },
+    });
 }
 
 /**
@@ -371,7 +427,7 @@ function transformMessagesForCompaction(messages: Message[]): Message[] {
  * would be excluded, throws `CompactionError`.
  *
  * ## Flow example
- * 1. Model hits context limit → `processStreamTextOutput` emits compaction marker
+ * 1. Model hits context limit → compaction transform emits compaction marker
  * 2. Next iteration calls this function
  * 3. Messages are truncated + compaction request appended
  * 4. Model calls `compact_conversation` with summary

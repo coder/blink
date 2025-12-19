@@ -1,6 +1,7 @@
 /** biome-ignore-all lint/style/noNonNullAssertion: fine for tests */
 /** biome-ignore-all lint/suspicious/noExplicitAny: fine for tests */
 import { describe, expect, test } from "bun:test";
+import { APICallError } from "ai";
 import {
   applyCompactionToMessages,
   buildCompactionRequestMessage,
@@ -9,6 +10,7 @@ import {
   countCompactionMarkers,
   createCompactionMarkerPart,
   createCompactionTool,
+  findAPICallError,
   findCompactionSummary,
   isOutOfContextError,
 } from "./compaction";
@@ -55,62 +57,77 @@ function summaryMsg(
 }
 
 describe("isOutOfContextError", () => {
-  test("returns true for Anthropic context limit errors", () => {
-    expect(isOutOfContextError(new Error("max_tokens_exceeded"))).toBe(true);
+  const createApiError = (message: string) =>
+    new APICallError({
+      message,
+      url: "https://api.example.com",
+      requestBodyValues: {},
+      statusCode: 400,
+    });
+
+  test("returns true for APICallError with context limit message", () => {
     expect(
-      isOutOfContextError(new Error("The context window has been exceeded"))
+      isOutOfContextError(
+        createApiError("Input is too long for requested model")
+      )
     ).toBe(true);
+    expect(isOutOfContextError(createApiError("context_length_exceeded"))).toBe(
+      true
+    );
   });
 
-  test("returns true for OpenAI context_length_exceeded errors", () => {
+  test("returns true for APICallError in cause chain", () => {
+    const apiError = createApiError("max_tokens_exceeded");
+    const wrapper = new Error("Gateway error");
+    (wrapper as { cause?: unknown }).cause = apiError;
+    expect(isOutOfContextError(wrapper)).toBe(true);
+  });
+
+  test("returns false for APICallError with unrelated message", () => {
+    expect(isOutOfContextError(createApiError("authentication failed"))).toBe(
+      false
+    );
+  });
+
+  test("returns false for non-APICallError even if message matches pattern", () => {
     expect(isOutOfContextError(new Error("context_length_exceeded"))).toBe(
-      true
+      false
     );
+    expect(isOutOfContextError("input too long")).toBe(false);
+  });
+});
+
+describe("findAPICallError", () => {
+  const createApiError = (message: string) =>
+    new APICallError({
+      message,
+      url: "https://api.example.com",
+      requestBodyValues: {},
+      statusCode: 400,
+    });
+
+  test("returns the APICallError when provided directly", () => {
+    const error = createApiError("test");
+    expect(findAPICallError(error)).toBe(error);
   });
 
-  test("returns true for generic token limit exceeded messages", () => {
-    expect(isOutOfContextError(new Error("token limit exceeded"))).toBe(true);
-    expect(
-      isOutOfContextError(new Error("Token limit has been exceeded"))
-    ).toBe(true);
-    expect(isOutOfContextError(new Error("maximum tokens reached"))).toBe(true);
+  test("returns APICallError from single-level cause", () => {
+    const apiError = createApiError("test");
+    const wrapper = new Error("wrapper");
+    (wrapper as { cause?: unknown }).cause = apiError;
+    expect(findAPICallError(wrapper)).toBe(apiError);
   });
 
-  test("returns true for context window errors", () => {
-    expect(isOutOfContextError(new Error("context window exceeded"))).toBe(
-      true
-    );
-    expect(isOutOfContextError(new Error("context length exceeded"))).toBe(
-      true
-    );
+  test("returns APICallError from deep cause chain", () => {
+    const apiError = createApiError("test");
+    const wrapper = { cause: { cause: apiError } };
+    expect(findAPICallError(wrapper)).toBe(apiError);
   });
 
-  test("returns true for input too long errors", () => {
-    expect(isOutOfContextError(new Error("input is too long"))).toBe(true);
-    expect(isOutOfContextError(new Error("prompt is too long"))).toBe(true);
-  });
-
-  test("returns false for unrelated errors", () => {
-    expect(isOutOfContextError(new Error("network error"))).toBe(false);
-    expect(isOutOfContextError(new Error("authentication failed"))).toBe(false);
-    expect(isOutOfContextError(new Error("rate limit exceeded"))).toBe(false);
-  });
-
-  test("handles string messages", () => {
-    expect(isOutOfContextError("token limit exceeded")).toBe(true);
-    expect(isOutOfContextError("some other error")).toBe(false);
-  });
-
-  test("handles objects with message property", () => {
-    expect(isOutOfContextError({ message: "token limit exceeded" })).toBe(true);
-    expect(isOutOfContextError({ message: "some other error" })).toBe(false);
-  });
-
-  test("returns false for non-error values", () => {
-    expect(isOutOfContextError(null)).toBe(false);
-    expect(isOutOfContextError(undefined)).toBe(false);
-    expect(isOutOfContextError(123)).toBe(false);
-    expect(isOutOfContextError({})).toBe(false);
+  test("returns null when no APICallError present", () => {
+    expect(findAPICallError(new Error("other"))).toBeNull();
+    expect(findAPICallError("string")).toBeNull();
+    expect(findAPICallError(null)).toBeNull();
   });
 });
 

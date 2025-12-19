@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
 import {
+  APICallError,
   readUIMessageStream,
   simulateReadableStream,
   streamText,
@@ -992,7 +993,15 @@ describe("coder integration", () => {
 
 describe("compaction", () => {
   // Shared helpers for compaction tests
-  const CONTEXT_LENGTH_ERROR = "context_length_exceeded";
+  const createContextApiError = (
+    message = "Input is too long for requested model"
+  ) =>
+    new APICallError({
+      message,
+      url: "https://api.example.com",
+      requestBodyValues: {},
+      statusCode: 400,
+    });
 
   /** Check if a message contains the compaction marker */
   const hasCompactionMarker = (msg: UIMessage) =>
@@ -1010,6 +1019,24 @@ describe("compaction", () => {
         p.type === "tool-compact_conversation" ||
         (p.type === "dynamic-tool" && p.toolName === "compact_conversation")
     );
+
+  /** Create a mock response that emits an out-of-context APICallError */
+  const createContextErrorResponse = () => ({
+    stream: simulateReadableStream({
+      chunks: [{ type: "error" as const, error: createContextApiError() }],
+    }),
+  });
+
+  /** Create a mock response that emits text before an out-of-context error */
+  const createMidStreamContextErrorResponse = () => ({
+    stream: simulateReadableStream({
+      chunks: [
+        { type: "text-start" as const, id: "text-1" },
+        { type: "text-delta" as const, id: "text-1", delta: "partial text" },
+        { type: "error" as const, error: createContextApiError() },
+      ],
+    }),
+  });
 
   /** Create a mock response that calls the compact_conversation tool */
   const createCompactToolResponse = (
@@ -1068,13 +1095,11 @@ describe("compaction", () => {
         messages,
         model,
       });
-      return scout.processStreamTextOutput(
-        streamText({
-          ...params,
-          // by default, streamText prints all errors to console.error, which is noisy in tests
-          onError: () => {},
-        })
-      );
+      return streamText({
+        ...params,
+        // by default, streamText prints all errors to console.error, which is noisy in tests
+        onError: () => {},
+      });
     });
     return { agent, scout, chatID };
   };
@@ -1180,41 +1205,6 @@ describe("compaction", () => {
     ).rejects.toThrow(/Cannot compact/);
   });
 
-  test("processStreamTextOutput passes through normal stream unchanged", async () => {
-    const agent = new blink.Agent<Message>();
-    const scout = new Scout({
-      agent,
-      logger: noopLogger,
-    });
-
-    const params = await scout.buildStreamTextParams({
-      chatID: "test-chat-id" as blink.ID,
-      messages: [
-        {
-          id: "user-1",
-          role: "user",
-          parts: [{ type: "text", text: "Hello" }],
-        },
-      ],
-      model: newMockModel({ textResponse: "Hello World" }),
-      compaction: false,
-    });
-
-    const stream = streamText(params);
-    const processedStream = scout.processStreamTextOutput(stream);
-
-    const collectedChunks: { type: string }[] = [];
-    for await (const chunk of processedStream.fullStream) {
-      collectedChunks.push(chunk as { type: string });
-    }
-
-    // Should have text chunks and finish
-    expect(collectedChunks.some((c) => c.type === "text-delta")).toBe(true);
-    expect(collectedChunks.some((c) => c.type === "finish")).toBe(true);
-    // Should NOT have any compaction markers
-    expect(collectedChunks.some((c) => c.type === "tool-result")).toBe(false);
-  });
-
   test("e2e: complete compaction flow using scout methods directly", async () => {
     let modelCallCount = 0;
 
@@ -1222,7 +1212,7 @@ describe("compaction", () => {
     const model = new MockLanguageModelV2({
       doStream: async () => {
         modelCallCount++;
-        if (modelCallCount === 1) throw new Error(CONTEXT_LENGTH_ERROR);
+        if (modelCallCount === 1) return createContextErrorResponse();
         if (modelCallCount === 2)
           return createCompactToolResponse(
             "Previous conversation summary from model."
@@ -1294,7 +1284,7 @@ describe("compaction", () => {
     const model = new MockLanguageModelV2({
       doStream: async () => {
         modelCallCount++;
-        if (modelCallCount <= 2) throw new Error(CONTEXT_LENGTH_ERROR);
+        if (modelCallCount <= 2) return createContextErrorResponse();
         if (modelCallCount === 3)
           return createCompactToolResponse("Summary of the old conversation.");
         return createTextResponse("Response after compaction");
@@ -1384,7 +1374,7 @@ describe("compaction", () => {
     const model = new MockLanguageModelV2({
       doStream: async () => {
         modelCallCount++;
-        if (modelCallCount === 1) throw new Error(CONTEXT_LENGTH_ERROR);
+        if (modelCallCount === 1) return createContextErrorResponse();
         if (modelCallCount === 2)
           throw new Error("network_error: connection refused");
         if (modelCallCount === 3)
@@ -1453,7 +1443,7 @@ describe("compaction", () => {
     const model = new MockLanguageModelV2({
       doStream: async () => {
         modelCallCount++;
-        if (modelCallCount === 1) throw new Error(CONTEXT_LENGTH_ERROR);
+        if (modelCallCount === 1) return createContextErrorResponse();
         if (modelCallCount === 2)
           return createCompactToolResponse("Error recovery summary.");
         return createTextResponse("Success after error recovery");
@@ -1507,19 +1497,7 @@ describe("compaction", () => {
         modelCallCount++;
         if (modelCallCount === 1) {
           // Stream that emits some chunks, then errors mid-stream
-          return {
-            stream: new ReadableStream({
-              start(controller) {
-                controller.enqueue({ type: "text-start", id: "text-1" });
-                controller.enqueue({
-                  type: "text-delta",
-                  id: "text-1",
-                  delta: "Starting to respond...",
-                });
-                controller.error(new Error(CONTEXT_LENGTH_ERROR));
-              },
-            }),
-          };
+          return createMidStreamContextErrorResponse();
         }
         if (modelCallCount === 2)
           return createCompactToolResponse(
@@ -1585,7 +1563,7 @@ describe("compaction", () => {
         capturedMessages.push(messageContents);
 
         // Cycle 1: calls 1-3
-        if (modelCallCount === 1) throw new Error(CONTEXT_LENGTH_ERROR);
+        if (modelCallCount === 1) return createContextErrorResponse();
         if (modelCallCount === 2)
           return createCompactToolResponse(
             "First compaction summary from cycle 1."
@@ -1593,7 +1571,7 @@ describe("compaction", () => {
         if (modelCallCount === 3)
           return createTextResponse("First cycle complete");
         // Cycle 2: calls 4-6
-        if (modelCallCount === 4) throw new Error(CONTEXT_LENGTH_ERROR);
+        if (modelCallCount === 4) return createContextErrorResponse();
         if (modelCallCount === 5)
           return createCompactToolResponse(
             "Second compaction summary from cycle 2.",
@@ -1686,7 +1664,7 @@ describe("compaction", () => {
     const model = new MockLanguageModelV2({
       doStream: async () => {
         modelCallCount++;
-        if (modelCallCount === 1) throw new Error(CONTEXT_LENGTH_ERROR);
+        if (modelCallCount === 1) return createContextErrorResponse();
         if (modelCallCount === 2)
           return createCompactToolResponse("Summary of conversation so far.");
         return createTextResponse("Final response");
