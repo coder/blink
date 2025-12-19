@@ -1091,6 +1091,7 @@ describe("compaction", () => {
     const scout = new Scout({ agent, logger: noopLogger });
     agent.on("chat", async ({ messages }) => {
       const params = await scout.buildStreamTextParams({
+        systemPrompt: "<system>hello</system>",
         chatID,
         messages,
         model,
@@ -1455,7 +1456,7 @@ describe("compaction", () => {
         {
           id: "msg-3",
           role: "user",
-          parts: [{ type: "text", text: "Second message - will be excluded" }],
+          parts: [{ type: "text", text: "Second message to summarize" }],
         },
       ],
     });
@@ -1478,6 +1479,7 @@ describe("compaction", () => {
     // Verify: only 1 marker, so excludeCount=1
     const params = await scout.buildStreamTextParams({
       chatID,
+      systemPrompt: "system",
       messages: helper.messages as Message[],
       model,
     });
@@ -1485,7 +1487,7 @@ describe("compaction", () => {
 
     expect(allContent).toContain("CONVERSATION SUMMARY");
     expect(allContent).toContain("Summary after non-context error");
-    expect(allContent).toContain("Second message - will be excluded"); // restored
+    expect(allContent).not.toContain("Second message to summarize"); // restored
     expect(allContent).not.toContain("First message to summarize"); // summarized
     expect(allContent).not.toContain("First response to summarize"); // summarized
     expect(allContent).toContain("Retry after network error"); // added after

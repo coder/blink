@@ -54,11 +54,22 @@ export function isOutOfContextError(error: unknown): boolean {
   if (!apiError) {
     return false;
   }
-  return OUT_OF_CONTEXT_PATTERNS.some((pattern) =>
-    pattern.test(
-      apiError.responseBody ?? util.inspect(apiError, { depth: null })
-    )
-  );
+  let textToTest = apiError.responseBody ?? "";
+  // even though typings say message is always a string, empirically it's not always a string
+  if (!textToTest && typeof apiError.message === "string") {
+    textToTest = apiError.message;
+  }
+  if (!textToTest) {
+    try {
+      textToTest = JSON.stringify(apiError);
+    } catch {
+      // note: util.inspect returns different values in Bun and Node.js
+      // in Node.js it includes the error message, in Bun it doesn't
+      // that's why it's the final fallback
+      textToTest = util.inspect(apiError, { depth: null });
+    }
+  }
+  return OUT_OF_CONTEXT_PATTERNS.some((pattern) => pattern.test(textToTest));
 }
 
 /**
@@ -155,6 +166,10 @@ function isCompactionMarkerPart(part: Message["parts"][number]): boolean {
       part.toolName === COMPACTION_MARKER_TOOL_NAME) ||
     part.type === `tool-${COMPACTION_MARKER_TOOL_NAME}`
   );
+}
+
+function isCompactionMarkerMessage(message: Message): boolean {
+  return message.parts.some((part) => isCompactionMarkerPart(part));
 }
 
 /**
@@ -404,8 +419,9 @@ function findExcludedMessagesStartIndex(
   let lastUserIndex = messages.length;
   let found = 0;
   for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message?.role !== "user") {
+    // biome-ignore lint/style/noNonNullAssertion: we know the message is not null
+    const message = messages[i]!;
+    if (isCompactionMarkerMessage(message)) {
       continue;
     }
     lastUserIndex = i;

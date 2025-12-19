@@ -400,8 +400,8 @@ describe("applyCompactionToMessages", () => {
     ]);
     const ids2 = result2.map((m) => m.id);
     expect(ids2).toContain("1");
-    expect(ids2).not.toContain("2");
-    expect(ids2).not.toContain("2-assistant");
+    expect(ids2).toContain("2");
+    expect(ids2).toContain("2-assistant");
     expect(ids2).not.toContain("2-assistant2");
     expect(ids2).not.toContain("3");
   });
@@ -443,7 +443,7 @@ describe("applyCompactionToMessages", () => {
   test("replaces old messages with summary and excluded messages when compaction complete", () => {
     const messages: Message[] = [
       userMsg("kept", "Will be summarized"),
-      userMsg("excluded-1", "Will be excluded and restored"),
+      userMsg("kept-1", "Will be excluded and restored"),
       assistantMsg("excluded-1-assistant", "Will be excluded and restored"),
       markerMsg("marker-msg"),
       summaryMsg("summary-msg", "Summary"),
@@ -453,7 +453,7 @@ describe("applyCompactionToMessages", () => {
     const result = applyCompactionToMessages(messages);
     const ids = result.map((m) => m.id);
     expect(ids).not.toContain("kept");
-    expect(ids).toContain("excluded-1");
+    expect(ids).not.toContain("kept-1");
     expect(ids).toContain("excluded-1-assistant");
     expect(ids).not.toContain("marker-msg");
     expect(ids).not.toContain("summary-msg");
@@ -663,7 +663,7 @@ describe("applyCompactionToMessages", () => {
     expect(ids).not.toContain("1");
     expect(ids).not.toContain("2");
     // Messages excluded during compaction request should be restored
-    expect(ids).toContain("3");
+    expect(ids).not.toContain("3");
     expect(ids).toContain("4");
     expect(ids).toContain("interrupted"); // The interrupted user message is preserved
     // Markers and summary message itself should be gone
