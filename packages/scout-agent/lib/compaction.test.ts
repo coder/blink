@@ -315,14 +315,10 @@ describe("maxConsecutiveCompactionAttempts", () => {
     expect(maxConsecutiveCompactionAttempts(messages)).toBe(2);
   });
 
-  test("ignores summary acknowledgment when counting", () => {
+  test("does not count non-consecutive compaction attempts", () => {
     const messages: Message[] = [
       summaryMsg("summary-1", "First summary"),
-      {
-        id: "compaction-summary-response",
-        role: "assistant",
-        parts: [{ type: "text", text: "Acknowledged." }],
-      },
+      userMsg("1", "Hello"),
       summaryMsg("summary-2", "Second summary"),
     ];
 
