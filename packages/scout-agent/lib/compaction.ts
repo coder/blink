@@ -12,6 +12,7 @@ import type { Message } from "./types";
 // Constants
 export const COMPACTION_MARKER_TOOL_NAME = "__compaction_marker";
 export const COMPACT_CONVERSATION_TOOL_NAME = "compact_conversation";
+export const MAX_CONSECUTIVE_COMPACTION_ATTEMPTS = 5;
 
 // Error patterns for out-of-context detection (regex)
 const OUT_OF_CONTEXT_PATTERNS = [
@@ -165,6 +166,15 @@ function isCompactionSummaryPart(part: Message["parts"][number]): boolean {
   );
 }
 
+function isCompactConversationPart(part: Message["parts"][number]): boolean {
+  return (
+    part.type === `tool-${COMPACT_CONVERSATION_TOOL_NAME}` ||
+    (part.type === "dynamic-tool" &&
+      "toolName" in part &&
+      part.toolName === COMPACT_CONVERSATION_TOOL_NAME)
+  );
+}
+
 export interface CompactionMarkerPart {
   type: "dynamic-tool";
   toolName: typeof COMPACTION_MARKER_TOOL_NAME;
@@ -257,6 +267,38 @@ export function countCompactionMarkers(
     }
   }
   return count;
+}
+
+/**
+ * Finds the maximum number of consecutive assistant messages that contain
+ * compaction tool calls. The streak resets when a non-assistant message
+ * is encountered.
+ *
+ * @param messages - The message history to analyze
+ * @returns The longest streak of consecutive compaction attempts
+ */
+export function maxConsecutiveCompactionAttempts(messages: Message[]): number {
+  let maxAttempts = 0;
+  let attempts = 0;
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (!message) {
+      continue;
+    }
+    if (message.role !== "assistant") {
+      attempts = 0;
+    }
+    const hasCompactionPart = message.parts.some((part) =>
+      isCompactConversationPart(part)
+    );
+    if (hasCompactionPart) {
+      attempts++;
+      maxAttempts = Math.max(maxAttempts, attempts);
+    }
+  }
+
+  return maxAttempts;
 }
 
 /**
@@ -438,6 +480,14 @@ function transformMessagesForCompaction(messages: Message[]): Message[] {
  * @throws {CompactionError} If compaction would leave no messages (too many retries)
  */
 export function applyCompactionToMessages(messages: Message[]): Message[] {
+  const compactionAttempts = maxConsecutiveCompactionAttempts(messages);
+  if (compactionAttempts >= MAX_CONSECUTIVE_COMPACTION_ATTEMPTS) {
+    throw new CompactionError(
+      `Compaction loop detected after ${compactionAttempts} attempts`,
+      compactionAttempts
+    );
+  }
+
   const currentConversation = applySummaryToMessages(messages);
   const transformedMessages =
     transformMessagesForCompaction(currentConversation);

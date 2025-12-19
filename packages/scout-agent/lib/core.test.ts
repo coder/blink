@@ -1128,6 +1128,24 @@ describe("compaction", () => {
     return textPart ? (textPart as { text: string }).text : undefined;
   };
 
+  const createCompactionSummaryMessage = (id: string): Message => ({
+    id,
+    role: "assistant",
+    parts: [
+      {
+        type: "dynamic-tool",
+        toolName: "compact_conversation",
+        toolCallId: `${id}-call`,
+        state: "output-available",
+        input: { summary: "Test summary" },
+        output: {
+          summary: "Test summary",
+          compacted_at: "2024-01-01T00:00:00Z",
+        },
+      } as Message["parts"][number],
+    ],
+  });
+
   test("buildStreamTextParams always includes compact_conversation tool by default", async () => {
     const agent = new blink.Agent<Message>();
     const scout = new Scout({
@@ -1163,11 +1181,46 @@ describe("compaction", () => {
     expect(params.tools.compact_conversation).toBeUndefined();
   });
 
-  test("buildStreamTextParams throws when exclusion would leave insufficient messages", async () => {
+  test("buildStreamTextParams disables compaction after repeated compaction attempts", async () => {
+    const warn = mock();
+    const logger = { ...noopLogger, warn };
     const agent = new blink.Agent<Message>();
     const scout = new Scout({
       agent,
-      logger: noopLogger,
+      logger,
+    });
+
+    const messages: Message[] = [
+      {
+        id: "user-1",
+        role: "user",
+        parts: [{ type: "text", text: "Hello" }],
+      },
+      createCompactionSummaryMessage("summary-1"),
+      createCompactionSummaryMessage("summary-2"),
+      createCompactionSummaryMessage("summary-3"),
+      createCompactionSummaryMessage("summary-4"),
+      createCompactionSummaryMessage("summary-5"),
+    ];
+
+    const params = await scout.buildStreamTextParams({
+      chatID: "test-chat-id" as blink.ID,
+      messages,
+      model: newMockModel({ textResponse: "test" }),
+    });
+
+    expect(params.tools.compact_conversation).toBeUndefined();
+    expect(params.experimental_transform).toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+  });
+
+  test("buildStreamTextParams disables compaction when exclusion would leave insufficient messages", async () => {
+    const warn = mock();
+    const logger = { ...noopLogger, warn };
+    const agent = new blink.Agent<Message>();
+    const scout = new Scout({
+      agent,
+      logger,
     });
 
     // Create messages with insufficient content to summarize after exclusion
@@ -1196,13 +1249,15 @@ describe("compaction", () => {
       },
     ];
 
-    await expect(
-      scout.buildStreamTextParams({
-        chatID: "test-chat-id" as blink.ID,
-        messages,
-        model: newMockModel({ textResponse: "test" }),
-      })
-    ).rejects.toThrow(/Cannot compact/);
+    const params = await scout.buildStreamTextParams({
+      chatID: "test-chat-id" as blink.ID,
+      messages,
+      model: newMockModel({ textResponse: "test" }),
+    });
+
+    expect(params.tools.compact_conversation).toBeUndefined();
+    expect(params.experimental_transform).toBeUndefined();
+    expect(warn).toHaveBeenCalled();
   });
 
   test("e2e: complete compaction flow using scout methods directly", async () => {

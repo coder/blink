@@ -14,6 +14,7 @@ import {
 import type * as blink from "blink";
 import {
   applyCompactionToMessages,
+  CompactionError,
   createCompactionTransform,
   createCompactionTool,
 } from "./compaction";
@@ -469,6 +470,25 @@ export class Scout {
       }
     }
 
+    let compactionEnabled = compaction;
+    let messagesToConvert = messages;
+    if (compactionEnabled) {
+      try {
+        messagesToConvert = applyCompactionToMessages(messages);
+      } catch (error) {
+        if (error instanceof CompactionError) {
+          this.logger.warn(
+            "Disabling compaction due to repeated compaction failures",
+            error
+          );
+          compactionEnabled = false;
+          messagesToConvert = messages;
+        } else {
+          throw error;
+        }
+      }
+    }
+
     const tools = {
       ...(this.webSearch.config
         ? createWebSearchTools({ exaApiKey: this.webSearch.config.exaApiKey })
@@ -485,7 +505,7 @@ export class Scout {
         : undefined),
       ...computeTools,
       // Always include compaction tool when compaction is enabled (for caching purposes)
-      ...(compaction ? createCompactionTool() : {}),
+      ...(compactionEnabled ? createCompactionTool() : {}),
       ...providedTools,
     };
 
@@ -497,10 +517,6 @@ Very frequently report your Slack status - you can report it in parallel as you 
 ${slack.formattingRules}
 </formatting-rules>`;
     }
-
-    const messagesToConvert = compaction
-      ? applyCompactionToMessages(messages)
-      : messages;
 
     const converted = convertToModelMessages(messagesToConvert, {
       ignoreIncompleteToolCalls: true,
@@ -525,7 +541,7 @@ ${slack.formattingRules}
       maxOutputTokens: 64_000,
       providerOptions,
       tools: withModelIntent(tools),
-      experimental_transform: compaction
+      experimental_transform: compactionEnabled
         ? createCompactionTransform()
         : undefined,
     };

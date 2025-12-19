@@ -8,11 +8,13 @@ import {
   COMPACT_CONVERSATION_TOOL_NAME,
   COMPACTION_MARKER_TOOL_NAME,
   countCompactionMarkers,
+  maxConsecutiveCompactionAttempts,
   createCompactionMarkerPart,
   createCompactionTool,
   findAPICallError,
   findCompactionSummary,
   isOutOfContextError,
+  MAX_CONSECUTIVE_COMPACTION_ATTEMPTS,
 } from "./compaction";
 import type { Message } from "./types";
 
@@ -302,6 +304,41 @@ describe("countCompactionMarkers", () => {
   });
 });
 
+describe("maxConsecutiveCompactionAttempts", () => {
+  test("counts consecutive assistant compaction attempts", () => {
+    const messages: Message[] = [
+      userMsg("1", "Hello"),
+      summaryMsg("summary-1", "Summary output 1"),
+      summaryMsg("summary-2", "Summary output 2"),
+    ];
+
+    expect(maxConsecutiveCompactionAttempts(messages)).toBe(2);
+  });
+
+  test("ignores summary acknowledgment when counting", () => {
+    const messages: Message[] = [
+      summaryMsg("summary-1", "First summary"),
+      {
+        id: "compaction-summary-response",
+        role: "assistant",
+        parts: [{ type: "text", text: "Acknowledged." }],
+      },
+      summaryMsg("summary-2", "Second summary"),
+    ];
+
+    expect(maxConsecutiveCompactionAttempts(messages)).toBe(1);
+  });
+
+  test("stops at non-compaction assistant message", () => {
+    const messages: Message[] = [
+      markerMsg("marker1"),
+      assistantMsg("assistant", "Normal reply"),
+    ];
+
+    expect(maxConsecutiveCompactionAttempts(messages)).toBe(0);
+  });
+});
+
 describe("buildCompactionRequestMessage", () => {
   test("creates user message with correct role", () => {
     const message = buildCompactionRequestMessage();
@@ -326,6 +363,20 @@ describe("applyCompactionToMessages", () => {
     ];
     const result = applyCompactionToMessages(messages);
     expect(result).toEqual(messages);
+  });
+
+  test("throws when consecutive compaction attempts hit the limit", () => {
+    const attempts = MAX_CONSECUTIVE_COMPACTION_ATTEMPTS + 1;
+    const messages: Message[] = [
+      userMsg("1", "Hello"),
+      ...Array.from({ length: attempts }, (_, idx) =>
+        summaryMsg(`summary-${idx}`, `Summary ${idx}`)
+      ),
+    ];
+
+    expect(() => applyCompactionToMessages(messages)).toThrow(
+      /Compaction loop detected/
+    );
   });
 
   test("excludes correct number of messages based on marker count", () => {
@@ -599,6 +650,10 @@ describe("applyCompactionToMessages", () => {
       userMsg("3", "Third message"),
       userMsg("4", "Fourth message"),
       markerMsg("marker1"),
+      assistantMsg(
+        "assistant-buffer",
+        "Normal reply between compaction attempts"
+      ),
       markerMsg("marker2"),
       userMsg("interrupted", "User interrupted compaction with this message"),
       markerMsg("marker3"),
