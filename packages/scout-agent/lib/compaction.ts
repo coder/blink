@@ -1,3 +1,4 @@
+import util from "node:util";
 import {
   APICallError,
   type StreamTextTransform,
@@ -44,6 +45,9 @@ export function findAPICallError(error: unknown): APICallError | null {
 
 /**
  * Check if an error is an out-of-context error based on known patterns.
+ *
+ * TODO: the current patterns only really handle anthropic via the vercel
+ * gateway - we need to test with other providers.
  */
 export function isOutOfContextError(error: unknown): boolean {
   const apiError = findAPICallError(error);
@@ -51,7 +55,9 @@ export function isOutOfContextError(error: unknown): boolean {
     return false;
   }
   return OUT_OF_CONTEXT_PATTERNS.some((pattern) =>
-    pattern.test(apiError.message)
+    pattern.test(
+      apiError.responseBody ?? util.inspect(apiError, { depth: null })
+    )
   );
 }
 
