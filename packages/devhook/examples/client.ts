@@ -1,22 +1,32 @@
 /**
- * Example devhook client that proxies requests to localhost:8000.
+ * Example devhook client that proxies HTTP and WebSocket requests to localhost:8000.
  *
  * Run with: npx tsx examples/client.ts
  *
  * Make sure you have:
  * 1. The devhook server running (npx tsx examples/server.ts)
  * 2. A local server running on port 8000 (e.g., python -m http.server 8000)
+ *
+ * For WebSocket testing, you can use a simple WebSocket server like:
+ *   npx wscat -l 8000
+ * Then connect via the devhook URL using wscat or a browser.
  */
 
 import { DevhookClient } from "../src/client";
 
-const SERVER_URL = "http://localhost:8080";
-const CLIENT_SECRET = "example-client-secret";
+const SERVER_URL = "https://try.blink.host";
+const CLIENT_SECRET = crypto.randomUUID();
 const LOCAL_SERVER_PORT = 8000;
 
 const client = new DevhookClient({
   serverUrl: SERVER_URL,
   secret: CLIENT_SECRET,
+  // Transform WebSocket requests to point to local server
+  transformWebSocketRequest: ({ url, headers }) => {
+    url.host = `localhost:${LOCAL_SERVER_PORT}`;
+    url.protocol = "ws:";
+    return { url, headers };
+  },
   onRequest: async (request) => {
     // Forward requests to the local server
     const url = new URL(request.url);
@@ -46,10 +56,14 @@ const client = new DevhookClient({
   },
   onConnect: ({ url, id }) => {
     console.log(`Connected to devhook server!`);
+    console.log(`Client secret: ${CLIENT_SECRET}`);
     console.log(`Public URL: ${url}`);
     console.log(`Devhook ID: ${id}`);
     console.log(
-      `\nRequests to ${url}/* will be proxied to http://localhost:${LOCAL_SERVER_PORT}/*`
+      `\nHTTP requests to ${url}/* will be proxied to http://localhost:${LOCAL_SERVER_PORT}/*`
+    );
+    console.log(
+      `WebSocket connections to ${url.replace("http", "ws")}/* will be proxied to ws://localhost:${LOCAL_SERVER_PORT}/*`
     );
   },
   onDisconnect: () => {
@@ -61,7 +75,9 @@ const client = new DevhookClient({
 });
 
 console.log(`Connecting to devhook server at ${SERVER_URL}...`);
-console.log(`Will proxy requests to http://localhost:${LOCAL_SERVER_PORT}`);
+console.log(
+  `Will proxy HTTP and WebSocket requests to localhost:${LOCAL_SERVER_PORT}`
+);
 
 const disposable = client.connect();
 
