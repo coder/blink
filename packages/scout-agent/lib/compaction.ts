@@ -64,7 +64,7 @@ export function isOutOfContextError(error: unknown): boolean {
       textToTest = JSON.stringify(apiError);
     } catch {
       // note: util.inspect returns different values in Bun and Node.js
-      // in Node.js it includes the error message, in Bun it doesn't
+      // in Node.js it includes the error message, in Bun it ~sometimes~ doesn't.
       // that's why it's the final fallback
       textToTest = util.inspect(apiError, { depth: null });
     }
