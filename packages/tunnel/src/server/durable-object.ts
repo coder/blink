@@ -28,11 +28,9 @@ export interface TunnelSessionEnv {
  * State that survives restarts:
  * - id: The tunnel ID (generated from client secret)
  * - nextStreamID: For multiplexer continuity
- * - clientSecret: To verify reconnections
  */
 export class TunnelSession extends DurableObject<TunnelSessionEnv> {
   private id?: string;
-  private clientSecret?: string;
   private nextStreamID?: number;
   private cachedWorker?: Worker;
 
@@ -42,7 +40,6 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
     // Restore persisted state
     this.ctx.blockConcurrencyWhile(async () => {
       this.id = await this.ctx.storage.get("id");
-      this.clientSecret = await this.ctx.storage.get("clientSecret");
       this.nextStreamID = await this.ctx.storage.get("nextStreamID");
     });
   }
@@ -72,13 +69,10 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
     if (request.headers.get("upgrade") === "websocket") {
       // Initialize session from the headers if needed
       const tunnelId = request.headers.get("x-tunnel-id");
-      const clientSecret = request.headers.get("x-tunnel-secret");
 
-      if (tunnelId && clientSecret && !this.id) {
+      if (tunnelId && !this.id) {
         this.id = tunnelId;
-        this.clientSecret = clientSecret;
         await this.ctx.storage.put("id", tunnelId);
-        await this.ctx.storage.put("clientSecret", clientSecret);
       }
 
       return this.handleClientConnect(request);
@@ -90,7 +84,7 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
   /**
    * Handle a client connecting via WebSocket.
    */
-  private async handleClientConnect(request: Request): Promise<Response> {
+  private async handleClientConnect(_request: Request): Promise<Response> {
     // Close any existing client connections
     const existingClients = this.ctx.getWebSockets("client");
     for (const ws of existingClients) {
@@ -105,16 +99,17 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
 
     // Send connection established message with the public URL
     const publicUrl = this.getPublicUrl();
+    if (!this.id) {
+      return new Response("Tunnel ID not initialized", { status: 500 });
+    }
     const connectionInfo: ConnectionEstablished = {
       url: publicUrl,
-      id: this.id!,
+      id: this.id,
     };
 
     // Queue the message to be sent after the connection is established
     this.ctx.waitUntil(
       (async () => {
-        // Small delay to ensure WebSocket is ready
-        await new Promise((resolve) => setTimeout(resolve, 10));
         // Check if WebSocket is still open before sending (1 = OPEN)
         if (server.readyState === 1) {
           server.send(JSON.stringify(connectionInfo));
@@ -197,10 +192,12 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
         statusText: response.statusText,
       });
     } catch (err) {
+      // biome-ignore lint/suspicious/noConsole: needed for debugging
+      console.error("Proxy error", err);
       return new Response(
         JSON.stringify({
           error: "Proxy error",
-          message: err instanceof Error ? err.message : String(err),
+          message: "Internal server error",
         }),
         {
           status: 502,
@@ -264,6 +261,13 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
             // Ignore errors
           }
         }
+        // Reciprocate the close to complete the WebSocket close handshake
+        // https://github.com/cloudflare/workerd/issues/4327#issuecomment-3670433485
+        try {
+          ws.close(code, "Closed");
+        } catch {
+          // Already closed
+        }
         break;
       }
       case "proxied": {
@@ -284,10 +288,12 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
    * Handle WebSocket errors.
    */
   public override async webSocketError(
-    _ws: WebSocket,
-    _error: unknown
+    ws: WebSocket,
+    error: unknown
   ): Promise<void> {
-    // Suppress errors to avoid noisy logs
+    const state = ws.deserializeAttachment();
+    // biome-ignore lint/suspicious/noConsole: useful for debugging
+    console.error("WebSocket error", state, error);
   }
 
   /**

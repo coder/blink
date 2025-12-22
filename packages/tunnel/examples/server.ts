@@ -3,6 +3,7 @@
  *
  * Run with: npx tsx examples/server.ts
  */
+/** biome-ignore-all lint/suspicious/noConsole: this is an example file */
 
 import { createLocalServer } from "../src/server/local";
 

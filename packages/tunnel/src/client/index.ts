@@ -1,6 +1,6 @@
+import type { Disposable } from "@blink-sdk/events";
 import Multiplexer, { type Stream } from "@blink-sdk/multiplexer";
 import WebSocket from "ws";
-import type { Disposable } from "../emitter";
 import {
   ClientMessageType,
   type ConnectionEstablished,
@@ -13,11 +13,26 @@ import {
 } from "../schema";
 
 /**
- * Represents a WebSocket connection request that can be transformed
- * before the connection is established to the local server.
+ * Represents an incoming request to be transformed before proxying.
  */
-export interface WebSocketRequest {
+export interface TransformRequest {
+  /** The HTTP method (GET, POST, etc.) */
+  method: string;
+  /** The incoming request URL */
   url: URL;
+  /** The incoming request headers */
+  headers: Record<string, string>;
+}
+
+/**
+ * The result of transforming a request.
+ */
+export interface TransformResult {
+  /** The HTTP method to use (ignored for WebSocket) */
+  method: string;
+  /** The target URL to proxy to */
+  url: URL;
+  /** The headers to send with the proxied request */
   headers: Record<string, string>;
 }
 
@@ -36,10 +51,25 @@ export interface TunnelClientOptions {
   secret: string;
 
   /**
-   * Handle incoming proxied HTTP requests.
-   * Return a Response to send back to the original requester.
+   * Transform incoming requests before proxying.
+   * This single function handles both HTTP and WebSocket requests.
+   * Can be async to allow service discovery or other lookups.
+   *
+   * @param request - The incoming method, URL, and headers
+   * @returns The target method, URL, and headers to proxy to
+   *          (method is ignored for WebSocket connections)
+   *
+   * @example
+   * ```ts
+   * transformRequest: async ({ method, url, headers }) => {
+   *   url.host = "localhost:3000";
+   *   return { method, url, headers };
+   * }
+   * ```
    */
-  onRequest: (request: Request) => Promise<Response>;
+  transformRequest: (
+    request: TransformRequest
+  ) => Promise<TransformResult> | TransformResult;
 
   /**
    * Called when the connection is established.
@@ -56,24 +86,6 @@ export interface TunnelClientOptions {
    * Called when an error occurs.
    */
   onError?: (error: unknown) => void;
-
-  /**
-   * Transform WebSocket connection requests before they are proxied to the local server.
-   * Allows modifying both the target URL and headers.
-   * If not provided, WebSocket requests are proxied as-is.
-   *
-   * Note: This only applies to WebSocket connections. HTTP requests should be
-   * transformed in the `onRequest` callback.
-   *
-   * @example
-   * ```ts
-   * transformWebSocketRequest: ({ url, headers }) => {
-   *   url.host = "localhost:3000";
-   *   return { url, headers };
-   * }
-   * ```
-   */
-  transformWebSocketRequest?: (request: WebSocketRequest) => WebSocketRequest;
 }
 
 /**
@@ -84,11 +96,9 @@ export interface TunnelClientOptions {
  * const client = new TunnelClient({
  *   serverUrl: "https://tunnel.example.com",
  *   secret: "my-secret-key",
- *   onRequest: async (req) => {
- *     // Forward to local server
- *     const url = new URL(req.url);
+ *   transformRequest: async ({ method, url, headers }) => {
  *     url.host = "localhost:3000";
- *     return fetch(new Request(url.toString(), req));
+ *     return { method, url, headers };
  *   },
  *   onConnect: ({ url }) => {
  *     console.log(`Tunnel available at: ${url}`);
@@ -202,9 +212,9 @@ export class TunnelClient {
         });
 
         socket.on("close", () => {
+          this.opts.onDisconnect?.();
           if (disposed) return;
           multiplexer = undefined;
-          this.opts.onDisconnect?.();
           scheduleReconnect();
         });
 
@@ -274,7 +284,7 @@ export class TunnelClient {
           requestInit = JSON.parse(
             this.decoder.decode(payload)
           ) as ProxyInitRequest;
-          isWebSocket = requestInit.headers["upgrade"] === "websocket";
+          isWebSocket = requestInit.headers.upgrade === "websocket";
 
           if (!isWebSocket) {
             // Set up body stream for non-WebSocket requests
@@ -325,20 +335,38 @@ export class TunnelClient {
     body: ReadableStream<Uint8Array>
   ): Promise<void> {
     try {
+      // Transform the request
+      const transformed = await this.opts.transformRequest({
+        method: init.method,
+        url: new URL(init.url),
+        headers: { ...init.headers },
+      });
+
+      // Check if the original request has a body based on its method
+      // We use the original method because the body stream exists based on
+      // what the original client sent, not what we transform it to
       const hasBody =
         init.method !== "GET" &&
         init.method !== "HEAD" &&
         init.method !== "OPTIONS";
 
-      const request = new Request(init.url, {
-        method: init.method,
-        headers: init.headers,
+      // Ensure protocol is http/https for fetch
+      if (
+        transformed.url.protocol !== "http:" &&
+        transformed.url.protocol !== "https:"
+      ) {
+        transformed.url.protocol = "http:";
+      }
+
+      const request = new Request(transformed.url.toString(), {
+        method: transformed.method,
+        headers: transformed.headers,
         body: hasBody ? body : undefined,
         // @ts-expect-error - Required for Node.js streaming
         duplex: hasBody ? "half" : undefined,
       });
 
-      const response = await this.opts.onRequest(request);
+      const response = await fetch(request);
 
       // Send response headers
       const headers: Record<string, string> = {};
@@ -413,25 +441,27 @@ export class TunnelClient {
   ): Promise<void> {
     try {
       // Transform the WebSocket request (URL and headers) before connecting
-      let targetUrl = new URL(init.url);
-      let targetHeaders = { ...init.headers };
+      // Note: method from result is ignored for WebSocket connections
+      const transformed = await this.opts.transformRequest({
+        method: init.method,
+        url: new URL(init.url),
+        headers: { ...init.headers },
+      });
 
-      if (this.opts.transformWebSocketRequest) {
-        const transformed = this.opts.transformWebSocketRequest({
-          url: targetUrl,
-          headers: targetHeaders,
-        });
-        targetUrl = transformed.url;
-        targetHeaders = transformed.headers;
+      // Ensure protocol is ws/wss for WebSocket
+      if (
+        transformed.url.protocol === "http:" ||
+        transformed.url.protocol === "https:"
+      ) {
+        transformed.url.protocol =
+          transformed.url.protocol === "https:" ? "wss:" : "ws:";
       }
 
-      targetUrl.protocol = targetUrl.protocol === "https:" ? "wss:" : "ws:";
-
       const ws = new WebSocket(
-        targetUrl.toString(),
-        targetHeaders["sec-websocket-protocol"],
+        transformed.url.toString(),
+        transformed.headers["sec-websocket-protocol"],
         {
-          headers: targetHeaders,
+          headers: transformed.headers,
           perMessageDeflate: false,
         }
       );
@@ -528,7 +558,7 @@ export class TunnelClient {
       stream.onClose(() => {
         ws.close();
       });
-    } catch (err) {
+    } catch (_err) {
       const proxyInit: ProxyInitResponse = {
         status_code: 502,
         status_message: "Bad Gateway",

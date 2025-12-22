@@ -23,7 +23,11 @@ const DOMAIN = "blink-tunnel";
 function bytesToBigInt128(bytes: Uint8Array, off: number): bigint {
   let x = 0n;
   for (let i = 0; i < 16; i++) {
-    x = (x << 8n) + BigInt(bytes[off + i]!);
+    const b = bytes[off + i];
+    if (b === undefined) {
+      throw new Error("Unexpected: bytes is too short");
+    }
+    x = (x << 8n) + BigInt(b);
   }
   return x;
 }

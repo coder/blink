@@ -36,6 +36,7 @@
     }
   },
   "dependencies": {
+    "@blink-sdk/events": "workspace:*",
     "@blink-sdk/multiplexer": "workspace:*",
     "ws": "^8.18.0"
   },

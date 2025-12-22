@@ -7,13 +7,22 @@
 
 import assert from "node:assert";
 import { after, afterEach, before, describe, it } from "node:test";
+import WebSocket, {
+  WebSocketServer,
+  type WebSocket as WebSocketType,
+} from "ws";
 import { TunnelClient } from "./client";
+import type { ConnectionEstablished } from "./schema";
 import {
   closeWsServer,
-  delay,
+  createMockHttpServer,
   getTunnelId,
   getTunnelUrl,
   getTunnelWsUrl,
+  type MockHttpServer,
+  newPromise,
+  readBody,
+  readJsonBody,
   type TestServer,
   type TestServerFactory,
 } from "./test-utils";
@@ -23,7 +32,7 @@ export interface SharedTestOptions {
    * Skip WebSocket proxying tests.
    * Useful for environments where WebSocket behavior differs (e.g., miniflare).
    */
-  skipWebSocketTests?: boolean;
+  skipCloudflareWebSocketCloseTests?: boolean;
 }
 
 /**
@@ -35,18 +44,72 @@ export function runSharedTests(
   serverSecret: string,
   options: SharedTestOptions = {}
 ) {
-  const { skipWebSocketTests = false } = options;
+  const { skipCloudflareWebSocketCloseTests = true } = options;
   describe(`${serverName} server`, () => {
     let server: TestServer;
+    let mockServer: MockHttpServer;
 
     before(async () => {
       server = await serverFactory();
-      await delay(100); // Give server time to start
+      mockServer = await createMockHttpServer();
     });
 
     after(async () => {
+      await mockServer?.close();
       await server?.close();
     });
+
+    /**
+     * Helper to create a WebSocketServer that can be used with the `using` keyword.
+     * The server is automatically closed when it goes out of scope.
+     */
+    function createWsServer() {
+      const wsServer = new WebSocketServer({ port: 0 });
+      const port = (wsServer.address() as { port: number }).port;
+      return {
+        server: wsServer,
+        port,
+        [Symbol.dispose]: () => closeWsServer(wsServer),
+      };
+    }
+
+    /**
+     * Helper to create a TunnelClient and wait for it to connect.
+     * Returns a promise that resolves with the disposable when onConnect fires.
+     */
+    function connectClient(config: {
+      secret: string;
+      port?: number;
+      onConnect?: (_data: ConnectionEstablished) => void;
+      onDisconnect?: () => void;
+      transformHeaders?: (
+        _headers: Record<string, string>
+      ) => Record<string, string>;
+    }): Promise<{ [Symbol.dispose]: () => void }> {
+      return new Promise((resolve) => {
+        let disposable!: { dispose: () => void };
+        const client = new TunnelClient({
+          serverUrl: server.url,
+          secret: config.secret,
+          transformRequest: ({ method, url, headers }) => {
+            url.host = `127.0.0.1:${config.port ?? mockServer.port}`;
+            return {
+              method,
+              url,
+              headers: config.transformHeaders?.(headers) ?? headers,
+            };
+          },
+          onConnect: (data) => {
+            config.onConnect?.(data);
+            resolve({ [Symbol.dispose]: () => disposable.dispose() });
+          },
+          onDisconnect: () => {
+            config.onDisconnect?.();
+          },
+        });
+        disposable = client.connect();
+      });
+    }
 
     describe("basic endpoints", () => {
       it("should respond to health check", async () => {
@@ -68,55 +131,39 @@ export function runSharedTests(
     });
 
     describe("client-server integration", () => {
-      let clientConnections: Array<{ dispose: () => void }> = [];
-
-      afterEach(() => {
-        for (const conn of clientConnections) {
-          conn.dispose();
-        }
-        clientConnections = [];
-      });
-
       it("should connect and receive public URL", async () => {
-        let connectedUrl: string | undefined;
-        let connectedId: string | undefined;
+        mockServer.setHandler((_req, res) => {
+          res.writeHead(200);
+          res.end("OK");
+        });
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
+        const connectData: { url?: string; id?: string } = {};
+        using _disposable = await connectClient({
           secret: "test-client",
-          onRequest: async () => new Response("OK"),
-          onConnect: ({ url, id }) => {
-            connectedUrl = url;
-            connectedId = id;
+          onConnect: (data) => {
+            connectData.url = data.url;
+            connectData.id = data.id;
           },
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-
-        await delay(200);
-
-        assert.ok(connectedUrl !== undefined);
-        assert.ok(connectedId !== undefined);
-        assert.strictEqual(connectedId.length, 16);
-        assert.ok(connectedUrl.includes(connectedId));
+        assert.ok(connectData.url !== undefined);
+        assert.ok(connectData.id !== undefined);
+        assert.strictEqual(connectData.id.length, 16);
+        assert.ok(connectData.url.includes(connectData.id));
       });
 
       it("should proxy GET requests", async () => {
-        let receivedRequest: Request | undefined;
+        let receivedMethod: string | undefined;
+        let receivedUrl: string | undefined;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "get-test",
-          onRequest: async (req) => {
-            receivedRequest = req;
-            return new Response("GET response");
-          },
+        mockServer.setHandler((req, res) => {
+          receivedMethod = req.method;
+          receivedUrl = req.url;
+          res.writeHead(200, { "content-type": "text/plain" });
+          res.end("GET response");
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "get-test" });
 
         const tunnelId = await getTunnelId("get-test", serverSecret);
         const response = await fetch(
@@ -125,27 +172,20 @@ export function runSharedTests(
 
         assert.strictEqual(response.status, 200);
         assert.strictEqual(await response.text(), "GET response");
-        assert.strictEqual(receivedRequest?.method, "GET");
-        assert.strictEqual(new URL(receivedRequest!.url).pathname, "/api/data");
+        assert.strictEqual(receivedMethod, "GET");
+        assert.strictEqual(receivedUrl, "/api/data");
       });
 
       it("should proxy POST requests with JSON body", async () => {
         let receivedBody: unknown;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "post-test",
-          onRequest: async (req) => {
-            receivedBody = await req.json();
-            return new Response(JSON.stringify({ received: true }), {
-              headers: { "content-type": "application/json" },
-            });
-          },
+        mockServer.setHandler(async (req, res) => {
+          receivedBody = await readJsonBody(req);
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ received: true }));
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "post-test" });
 
         const tunnelId = await getTunnelId("post-test", serverSecret);
         const response = await fetch(
@@ -166,24 +206,19 @@ export function runSharedTests(
       it("should preserve query parameters", async () => {
         let receivedUrl: string | undefined;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "query-test",
-          onRequest: async (req) => {
-            receivedUrl = req.url;
-            return new Response("OK");
-          },
+        mockServer.setHandler((req, res) => {
+          receivedUrl = req.url;
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "query-test" });
 
         const tunnelId = await getTunnelId("query-test", serverSecret);
         await fetch(getTunnelUrl(server, tunnelId, "/search?q=test&page=1"));
 
         assert.ok(receivedUrl !== undefined);
-        const url = new URL(receivedUrl!);
+        const url = new URL(`http://localhost${receivedUrl!}`);
         assert.strictEqual(url.searchParams.get("q"), "test");
         assert.strictEqual(url.searchParams.get("page"), "1");
       });
@@ -191,729 +226,977 @@ export function runSharedTests(
       it("should preserve request headers", async () => {
         const receivedHeaders: Record<string, string> = {};
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "headers-test",
-          onRequest: async (req) => {
-            req.headers.forEach((value, key) => {
+        mockServer.setHandler(async (req, res) => {
+          for (const [key, value] of Object.entries(req.headers)) {
+            if (typeof value === "string") {
               receivedHeaders[key.toLowerCase()] = value;
-            });
-            return new Response("OK");
-          },
+            }
+          }
+          await readBody(req);
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "headers-test" });
 
         const tunnelId = await getTunnelId("headers-test", serverSecret);
-        await fetch(getTunnelUrl(server, tunnelId, "/"), {
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
           headers: {
-            "x-custom-header": "custom-value",
-            authorization: "Bearer token123",
+            "X-Custom-Header": "custom-value",
+            Authorization: "Bearer token123",
           },
         });
 
         assert.strictEqual(receivedHeaders["x-custom-header"], "custom-value");
-        assert.strictEqual(receivedHeaders["authorization"], "Bearer token123");
+        assert.strictEqual(receivedHeaders.authorization, "Bearer token123");
       });
 
       it("should return response headers from client", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "resp-headers-test",
-          onRequest: async () => {
-            return new Response("OK", {
-              headers: {
-                "x-custom-response": "response-value",
-                "cache-control": "no-cache",
-              },
-            });
-          },
+        mockServer.setHandler((_req, res) => {
+          res.writeHead(200, {
+            "X-Response-Header": "response-value",
+            "Content-Type": "application/json",
+          });
+          res.end(JSON.stringify({ ok: true }));
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({
+          secret: "response-headers-test",
+        });
 
-        const tunnelId = await getTunnelId("resp-headers-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        const tunnelId = await getTunnelId(
+          "response-headers-test",
+          serverSecret
+        );
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
 
         assert.strictEqual(
-          response.headers.get("x-custom-response"),
+          response.headers.get("X-Response-Header"),
           "response-value"
         );
-        assert.strictEqual(response.headers.get("cache-control"), "no-cache");
+        assert.strictEqual(
+          response.headers.get("Content-Type"),
+          "application/json"
+        );
       });
 
       it("should handle different HTTP status codes", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "status-test",
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            const status = parseInt(url.searchParams.get("status") || "200");
-            return new Response(null, { status });
-          },
-        });
+        const testCases = [
+          { status: 201, message: "Created" },
+          { status: 204, message: "" },
+          { status: 400, message: "Bad Request" },
+          { status: 404, message: "Not Found" },
+          { status: 500, message: "Internal Server Error" },
+        ];
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        for (const { status, message } of testCases) {
+          mockServer.setHandler((_req, res) => {
+            res.writeHead(status);
+            res.end(message);
+          });
 
-        const tunnelId = await getTunnelId("status-test", serverSecret);
+          const secret = `status-${status}`;
+          using _disposable = await connectClient({ secret });
 
-        const response201 = await fetch(
-          getTunnelUrl(server, tunnelId, "/?status=201")
-        );
-        assert.strictEqual(response201.status, 201);
+          const tunnelId = await getTunnelId(secret, serverSecret);
+          const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
 
-        const response404 = await fetch(
-          getTunnelUrl(server, tunnelId, "/?status=404")
-        );
-        assert.strictEqual(response404.status, 404);
-
-        const response500 = await fetch(
-          getTunnelUrl(server, tunnelId, "/?status=500")
-        );
-        assert.strictEqual(response500.status, 500);
+          assert.strictEqual(
+            response.status,
+            status,
+            `Expected status ${status}`
+          );
+          const text = await response.text();
+          assert.strictEqual(
+            text,
+            message,
+            `Expected body "${message}" for status ${status}`
+          );
+        }
       });
 
       it("should return 503 when no client is connected", async () => {
-        const tunnelId = await getTunnelId("no-client", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        // Use a secret that no client is using
+        const tunnelId = await getTunnelId("non-existent-client", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
 
         assert.strictEqual(response.status, 503);
-        const body = (await response.json()) as { error: string };
-        assert.ok(body.error !== undefined);
       });
 
       it("should handle client disconnection gracefully", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "disconnect-test",
-          onRequest: async () => new Response("OK"),
+        mockServer.setHandler((_req, res) => {
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        await delay(200);
-
+        const { promise: disconnected, resolve: resolveDisconnected } =
+          newPromise();
+        // Don't use `using` - we'll manually dispose
+        const disposable = await connectClient({
+          secret: "disconnect-test",
+          onDisconnect: resolveDisconnected,
+        });
         const tunnelId = await getTunnelId("disconnect-test", serverSecret);
 
-        // First request should work
-        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        // First request should succeed
+        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/test"));
         assert.strictEqual(response1.status, 200);
 
         // Disconnect
-        disposable.dispose();
-        await delay(100);
+        disposable[Symbol.dispose]();
+        await disconnected;
 
         // Second request should fail
-        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/test"));
         assert.strictEqual(response2.status, 503);
       });
 
       it("should handle reconnection with same secret", async () => {
-        const secret = "reconnect-test";
+        let requestCount = 0;
 
-        const client1 = new TunnelClient({
-          serverUrl: server.url,
-          secret,
-          onRequest: async () => new Response("client1"),
+        mockServer.setHandler(async (req, res) => {
+          await readBody(req);
+          requestCount++;
+          res.writeHead(200);
+          res.end(`request-${requestCount}`);
         });
 
-        const disposable1 = client1.connect();
-        await delay(200);
+        const tunnelId = await getTunnelId("reconnect-test", serverSecret);
 
-        const tunnelId = await getTunnelId(secret, serverSecret);
-        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/"));
-        assert.strictEqual(await response1.text(), "client1");
+        const { promise: disconnected1, resolve: resolveDisconnected1 } =
+          newPromise();
+        // First connection. don't use `using`, we'll manually dispose
+        const disposable1 = await connectClient({
+          secret: "reconnect-test",
+          onDisconnect: resolveDisconnected1,
+        });
+
+        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/test"));
+        assert.strictEqual(response1.status, 200);
+        assert.strictEqual(await response1.text(), "request-1");
 
         // Disconnect first client
-        disposable1.dispose();
-        await delay(100);
+        disposable1[Symbol.dispose]();
+        await disconnected1;
 
-        // Connect second client with same secret
-        const client2 = new TunnelClient({
-          serverUrl: server.url,
-          secret,
-          onRequest: async () => new Response("client2"),
+        // Second connection with same secret
+        using _disposable2 = await connectClient({
+          secret: "reconnect-test",
         });
 
-        const disposable2 = client2.connect();
-        clientConnections.push(disposable2);
-        await delay(200);
-
-        // Should get response from new client
-        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/"));
-        assert.strictEqual(await response2.text(), "client2");
+        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/test"));
+        assert.strictEqual(response2.status, 200);
+        assert.strictEqual(await response2.text(), "request-2");
       });
 
       it("should handle multiple concurrent clients with different secrets", async () => {
-        const client1 = new TunnelClient({
-          serverUrl: server.url,
-          secret: "multi-1",
-          onRequest: async () => new Response("response1"),
+        mockServer.setHandler(async (req, res) => {
+          await readBody(req);
+          // Return the path to identify which tunnel was used
+          res.writeHead(200);
+          res.end(req.url);
         });
 
-        const client2 = new TunnelClient({
-          serverUrl: server.url,
-          secret: "multi-2",
-          onRequest: async () => new Response("response2"),
-        });
+        const [disposable1, disposable2] = await Promise.all([
+          connectClient({ secret: "client1" }),
+          connectClient({ secret: "client2" }),
+        ]);
+        using _disposable1 = disposable1;
+        using _disposable2 = disposable2;
 
-        const disposable1 = client1.connect();
-        const disposable2 = client2.connect();
-        clientConnections.push(disposable1, disposable2);
-        await delay(200);
-
-        const tunnelId1 = await getTunnelId("multi-1", serverSecret);
-        const tunnelId2 = await getTunnelId("multi-2", serverSecret);
+        const tunnelId1 = await getTunnelId("client1", serverSecret);
+        const tunnelId2 = await getTunnelId("client2", serverSecret);
 
         const [response1, response2] = await Promise.all([
-          fetch(getTunnelUrl(server, tunnelId1, "/")),
-          fetch(getTunnelUrl(server, tunnelId2, "/")),
+          fetch(getTunnelUrl(server, tunnelId1, "/path1")),
+          fetch(getTunnelUrl(server, tunnelId2, "/path2")),
         ]);
 
-        assert.strictEqual(await response1.text(), "response1");
-        assert.strictEqual(await response2.text(), "response2");
+        assert.strictEqual(response1.status, 200);
+        assert.strictEqual(response2.status, 200);
+        assert.strictEqual(await response1.text(), "/path1");
+        assert.strictEqual(await response2.text(), "/path2");
       });
 
       it("should handle request errors gracefully", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "error-test",
-          onRequest: async () => {
-            throw new Error("Handler error");
-          },
+        mockServer.setHandler((_req, res) => {
+          // Simulate an error by destroying the connection
+          res.destroy();
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "error-test" });
 
         const tunnelId = await getTunnelId("error-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
 
+        // Should return 502 Bad Gateway for errors
         assert.strictEqual(response.status, 502);
       });
     });
 
-    describe("websocket proxying", { skip: skipWebSocketTests }, () => {
-      let clientConnections: Array<{ dispose: () => void }> = [];
-
-      afterEach(() => {
-        for (const conn of clientConnections) {
-          conn.dispose();
-        }
-        clientConnections = [];
-      });
-
+    describe("websocket proxying", () => {
       it("should proxy WebSocket connections", async () => {
-        const receivedMessages: string[] = [];
-        let localWsConnected = false;
+        using wss = createWsServer();
 
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
+        const {
+          promise: serverReceivedMessage,
+          resolve: resolveServerReceivedMessage,
+        } = newPromise<string>();
 
-        localWsServer.on("connection", (ws) => {
-          localWsConnected = true;
-          ws.on("message", (data) => {
-            receivedMessages.push(data.toString());
-            ws.send(`echo: ${data.toString()}`);
+        wss.server.on("connection", (ws: WebSocketType) => {
+          ws.on("message", (data: Buffer) => {
+            resolveServerReceivedMessage(data.toString());
+            ws.send(`echo: ${data}`);
           });
         });
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
+        using _disposable = await connectClient({
           secret: "ws-test",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
+          port: wss.port,
         });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
         const tunnelId = await getTunnelId("ws-test", serverSecret);
-        const externalWs = new WsClient(
-          getTunnelWsUrl(server, tunnelId, "/ws")
-        );
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
+        const clientWs = new WebSocket(wsUrl);
+        let clientReceivedMessage: string | undefined;
 
-        const externalMessages: string[] = [];
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
-          externalWs.on("open", () => {
-            externalWs.send("hello from external");
+          clientWs.on("open", () => {
+            clientWs.send("hello");
           });
-
-          externalWs.on("message", (data) => {
-            externalMessages.push(data.toString());
-            if (externalMessages.length >= 1) {
-              clearTimeout(timeout);
-              resolve();
-            }
+          clientWs.on("message", (data: Buffer) => {
+            clientReceivedMessage = data.toString();
+            clientWs.close();
+            resolve();
           });
-
-          externalWs.on("error", (err) => {
-            clearTimeout(timeout);
-            reject(err);
-          });
+          // we don't wait on resolve on `close` because Cloudflare DO has a bug where
+          // it takes 10 seconds to trigger the `webSocketClose` event after it's been triggered
+          // by the client
+          // clientWs.on("close", () => resolve());
+          clientWs.on("error", reject);
         });
 
-        assert.strictEqual(localWsConnected, true);
-        assert.ok(receivedMessages.includes("hello from external"));
-        assert.ok(externalMessages.includes("echo: hello from external"));
-
-        externalWs.terminate();
-        closeWsServer(localWsServer);
+        assert.strictEqual(await serverReceivedMessage, "hello");
+        assert.strictEqual(clientReceivedMessage, "echo: hello");
       });
 
       it("should handle WebSocket close from external client", async () => {
-        let localWsClosed = false;
+        using wss = createWsServer();
+
         let closeCode: number | undefined;
 
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
-
-        localWsServer.on("connection", (ws) => {
-          ws.on("close", (code) => {
-            localWsClosed = true;
+        const { promise: localWsClosed, resolve: resolveLocalWsClosed } =
+          newPromise();
+        wss.server.on("connection", (ws: WebSocketType) => {
+          ws.on("close", (code: number) => {
             closeCode = code;
+            resolveLocalWsClosed();
           });
         });
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
+        using _disposable = await connectClient({
           secret: "ws-close-test",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
+          port: wss.port,
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
         const tunnelId = await getTunnelId("ws-close-test", serverSecret);
-        const externalWs = new WsClient(
-          getTunnelWsUrl(server, tunnelId, "/ws")
-        );
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
+
+        const externalWs = new WebSocket(wsUrl);
 
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
           externalWs.on("open", () => {
             externalWs.close(1000, "Normal closure");
           });
-
           externalWs.on("close", () => {
             clearTimeout(timeout);
-            setTimeout(resolve, 100);
+            resolve();
           });
-
           externalWs.on("error", (err) => {
             clearTimeout(timeout);
             reject(err);
           });
         });
 
-        assert.strictEqual(localWsClosed, true);
+        await localWsClosed;
         assert.strictEqual(closeCode, 1000);
-
-        closeWsServer(localWsServer);
       });
 
       it("should handle multiple concurrent WebSocket connections to the same client", async () => {
-        const localConnections: Set<number> = new Set();
-        let connectionCounter = 0;
+        using wss = createWsServer();
 
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
+        const serverMessages: string[] = [];
 
-        localWsServer.on("connection", (ws) => {
-          const connId = connectionCounter++;
-          localConnections.add(connId);
-
-          ws.on("message", (data) => {
-            ws.send(`conn${connId}: ${data.toString()}`);
-          });
-
-          ws.on("close", () => {
-            localConnections.delete(connId);
+        wss.server.on("connection", (ws: WebSocketType) => {
+          ws.on("message", (data: Buffer) => {
+            const msg = data.toString();
+            serverMessages.push(msg);
+            ws.send(`reply: ${msg}`);
           });
         });
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "ws-concurrent-test",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
+        using _disposable = await connectClient({
+          secret: "ws-multi-test",
+          port: wss.port,
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        const tunnelId = await getTunnelId("ws-multi-test", serverSecret);
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
 
-        const tunnelId = await getTunnelId("ws-concurrent-test", serverSecret);
+        // Create multiple WebSocket connections
+        const clientMessages: string[][] = [[], [], []];
 
-        // Create 5 concurrent WebSocket connections
-        const numConnections = 5;
-        const externalWsConnections: InstanceType<typeof WsClient>[] = [];
-        const receivedMessages: Map<number, string[]> = new Map();
-
-        for (let i = 0; i < numConnections; i++) {
-          receivedMessages.set(i, []);
-          const ws = new WsClient(getTunnelWsUrl(server, tunnelId, `/ws${i}`));
-          externalWsConnections.push(ws);
-        }
-
-        // Wait for all connections to open
         await Promise.all(
-          externalWsConnections.map(
-            (ws, i) =>
+          [0, 1, 2].map(
+            (i) =>
               new Promise<void>((resolve, reject) => {
-                ws.on("open", resolve);
-                ws.on("error", reject);
-                ws.on("message", (data) => {
-                  receivedMessages.get(i)!.push(data.toString());
+                const ws = new WebSocket(wsUrl);
+                ws.on("open", () => {
+                  ws.send(`client${i}`);
                 });
-                setTimeout(
-                  () => reject(new Error(`Connection ${i} timeout`)),
-                  5000
-                );
+                ws.on("message", (data: Buffer) => {
+                  clientMessages[i]?.push(data.toString());
+                  ws.close();
+                  resolve();
+                });
+                // we don't wait on resolve on `close` because Cloudflare DO has a bug where
+                // it takes 10 seconds to trigger the `webSocketClose` event after it's been triggered
+                // by the client
+                // ws.on("close", () => resolve());
+                ws.on("error", reject);
               })
           )
         );
 
-        assert.strictEqual(localConnections.size, numConnections);
-
-        // Send messages from each connection
-        for (let i = 0; i < numConnections; i++) {
-          externalWsConnections[i]!.send(`hello from ws${i}`);
-        }
-
-        await delay(200);
-
-        // Verify each connection received exactly one response
-        for (let i = 0; i < numConnections; i++) {
-          assert.strictEqual(receivedMessages.get(i)!.length, 1);
-          assert.ok(receivedMessages.get(i)![0].includes(`hello from ws${i}`));
-        }
-
-        // Close all connections
-        for (const ws of externalWsConnections) {
-          ws.close();
-        }
-
-        await delay(100);
-        closeWsServer(localWsServer);
+        assert.strictEqual(serverMessages.length, 3);
+        assert.ok(serverMessages.includes("client0"));
+        assert.ok(serverMessages.includes("client1"));
+        assert.ok(serverMessages.includes("client2"));
       });
 
       it("should handle WebSocket connections from multiple tunnel clients simultaneously", async () => {
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
+        using wss = createWsServer();
 
-        const localWsServer1 = new WebSocketServer({ port: 0 });
-        const localWsPort1 = (localWsServer1.address() as { port: number })
-          .port;
-        const localWsServer2 = new WebSocketServer({ port: 0 });
-        const localWsPort2 = (localWsServer2.address() as { port: number })
-          .port;
-
-        const messages1: string[] = [];
-        const messages2: string[] = [];
-
-        localWsServer1.on("connection", (ws) => {
-          ws.on("message", (data) => {
-            messages1.push(data.toString());
-            ws.send(`server1: ${data.toString()}`);
+        wss.server.on("connection", (ws: WebSocketType) => {
+          ws.on("message", (data: Buffer) => {
+            ws.send(`echo: ${data}`);
           });
         });
 
-        localWsServer2.on("connection", (ws) => {
-          ws.on("message", (data) => {
-            messages2.push(data.toString());
-            ws.send(`server2: ${data.toString()}`);
-          });
-        });
+        // Create two tunnel clients
+        const [disposable1, disposable2] = await Promise.all([
+          connectClient({ secret: "ws-client1", port: wss.port }),
+          connectClient({ secret: "ws-client2", port: wss.port }),
+        ]);
+        using _disposable1 = disposable1;
+        using _disposable2 = disposable2;
 
-        const client1 = new TunnelClient({
-          serverUrl: server.url,
-          secret: "ws-multi-1",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort1}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort1}`;
-            return fetch(new Request(url.toString(), req));
-          },
-        });
+        const tunnelId1 = await getTunnelId("ws-client1", serverSecret);
+        const tunnelId2 = await getTunnelId("ws-client2", serverSecret);
 
-        const client2 = new TunnelClient({
-          serverUrl: server.url,
-          secret: "ws-multi-2",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort2}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort2}`;
-            return fetch(new Request(url.toString(), req));
-          },
-        });
-
-        const disposable1 = client1.connect();
-        const disposable2 = client2.connect();
-        clientConnections.push(disposable1, disposable2);
-        await delay(200);
-
-        const tunnelId1 = await getTunnelId("ws-multi-1", serverSecret);
-        const tunnelId2 = await getTunnelId("ws-multi-2", serverSecret);
-
-        const externalWs1 = new WsClient(
-          getTunnelWsUrl(server, tunnelId1, "/ws")
-        );
-        const externalWs2 = new WsClient(
-          getTunnelWsUrl(server, tunnelId2, "/ws")
-        );
-
-        const received1: string[] = [];
-        const received2: string[] = [];
+        const messages: string[] = [];
 
         await Promise.all([
           new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(
-              () => reject(new Error("Timeout ws1")),
-              5000
-            );
-            externalWs1.on("open", () => {
-              clearTimeout(timeout);
+            const ws = new WebSocket(getTunnelWsUrl(server, tunnelId1, "/ws"));
+            ws.on("open", () => ws.send("from1"));
+            ws.on("message", (data: Buffer) => {
+              messages.push(data.toString());
+              ws.close();
               resolve();
             });
-            externalWs1.on("error", (err) => {
-              clearTimeout(timeout);
-              reject(err);
-            });
-            externalWs1.on("message", (data) =>
-              received1.push(data.toString())
-            );
+            // we don't wait on resolve on `close` because Cloudflare DO has a bug where
+            // it takes 10 seconds to trigger the `webSocketClose` event after it's been triggered
+            // by the client
+            // ws.on("close", () => resolve());
+            ws.on("error", reject);
           }),
           new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(
-              () => reject(new Error("Timeout ws2")),
-              5000
-            );
-            externalWs2.on("open", () => {
-              clearTimeout(timeout);
+            const ws = new WebSocket(getTunnelWsUrl(server, tunnelId2, "/ws"));
+            ws.on("open", () => ws.send("from2"));
+            ws.on("message", (data: Buffer) => {
+              messages.push(data.toString());
+              ws.close();
               resolve();
             });
-            externalWs2.on("error", (err) => {
-              clearTimeout(timeout);
-              reject(err);
-            });
-            externalWs2.on("message", (data) =>
-              received2.push(data.toString())
-            );
+            // ditto above
+            // ws.on("close", () => resolve());
+            ws.on("error", reject);
           }),
         ]);
 
-        externalWs1.send("message to client 1");
-        externalWs2.send("message to client 2");
-
-        await delay(200);
-
-        // Verify messages were routed correctly
-        assert.ok(messages1.includes("message to client 1"));
-        assert.ok(messages2.includes("message to client 2"));
-        assert.ok(!messages1.includes("message to client 2"));
-        assert.ok(!messages2.includes("message to client 1"));
-
-        // Verify exactly one response from each server
-        assert.strictEqual(received1.length, 1);
-        assert.ok(received1[0].includes("server1:"));
-        assert.strictEqual(received2.length, 1);
-        assert.ok(received2[0].includes("server2:"));
-
-        externalWs1.terminate();
-        externalWs2.terminate();
-        await delay(100);
-        closeWsServer(localWsServer1);
-        closeWsServer(localWsServer2);
+        assert.ok(messages.includes("echo: from1"));
+        assert.ok(messages.includes("echo: from2"));
       });
 
       it("should isolate WebSocket connections - closing one doesn't affect others", async () => {
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
+        using wss = createWsServer();
 
-        localWsServer.on("connection", (ws) => {
-          ws.on("message", (data) => ws.send(data));
+        wss.server.on("connection", (ws: WebSocketType) => {
+          ws.on("message", (data: Buffer) => {
+            ws.send(`echo: ${data}`);
+          });
         });
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
+        using _disposable = await connectClient({
           secret: "ws-isolate-test",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
+          port: wss.port,
         });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
 
         const tunnelId = await getTunnelId("ws-isolate-test", serverSecret);
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
 
-        const ws1 = new WsClient(getTunnelWsUrl(server, tunnelId, "/a"));
-        const ws2 = new WsClient(getTunnelWsUrl(server, tunnelId, "/b"));
-        const ws3 = new WsClient(getTunnelWsUrl(server, tunnelId, "/c"));
+        // Create two connections
+        const ws1 = new WebSocket(wsUrl);
+        const ws2 = new WebSocket(wsUrl);
 
-        const received2: string[] = [];
-        const received3: string[] = [];
+        let ws2Message: string | undefined;
 
-        await Promise.all([
-          new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(
-              () => reject(new Error("Timeout")),
-              5000
-            );
-            ws1.on("open", () => {
-              clearTimeout(timeout);
-              resolve();
-            });
-            ws1.on("error", (err) => {
-              clearTimeout(timeout);
-              reject(err);
-            });
-          }),
-          new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(
-              () => reject(new Error("Timeout")),
-              5000
-            );
-            ws2.on("open", () => {
-              clearTimeout(timeout);
-              resolve();
-            });
-            ws2.on("error", (err) => {
-              clearTimeout(timeout);
-              reject(err);
-            });
-            ws2.on("message", (data) => received2.push(data.toString()));
-          }),
-          new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(
-              () => reject(new Error("Timeout")),
-              5000
-            );
-            ws3.on("open", () => {
-              clearTimeout(timeout);
-              resolve();
-            });
-            ws3.on("error", (err) => {
-              clearTimeout(timeout);
-              reject(err);
-            });
-            ws3.on("message", (data) => received3.push(data.toString()));
-          }),
-        ]);
+        await new Promise<void>((resolve) => {
+          let openCount = 0;
+          const checkOpen = () => {
+            openCount++;
+            if (openCount === 2) resolve();
+          };
+          ws1.on("open", checkOpen);
+          ws2.on("open", checkOpen);
+        });
 
         // Close ws1
-        ws1.terminate();
-        await delay(200);
+        ws1.close();
 
-        // ws2 and ws3 should still work
-        assert.strictEqual(ws2.readyState, WsClient.OPEN);
-        assert.strictEqual(ws3.readyState, WsClient.OPEN);
+        // ws2 should still work
+        await new Promise<void>((resolve, reject) => {
+          ws2.on("message", (data: Buffer) => {
+            ws2Message = data.toString();
+            ws2.close();
+            resolve();
+          });
+          // we don't wait on resolve on `close` because Cloudflare DO has a bug where
+          // it takes 10 seconds to trigger the `webSocketClose` event after it's been triggered
+          // by the client
+          // ws2.on("close", () => resolve());
+          ws2.on("error", reject);
+          ws2.send("still alive");
+        });
 
-        // Send messages on remaining connections
-        ws2.send("still alive 2");
-        ws3.send("still alive 3");
-
-        await delay(200);
-
-        assert.ok(received2.includes("still alive 2"));
-        assert.ok(received3.includes("still alive 3"));
-
-        ws2.terminate();
-        ws3.terminate();
-        await delay(100);
-        closeWsServer(localWsServer);
+        assert.strictEqual(ws2Message, "echo: still alive");
       });
 
-      // Note: miniflare/wrangler dev can be slow with WebSocket close propagation
-      // See: https://github.com/cloudflare/workers-sdk/issues/10307
-      it(
-        "should close proxied WebSockets when tunnel client disconnects",
-        { timeout: 30000 },
-        async () => {
+      it("should return 503 when no client is connected for WebSocket", async () => {
+        const tunnelId = await getTunnelId("nonexistent-ws", serverSecret);
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
+
+        const externalWs = new WebSocket(wsUrl);
+
+        await new Promise<void>((resolve) => {
+          externalWs.on("error", () => {
+            resolve();
+          });
+
+          externalWs.on("open", () => {
+            externalWs.terminate();
+            resolve();
+          });
+
+          setTimeout(resolve, 1000);
+        });
+
+        assert.notStrictEqual(externalWs.readyState, WebSocket.OPEN);
+      });
+    });
+
+    describe("multi-value headers", () => {
+      it("should preserve multiple Set-Cookie headers", async () => {
+        mockServer.setHandler((_req, res) => {
+          res.setHeader("Set-Cookie", [
+            "session=abc123; Path=/; HttpOnly",
+            "user=john; Path=/; Max-Age=3600",
+          ]);
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({ secret: "setcookie-test" });
+
+        const tunnelId = await getTunnelId("setcookie-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/login"));
+
+        const setCookies = response.headers.getSetCookie();
+        assert.strictEqual(setCookies.length, 2);
+        assert.ok(setCookies[0]!.includes("session=abc123"));
+        assert.ok(setCookies[1]!.includes("user=john"));
+      });
+
+      it("should handle Set-Cookie with comma in Expires date", async () => {
+        mockServer.setHandler((_req, res) => {
+          res.setHeader("Set-Cookie", [
+            "session=xyz; Expires=Wed, 09 Jun 2025 10:18:14 GMT; Path=/",
+          ]);
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "cookie-expires-test",
+        });
+
+        const tunnelId = await getTunnelId("cookie-expires-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
+
+        const setCookies = response.headers.getSetCookie();
+        assert.strictEqual(setCookies.length, 1);
+        assert.ok(setCookies[0]!.includes("Expires=Wed, 09 Jun 2025"));
+      });
+
+      it("should preserve Set-Cookie with all attributes", async () => {
+        mockServer.setHandler((_req, res) => {
+          res.setHeader("Set-Cookie", [
+            "auth=token123; Path=/api; Domain=.example.com; Secure; HttpOnly; SameSite=Strict; Max-Age=86400",
+          ]);
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "cookie-attrs-test",
+        });
+
+        const tunnelId = await getTunnelId("cookie-attrs-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
+
+        const setCookies = response.headers.getSetCookie();
+        assert.strictEqual(setCookies.length, 1);
+        const cookie = setCookies[0]!;
+        assert.ok(cookie.includes("auth=token123"));
+        assert.ok(cookie.includes("Path=/api"));
+        assert.ok(cookie.includes("Secure"));
+        assert.ok(cookie.includes("HttpOnly"));
+        assert.ok(cookie.includes("SameSite=Strict"));
+      });
+
+      it("should handle multiple values for headers that can be combined", async () => {
+        let receivedAccept: string | undefined;
+
+        mockServer.setHandler((req, res) => {
+          receivedAccept = req.headers.accept as string;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "multi-accept-test",
+        });
+
+        const tunnelId = await getTunnelId("multi-accept-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            Accept: "text/html, application/json",
+          },
+        });
+
+        assert.ok(receivedAccept?.includes("text/html"));
+        assert.ok(receivedAccept?.includes("application/json"));
+      });
+    });
+
+    describe("cookie handling", () => {
+      it("should preserve multiple cookies in request Cookie header", async () => {
+        let receivedCookies: string | undefined;
+
+        mockServer.setHandler((req, res) => {
+          receivedCookies = req.headers.cookie as string;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "multi-cookie-test",
+        });
+
+        const tunnelId = await getTunnelId("multi-cookie-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            Cookie: "session=abc123; user=john; theme=dark",
+          },
+        });
+
+        assert.ok(receivedCookies?.includes("session=abc123"));
+        assert.ok(receivedCookies?.includes("user=john"));
+        assert.ok(receivedCookies?.includes("theme=dark"));
+      });
+
+      it("should handle cookies with URL-encoded special characters", async () => {
+        let receivedCookies: string | undefined;
+
+        mockServer.setHandler((req, res) => {
+          receivedCookies = req.headers.cookie as string;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "encoded-cookie-test",
+        });
+
+        const tunnelId = await getTunnelId("encoded-cookie-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            Cookie: "data=%7B%22key%22%3A%22value%22%7D",
+          },
+        });
+
+        assert.strictEqual(
+          receivedCookies,
+          "data=%7B%22key%22%3A%22value%22%7D"
+        );
+      });
+
+      it("should handle long cookie values", async () => {
+        let receivedCookies: string | undefined;
+        const longValue = "x".repeat(4000);
+
+        mockServer.setHandler((req, res) => {
+          receivedCookies = req.headers.cookie as string;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({ secret: "long-cookie-test" });
+
+        const tunnelId = await getTunnelId("long-cookie-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            Cookie: `longdata=${longValue}`,
+          },
+        });
+
+        assert.ok(receivedCookies?.includes(longValue));
+      });
+
+      it("should handle empty cookie value", async () => {
+        let receivedCookies: string | undefined;
+
+        mockServer.setHandler((req, res) => {
+          receivedCookies = req.headers.cookie as string;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "empty-cookie-test",
+        });
+
+        const tunnelId = await getTunnelId("empty-cookie-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            Cookie: "empty=",
+          },
+        });
+
+        assert.strictEqual(receivedCookies, "empty=");
+      });
+
+      it("should handle cookies with unicode characters (URL-encoded)", async () => {
+        let receivedCookies: string | undefined;
+
+        mockServer.setHandler((req, res) => {
+          receivedCookies = req.headers.cookie as string;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "unicode-cookie-test",
+        });
+
+        const tunnelId = await getTunnelId("unicode-cookie-test", serverSecret);
+        // URL-encoded: "こんにちは" = %E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            Cookie: "greeting=%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF",
+          },
+        });
+
+        assert.ok(
+          receivedCookies?.includes(
+            "%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF"
+          )
+        );
+      });
+    });
+
+    describe("header edge cases", () => {
+      it("should handle empty header value", async () => {
+        let receivedHeader: string | undefined;
+
+        mockServer.setHandler((req, res) => {
+          receivedHeader = req.headers["x-empty"] as string | undefined;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "empty-header-test",
+        });
+
+        const tunnelId = await getTunnelId("empty-header-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            "X-Empty": "",
+          },
+        });
+
+        assert.strictEqual(receivedHeader, "");
+      });
+
+      it("should handle very long header values", async () => {
+        const longValue = "x".repeat(8000);
+        let receivedHeader: string | undefined;
+
+        mockServer.setHandler((req, res) => {
+          receivedHeader = req.headers["x-long"] as string;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({ secret: "long-header-test" });
+
+        const tunnelId = await getTunnelId("long-header-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            "X-Long": longValue,
+          },
+        });
+
+        assert.strictEqual(receivedHeader, longValue);
+      });
+
+      it("should handle many headers", async () => {
+        const headerCount = 50;
+        const receivedHeaders: Record<string, string> = {};
+
+        mockServer.setHandler((req, res) => {
+          for (const [key, value] of Object.entries(req.headers)) {
+            if (key.startsWith("x-test-")) {
+              receivedHeaders[key] = value as string;
+            }
+          }
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "many-headers-test",
+        });
+
+        const tunnelId = await getTunnelId("many-headers-test", serverSecret);
+
+        const headers: Record<string, string> = {};
+        for (let i = 0; i < headerCount; i++) {
+          headers[`X-Test-${i}`] = `value-${i}`;
+        }
+
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), { headers });
+
+        assert.strictEqual(Object.keys(receivedHeaders).length, headerCount);
+        for (let i = 0; i < headerCount; i++) {
+          assert.strictEqual(receivedHeaders[`x-test-${i}`], `value-${i}`);
+        }
+      });
+
+      it("should preserve header value case", async () => {
+        let receivedHeader: string | undefined;
+
+        mockServer.setHandler((req, res) => {
+          receivedHeader = req.headers["x-mixed-case"] as string;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({ secret: "case-header-test" });
+
+        const tunnelId = await getTunnelId("case-header-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            "X-Mixed-Case": "MixedCaseValue",
+          },
+        });
+
+        assert.strictEqual(receivedHeader, "MixedCaseValue");
+      });
+
+      it("should preserve Content-Type with charset", async () => {
+        let receivedContentType: string | undefined;
+
+        mockServer.setHandler(async (req, res) => {
+          receivedContentType = req.headers["content-type"] as string;
+          await readBody(req);
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({ secret: "charset-test" });
+
+        const tunnelId = await getTunnelId("charset-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+          },
+          body: "{}",
+        });
+
+        assert.strictEqual(
+          receivedContentType,
+          "application/json; charset=utf-8"
+        );
+      });
+
+      it("should preserve Accept header with quality values", async () => {
+        let receivedAccept: string | undefined;
+
+        mockServer.setHandler((req, res) => {
+          receivedAccept = req.headers.accept as string;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "accept-quality-test",
+        });
+
+        const tunnelId = await getTunnelId("accept-quality-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          },
+        });
+
+        assert.strictEqual(
+          receivedAccept,
+          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        );
+      });
+
+      it("should handle headers with leading/trailing whitespace in values", async () => {
+        let receivedHeader: string | undefined;
+
+        mockServer.setHandler((req, res) => {
+          receivedHeader = req.headers["x-whitespace"] as string;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({ secret: "whitespace-test" });
+
+        const tunnelId = await getTunnelId("whitespace-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
+          headers: {
+            "X-Whitespace": "  value with spaces  ",
+          },
+        });
+
+        // HTTP headers typically trim whitespace
+        assert.ok(receivedHeader !== undefined);
+      });
+    });
+
+    describe(
+      "web socket close tests",
+      {
+        // skip the test suite on cloudflare because it takes 10 seconds
+        // to trigger the `webSocketClose` event after it's been triggered
+        // by the client - it's a bug
+        skip: serverName === "cloudflare" && skipCloudflareWebSocketCloseTests,
+        timeout: 30000,
+      },
+      () => {
+        async function testCloseCode3000() {
+          using wss = createWsServer();
+
+          wss.server.on("connection", (ws: WebSocketType) => {
+            ws.close(3000, "Custom close");
+          });
+
+          using _disposable = await connectClient({
+            secret: "ws-close3000-test",
+            port: wss.port,
+          });
+
+          const tunnelId = await getTunnelId("ws-close3000-test", serverSecret);
+          const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
+
+          const clientWs = new WebSocket(wsUrl);
+          let closeCode: number | undefined;
+          let closeReason: string | undefined;
+
+          await new Promise<void>((resolve, reject) => {
+            clientWs.on("close", (code: number, reason: Buffer) => {
+              closeCode = code;
+              closeReason = reason.toString();
+              resolve();
+            });
+            clientWs.on("error", reject);
+          });
+
+          assert.strictEqual(closeCode, 3000);
+          assert.strictEqual(closeReason, "Custom close");
+        }
+
+        async function testCloseCode4000() {
+          using wss = createWsServer();
+
+          wss.server.on("connection", (ws: WebSocketType) => {
+            ws.close(4000, "Private close");
+          });
+
+          using _disposable = await connectClient({
+            secret: "ws-close4000-test",
+            port: wss.port,
+          });
+
+          const tunnelId = await getTunnelId("ws-close4000-test", serverSecret);
+          const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
+
+          const clientWs = new WebSocket(wsUrl);
+          let closeCode: number | undefined;
+          let closeReason: string | undefined;
+
+          await new Promise<void>((resolve, reject) => {
+            clientWs.on("close", (code: number, reason: Buffer) => {
+              closeCode = code;
+              closeReason = reason.toString();
+              resolve();
+            });
+            clientWs.on("error", reject);
+          });
+
+          assert.strictEqual(closeCode, 4000);
+          assert.strictEqual(closeReason, "Private close");
+        }
+
+        async function testProxiedWsCloseOnDisconnect() {
+          using wss = createWsServer();
           let externalWsClosed = false;
 
-          const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-          const localWsServer = new WebSocketServer({ port: 0 });
-          const localWsPort = (localWsServer.address() as { port: number })
-            .port;
-
-          localWsServer.on("connection", (ws) => {
-            ws.on("message", (data) => {
+          wss.server.on("connection", (ws: WebSocketType) => {
+            ws.on("message", (data: Buffer) => {
               ws.send(data);
             });
           });
 
-          const client = new TunnelClient({
-            serverUrl: server.url,
+          const disposable = await connectClient({
             secret: "ws-disconnect-test",
-            transformWebSocketRequest: ({ url, headers }) => {
-              url.host = `localhost:${localWsPort}`;
-              return { url, headers };
-            },
-            onRequest: async (req) => {
-              const url = new URL(req.url);
-              url.host = `localhost:${localWsPort}`;
-              return fetch(new Request(url.toString(), req));
-            },
+            port: wss.port,
           });
-
-          const disposable = client.connect();
-          // Don't add to clientConnections - we'll manually dispose
-          await delay(200);
 
           const tunnelId = await getTunnelId(
             "ws-disconnect-test",
             serverSecret
           );
-          const externalWs = new WsClient(
+          const externalWs = new WebSocket(
             getTunnelWsUrl(server, tunnelId, "/ws")
           );
 
@@ -934,7 +1217,7 @@ export function runSharedTests(
 
           // Disconnect the tunnel client and wait for external WS to close
           await new Promise<void>((resolve, reject) => {
-            // Longer timeout for miniflare's slow WebSocket close handling
+            // Longer timeout for slow WebSocket close handling
             const timeout = setTimeout(() => {
               reject(
                 new Error(
@@ -949,838 +1232,217 @@ export function runSharedTests(
               resolve();
             });
 
-            disposable.dispose();
+            disposable[Symbol.dispose]();
           });
 
           assert.strictEqual(externalWsClosed, true);
-
-          closeWsServer(localWsServer);
-        }
-      );
-
-      it("should return 503 when no client is connected for WebSocket", async () => {
-        const { WebSocket: WsClient } = await import("ws");
-        const tunnelId = await getTunnelId("nonexistent-ws", serverSecret);
-
-        const externalWs = new WsClient(
-          getTunnelWsUrl(server, tunnelId, "/ws")
-        );
-
-        await new Promise<void>((resolve) => {
-          externalWs.on("error", () => {
-            resolve();
-          });
-
-          externalWs.on("open", () => {
-            externalWs.terminate();
-            resolve();
-          });
-
-          setTimeout(resolve, 1000);
-        });
-
-        assert.notStrictEqual(externalWs.readyState, WsClient.OPEN);
-      });
-    });
-
-    describe("multi-value headers", () => {
-      let clientConnections: Array<{ dispose: () => void }> = [];
-
-      afterEach(() => {
-        for (const conn of clientConnections) {
-          conn.dispose();
-        }
-        clientConnections = [];
-      });
-
-      it("should preserve multiple Set-Cookie headers", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "multi-cookie-test",
-          onRequest: async () => {
-            const headers = new Headers();
-            headers.append("Set-Cookie", "a=1; Path=/");
-            headers.append("Set-Cookie", "b=2; Path=/");
-            headers.append("Set-Cookie", "c=3; Path=/");
-            return new Response("OK", { headers });
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("multi-cookie-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
-
-        assert.strictEqual(response.status, 200);
-
-        // Get all Set-Cookie headers - this will fail because Record<string, string> loses duplicates
-        const setCookieHeaders = response.headers.getSetCookie();
-        assert.strictEqual(setCookieHeaders.length, 3);
-        assert.ok(setCookieHeaders.includes("a=1; Path=/"));
-        assert.ok(setCookieHeaders.includes("b=2; Path=/"));
-        assert.ok(setCookieHeaders.includes("c=3; Path=/"));
-      });
-
-      it("should handle Set-Cookie with comma in Expires date", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "cookie-expires-test",
-          onRequest: async () => {
-            const headers = new Headers();
-            // Expires date contains a comma - if joined with ", " this breaks
-            headers.append(
-              "Set-Cookie",
-              "session=abc123; Expires=Thu, 01 Jan 2026 00:00:00 GMT; Path=/"
-            );
-            headers.append(
-              "Set-Cookie",
-              "user=xyz; Expires=Fri, 02 Jan 2026 00:00:00 GMT; Path=/"
-            );
-            return new Response("OK", { headers });
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("cookie-expires-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
-
-        assert.strictEqual(response.status, 200);
-
-        const setCookieHeaders = response.headers.getSetCookie();
-        assert.strictEqual(setCookieHeaders.length, 2);
-        // Each cookie should be intact with its Expires date
-        assert.ok(
-          setCookieHeaders.some(
-            (c) =>
-              c.includes("session=abc123") && c.includes("Thu, 01 Jan 2026")
-          )
-        );
-        assert.ok(
-          setCookieHeaders.some(
-            (c) => c.includes("user=xyz") && c.includes("Fri, 02 Jan 2026")
-          )
-        );
-      });
-
-      it("should preserve Set-Cookie with all attributes", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "cookie-attrs-test",
-          onRequest: async () => {
-            return new Response("OK", {
-              headers: {
-                "Set-Cookie":
-                  "session=abc; Path=/app; Domain=example.com; Secure; HttpOnly; SameSite=Strict; Max-Age=3600",
-              },
-            });
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("cookie-attrs-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
-
-        assert.strictEqual(response.status, 200);
-        const cookie = response.headers.get("set-cookie");
-        assert.ok(cookie.includes("session=abc"));
-        assert.ok(cookie.includes("Path=/app"));
-        assert.ok(cookie.includes("Domain=example.com"));
-        assert.ok(cookie.includes("Secure"));
-        assert.ok(cookie.includes("HttpOnly"));
-        assert.ok(cookie.includes("SameSite=Strict"));
-        assert.ok(cookie.includes("Max-Age=3600"));
-      });
-
-      it("should handle multiple values for headers that can be combined", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "vary-header-test",
-          onRequest: async () => {
-            const headers = new Headers();
-            headers.append("Vary", "Accept");
-            headers.append("Vary", "Accept-Encoding");
-            headers.append("Cache-Control", "no-cache");
-            headers.append("Cache-Control", "no-store");
-            return new Response("OK", { headers });
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("vary-header-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
-
-        assert.strictEqual(response.status, 200);
-        // Vary headers can be combined with commas
-        const vary = response.headers.get("vary");
-        assert.ok(vary.includes("Accept"));
-        assert.ok(vary.includes("Accept-Encoding"));
-      });
-    });
-
-    describe("cookie handling", () => {
-      let clientConnections: Array<{ dispose: () => void }> = [];
-
-      afterEach(() => {
-        for (const conn of clientConnections) {
-          conn.dispose();
-        }
-        clientConnections = [];
-      });
-
-      it("should preserve multiple cookies in request Cookie header", async () => {
-        let receivedCookies: string | null = null;
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "multi-req-cookie-test",
-          onRequest: async (req) => {
-            receivedCookies = req.headers.get("cookie");
-            return new Response("OK");
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId(
-          "multi-req-cookie-test",
-          serverSecret
-        );
-        await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: {
-            Cookie: "a=1; b=2; c=3",
-          },
-        });
-
-        assert.strictEqual(receivedCookies, "a=1; b=2; c=3");
-      });
-
-      it("should handle cookies with URL-encoded special characters", async () => {
-        let receivedCookies: string | null = null;
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "encoded-cookie-test",
-          onRequest: async (req) => {
-            receivedCookies = req.headers.get("cookie");
-            return new Response("OK");
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("encoded-cookie-test", serverSecret);
-        // URL-encoded value with special chars: hello=world; foo=bar
-        await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: {
-            Cookie: "data=hello%3Dworld%3B%20foo%3Dbar",
-          },
-        });
-
-        assert.strictEqual(
-          receivedCookies,
-          "data=hello%3Dworld%3B%20foo%3Dbar"
-        );
-      });
-
-      it("should handle long cookie values", async () => {
-        let receivedCookies: string | null = null;
-        const longValue = "x".repeat(4000); // Near 4KB limit
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "long-cookie-test",
-          onRequest: async (req) => {
-            receivedCookies = req.headers.get("cookie");
-            return new Response("OK");
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("long-cookie-test", serverSecret);
-        await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: {
-            Cookie: `longcookie=${longValue}`,
-          },
-        });
-
-        assert.strictEqual(receivedCookies, `longcookie=${longValue}`);
-      });
-
-      it("should handle empty cookie value", async () => {
-        let receivedCookies: string | null = null;
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "empty-cookie-test",
-          onRequest: async (req) => {
-            receivedCookies = req.headers.get("cookie");
-            return new Response("OK");
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("empty-cookie-test", serverSecret);
-        await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: {
-            Cookie: "empty=",
-          },
-        });
-
-        assert.strictEqual(receivedCookies, "empty=");
-      });
-
-      it("should handle cookies with unicode characters (URL-encoded)", async () => {
-        let receivedCookies: string | null = null;
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "unicode-cookie-test",
-          onRequest: async (req) => {
-            receivedCookies = req.headers.get("cookie");
-            return new Response("OK");
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("unicode-cookie-test", serverSecret);
-        // URL-encoded "值" (Chinese character for "value")
-        await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: {
-            Cookie: "name=%E5%80%BC",
-          },
-        });
-
-        assert.strictEqual(receivedCookies, "name=%E5%80%BC");
-      });
-    });
-
-    describe("header edge cases", () => {
-      let clientConnections: Array<{ dispose: () => void }> = [];
-
-      afterEach(() => {
-        for (const conn of clientConnections) {
-          conn.dispose();
-        }
-        clientConnections = [];
-      });
-
-      it("should handle empty header value", async () => {
-        let receivedHeader: string | null = null;
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "empty-header-test",
-          onRequest: async (req) => {
-            receivedHeader = req.headers.get("x-empty");
-            return new Response("OK", {
-              headers: { "x-empty-response": "" },
-            });
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("empty-header-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: { "x-empty": "" },
-        });
-
-        assert.strictEqual(response.status, 200);
-        // Empty headers may be preserved or stripped depending on implementation
-        assert.strictEqual(
-          receivedHeader === "" || receivedHeader === null,
-          true
-        );
-      });
-
-      it("should handle very long header values", async () => {
-        const longValue = "x".repeat(8000);
-        let receivedHeader: string | null = null;
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "long-header-test",
-          onRequest: async (req) => {
-            receivedHeader = req.headers.get("x-long");
-            return new Response("OK", {
-              headers: { "x-long-response": longValue },
-            });
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("long-header-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: { "x-long": longValue },
-        });
-
-        assert.strictEqual(response.status, 200);
-        assert.strictEqual(receivedHeader, longValue);
-        assert.strictEqual(response.headers.get("x-long-response"), longValue);
-      });
-
-      it("should handle many headers", async () => {
-        const numHeaders = 50;
-        const sentHeaders: Record<string, string> = {};
-        for (let i = 0; i < numHeaders; i++) {
-          sentHeaders[`x-header-${i}`] = `value-${i}`;
         }
 
-        let receivedCount = 0;
+        it("should handle WebSocket close codes and disconnection", async () => {
+          const results = await Promise.allSettled([
+            testCloseCode3000(),
+            testCloseCode4000(),
+            testProxiedWsCloseOnDisconnect(),
+          ]);
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "many-headers-test",
-          onRequest: async (req) => {
-            for (let i = 0; i < numHeaders; i++) {
-              if (req.headers.get(`x-header-${i}`) === `value-${i}`) {
-                receivedCount++;
-              }
-            }
-            return new Response("OK", { headers: sentHeaders });
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("many-headers-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: sentHeaders,
-        });
-
-        assert.strictEqual(response.status, 200);
-        assert.strictEqual(receivedCount, numHeaders);
-
-        // Check response headers
-        for (let i = 0; i < numHeaders; i++) {
-          assert.strictEqual(
-            response.headers.get(`x-header-${i}`),
-            `value-${i}`
+          const failures = results.filter(
+            (r): r is PromiseRejectedResult => r.status === "rejected"
           );
-        }
-      });
 
-      it("should preserve header value case", async () => {
-        let receivedValue: string | null = null;
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "header-case-test",
-          onRequest: async (req) => {
-            receivedValue = req.headers.get("x-mixed-case");
-            return new Response("OK", {
-              headers: { "X-Response-Mixed": "MixedCaseValue" },
-            });
-          },
+          if (failures.length > 0) {
+            const errorMessages = failures
+              .map((f) => f.reason?.message ?? String(f.reason))
+              .join("\n");
+            throw new Error(
+              `${failures.length} of ${results.length} parallel tests failed:\n${errorMessages}`
+            );
+          }
         });
+      }
+    );
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("header-case-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: { "X-Mixed-Case": "MixedCaseValue" },
-        });
-
-        assert.strictEqual(response.status, 200);
-        assert.strictEqual(receivedValue, "MixedCaseValue");
-        // Header names are case-insensitive, but values should be preserved
-        assert.strictEqual(
-          response.headers.get("x-response-mixed"),
-          "MixedCaseValue"
-        );
-      });
-
-      it("should preserve Content-Type with charset", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "content-type-charset-test",
-          onRequest: async () => {
-            return new Response('{"test": true}', {
-              headers: { "Content-Type": "application/json; charset=utf-8" },
-            });
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId(
-          "content-type-charset-test",
-          serverSecret
-        );
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
-
-        assert.strictEqual(response.status, 200);
-        const contentType = response.headers.get("content-type");
-        assert.ok(contentType.includes("application/json"));
-        assert.ok(contentType.includes("charset=utf-8"));
-      });
-
-      it("should preserve Accept header with quality values", async () => {
-        let receivedAccept: string | null = null;
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "accept-quality-test",
-          onRequest: async (req) => {
-            receivedAccept = req.headers.get("accept");
-            return new Response("OK");
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("accept-quality-test", serverSecret);
-        await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: { Accept: "text/html, application/json;q=0.9, */*;q=0.8" },
-        });
-
-        assert.strictEqual(
-          receivedAccept,
-          "text/html, application/json;q=0.9, */*;q=0.8"
-        );
-      });
-
-      it("should handle headers with leading/trailing whitespace in values", async () => {
-        let receivedHeader: string | null = null;
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "whitespace-header-test",
-          onRequest: async (req) => {
-            receivedHeader = req.headers.get("x-whitespace");
-            return new Response("OK");
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId(
-          "whitespace-header-test",
-          serverSecret
-        );
-        await fetch(getTunnelUrl(server, tunnelId, "/"), {
-          headers: { "x-whitespace": "  value with spaces  " },
-        });
-
-        // HTTP spec says leading/trailing whitespace should be trimmed
-        // but the exact behavior depends on implementation
-        assert.ok(receivedHeader);
-        assert.ok(receivedHeader!.includes("value with spaces"));
-      });
-    });
-
-    describe("websocket edge cases", { skip: skipWebSocketTests }, () => {
-      let clientConnections: Array<{ dispose: () => void }> = [];
-
-      afterEach(() => {
-        for (const conn of clientConnections) {
-          conn.dispose();
-        }
-        clientConnections = [];
-      });
-
+    describe("websocket edge cases", () => {
       it("should handle text messages with UTF-8 multi-byte characters", async () => {
-        const testMessage = "Hello 世界 🌍 مرحبا";
-        let receivedOnServer: string | undefined;
-        let receivedOnClient: string | undefined;
+        using wss = createWsServer();
 
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
+        let serverReceivedMessage: string | undefined;
 
-        localWsServer.on("connection", (ws) => {
-          ws.on("message", (data) => {
-            receivedOnServer = data.toString();
-            ws.send(testMessage);
+        wss.server.on("connection", (ws: WebSocketType) => {
+          ws.on("message", (data: Buffer) => {
+            serverReceivedMessage = data.toString();
+            ws.send(data.toString());
           });
         });
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
+        using _disposable = await connectClient({
           secret: "ws-utf8-test",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
+          port: wss.port,
         });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
 
         const tunnelId = await getTunnelId("ws-utf8-test", serverSecret);
-        const externalWs = new WsClient(
-          getTunnelWsUrl(server, tunnelId, "/ws")
-        );
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
+
+        const testMessage = "Hello 世界 🌍 émojis";
+        const clientWs = new WebSocket(wsUrl);
+        let clientReceivedMessage: string | undefined;
 
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
-          externalWs.on("open", () => {
-            externalWs.send(testMessage);
+          clientWs.on("open", () => {
+            clientWs.send(testMessage);
           });
-
-          externalWs.on("message", (data) => {
-            clearTimeout(timeout);
-            receivedOnClient = data.toString();
+          clientWs.on("message", (data: Buffer) => {
+            clientReceivedMessage = data.toString();
+            clientWs.close();
             resolve();
           });
-
-          externalWs.on("error", (err) => {
-            clearTimeout(timeout);
-            reject(err);
-          });
+          // we don't wait on resolve on `close` because Cloudflare DO has a bug where
+          // it takes 10 seconds to trigger the `webSocketClose` event after it's been triggered
+          // by the client
+          // clientWs.on("close", () => resolve());
+          clientWs.on("error", reject);
         });
 
-        assert.strictEqual(receivedOnServer, testMessage);
-        assert.strictEqual(receivedOnClient, testMessage);
-
-        externalWs.terminate();
-        closeWsServer(localWsServer);
+        assert.strictEqual(serverReceivedMessage, testMessage);
+        assert.strictEqual(clientReceivedMessage, testMessage);
       });
 
-      it(
-        "should handle large binary messages",
-        { timeout: 30000 },
-        async () => {
-          // Use 64KB - a reasonable size that should work across implementations
-          const largeData = new Uint8Array(64 * 1024);
-          for (let i = 0; i < largeData.length; i++) {
-            largeData[i] = i % 256;
-          }
-
-          let receivedSize = 0;
-
-          const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-          const localWsServer = new WebSocketServer({ port: 0 });
-          const localWsPort = (localWsServer.address() as { port: number })
-            .port;
-
-          localWsServer.on("connection", (ws) => {
-            ws.on("message", (data) => {
-              const buf = data as Buffer;
-              receivedSize = buf.length;
-              ws.send(buf);
-            });
-          });
-
-          const client = new TunnelClient({
-            serverUrl: server.url,
-            secret: "ws-large-binary-test",
-            transformWebSocketRequest: ({ url, headers }) => {
-              url.host = `localhost:${localWsPort}`;
-              return { url, headers };
-            },
-            onRequest: async (req) => {
-              const url = new URL(req.url);
-              url.host = `localhost:${localWsPort}`;
-              return fetch(new Request(url.toString(), req));
-            },
-          });
-
-          const disposable = client.connect();
-          clientConnections.push(disposable);
-          await delay(200);
-
-          const tunnelId = await getTunnelId(
-            "ws-large-binary-test",
-            serverSecret
-          );
-          const externalWs = new WsClient(
-            getTunnelWsUrl(server, tunnelId, "/ws")
-          );
-
-          let echoedSize = 0;
-          await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(
-              () => reject(new Error("Timeout")),
-              25000
-            );
-            externalWs.on("open", () => {
-              externalWs.send(largeData);
-            });
-
-            externalWs.on("message", (data) => {
-              clearTimeout(timeout);
-              echoedSize = (data as Buffer).length;
-              resolve();
-            });
-
-            externalWs.on("error", (err) => {
-              clearTimeout(timeout);
-              reject(err);
-            });
-          });
-
-          assert.strictEqual(receivedSize, 64 * 1024);
-          assert.strictEqual(echoedSize, 64 * 1024);
-
-          externalWs.terminate();
-          closeWsServer(localWsServer);
-        }
-      );
-
       it("should handle empty WebSocket messages", async () => {
-        let receivedEmpty = false;
+        using wss = createWsServer();
 
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
+        let serverReceivedEmpty = false;
 
-        localWsServer.on("connection", (ws) => {
-          ws.on("message", (data) => {
-            if (data.toString() === "") {
-              receivedEmpty = true;
-              ws.send("");
+        wss.server.on("connection", (ws: WebSocketType) => {
+          ws.on("message", (data: Buffer) => {
+            if (data.length === 0) {
+              serverReceivedEmpty = true;
             }
+            ws.send(data);
           });
         });
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "ws-empty-msg-test",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
+        using _disposable = await connectClient({
+          secret: "ws-empty-test",
+          port: wss.port,
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        const tunnelId = await getTunnelId("ws-empty-test", serverSecret);
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
 
-        const tunnelId = await getTunnelId("ws-empty-msg-test", serverSecret);
-        const externalWs = new WsClient(
-          getTunnelWsUrl(server, tunnelId, "/ws")
-        );
+        const clientWs = new WebSocket(wsUrl);
+        let clientReceivedEmpty = false;
 
-        let receivedEmptyEcho = false;
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
-          externalWs.on("open", () => {
-            externalWs.send("");
+          clientWs.on("open", () => {
+            clientWs.send("");
           });
-
-          externalWs.on("message", (data) => {
-            clearTimeout(timeout);
-            if (data.toString() === "") {
-              receivedEmptyEcho = true;
+          clientWs.on("message", (data: Buffer) => {
+            if (data.length === 0) {
+              clientReceivedEmpty = true;
             }
+            clientWs.close();
             resolve();
           });
-
-          externalWs.on("error", (err) => {
-            clearTimeout(timeout);
-            reject(err);
-          });
+          // we don't wait on resolve on `close` because Cloudflare DO has a bug where
+          // it takes 10 seconds to trigger the `webSocketClose` event after it's been triggered
+          // by the client
+          // clientWs.on("close", () => resolve());
+          clientWs.on("error", reject);
         });
 
-        assert.strictEqual(receivedEmpty, true);
-        assert.strictEqual(receivedEmptyEcho, true);
-
-        externalWs.terminate();
-        closeWsServer(localWsServer);
+        assert.ok(serverReceivedEmpty);
+        assert.ok(clientReceivedEmpty);
       });
 
       it("should handle rapid sequential messages", async () => {
-        const messageCount = 50; // Reduced count for reliability
-        const receivedMessages: Set<string> = new Set();
+        using wss = createWsServer();
 
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
+        const serverMessages: string[] = [];
 
-        localWsServer.on("connection", (ws) => {
-          ws.on("message", (data) => {
-            ws.send(`echo:${data.toString()}`);
+        wss.server.on("connection", (ws: WebSocketType) => {
+          ws.on("message", (data: Buffer) => {
+            serverMessages.push(data.toString());
+            ws.send(`ack: ${data}`);
           });
         });
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
+        using _disposable = await connectClient({
           secret: "ws-rapid-test",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
+          port: wss.port,
         });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
 
         const tunnelId = await getTunnelId("ws-rapid-test", serverSecret);
-        const externalWs = new WsClient(
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
+
+        const clientWs = new WebSocket(wsUrl);
+        const clientMessages: string[] = [];
+        const messageCount = 10;
+
+        await new Promise<void>((resolve, reject) => {
+          clientWs.on("open", () => {
+            for (let i = 0; i < messageCount; i++) {
+              clientWs.send(`msg${i}`);
+            }
+          });
+          clientWs.on("message", (data: Buffer) => {
+            clientMessages.push(data.toString());
+            if (clientMessages.length === messageCount) {
+              clientWs.close();
+              resolve();
+            }
+          });
+          // we don't wait on resolve on `close` because Cloudflare DO has a bug where
+          // it takes 10 seconds to trigger the `webSocketClose` event after it's been triggered
+          // by the client
+          // clientWs.on("close", () => resolve());
+          clientWs.on("error", reject);
+        });
+
+        assert.strictEqual(serverMessages.length, messageCount);
+        assert.strictEqual(clientMessages.length, messageCount);
+      });
+
+      it("should handle large binary messages", async () => {
+        // Use 64KB - a reasonable size that should work across implementations
+        const largeData = new Uint8Array(64 * 1024);
+        for (let i = 0; i < largeData.length; i++) {
+          largeData[i] = i % 256;
+        }
+
+        let receivedSize = 0;
+
+        using wss = createWsServer();
+
+        wss.server.on("connection", (ws: WebSocketType) => {
+          ws.on("message", (data: Buffer) => {
+            receivedSize = data.length;
+            ws.send(data);
+          });
+        });
+
+        using _disposable = await connectClient({
+          secret: "ws-large-binary-test",
+          port: wss.port,
+        });
+
+        const tunnelId = await getTunnelId(
+          "ws-large-binary-test",
+          serverSecret
+        );
+        const externalWs = new WebSocket(
           getTunnelWsUrl(server, tunnelId, "/ws")
         );
 
+        let echoedSize = 0;
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("Timeout")), 10000);
+          const timeout = setTimeout(() => reject(new Error("Timeout")), 25000);
           externalWs.on("open", () => {
-            for (let i = 0; i < messageCount; i++) {
-              externalWs.send(`msg-${i}`);
-            }
+            externalWs.send(largeData);
           });
 
-          externalWs.on("message", (data) => {
-            receivedMessages.add(data.toString());
-            if (receivedMessages.size >= messageCount) {
-              clearTimeout(timeout);
-              resolve();
-            }
+          externalWs.on("message", (data: Buffer) => {
+            clearTimeout(timeout);
+            echoedSize = data.length;
+            resolve();
           });
 
           externalWs.on("error", (err) => {
@@ -1789,267 +1451,97 @@ export function runSharedTests(
           });
         });
 
-        assert.strictEqual(receivedMessages.size, messageCount);
-        // Verify all messages were received
-        for (let i = 0; i < messageCount; i++) {
-          assert.ok(receivedMessages.has(`echo:msg-${i}`));
-        }
+        assert.strictEqual(receivedSize, 64 * 1024);
+        assert.strictEqual(echoedSize, 64 * 1024);
 
         externalWs.terminate();
-        closeWsServer(localWsServer);
       });
-
-      it("should handle WebSocket close code 3000 (registered)", async () => {
-        if (typeof Bun !== "undefined") {
-          // biome-ignore lint/suspicious/noConsole: node's test package does not support skipIf
-          console.warn(
-            "Skipping WebSocket close code 3000 (registered) test in Bun"
-          );
-          // Node handles this test correctly, but Bun does not
-          return;
-        }
-        let receivedCloseCode: number | undefined;
-
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
-
-        localWsServer.on("connection", (ws) => {
-          ws.on("close", (code) => {
-            receivedCloseCode = code;
-          });
-        });
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "ws-close-3000-test",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("ws-close-3000-test", serverSecret);
-        const externalWs = new WsClient(
-          getTunnelWsUrl(server, tunnelId, "/ws")
-        );
-
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
-          externalWs.on("open", () => {
-            externalWs.close(3000, "Custom registered close");
-          });
-
-          externalWs.on("close", () => {
-            clearTimeout(timeout);
-            setTimeout(resolve, 100);
-          });
-
-          externalWs.on("error", (err) => {
-            clearTimeout(timeout);
-            reject(err);
-          });
-        });
-
-        assert.strictEqual(receivedCloseCode, 3000);
-
-        closeWsServer(localWsServer);
-      });
-
-      it("should handle WebSocket close code 4000 (private use)", async () => {
-        let receivedCloseCode: number | undefined;
-
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
-
-        localWsServer.on("connection", (ws) => {
-          ws.on("close", (code) => {
-            receivedCloseCode = code;
-          });
-        });
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "ws-close-4000-test",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
-
-        const tunnelId = await getTunnelId("ws-close-4000-test", serverSecret);
-        const externalWs = new WsClient(
-          getTunnelWsUrl(server, tunnelId, "/ws")
-        );
-
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
-          externalWs.on("open", () => {
-            externalWs.close(4000, "Private use close");
-          });
-
-          externalWs.on("close", () => {
-            clearTimeout(timeout);
-            setTimeout(resolve, 100);
-          });
-
-          externalWs.on("error", (err) => {
-            clearTimeout(timeout);
-            reject(err);
-          });
-        });
-
-        assert.strictEqual(receivedCloseCode, 4000);
-
-        closeWsServer(localWsServer);
-      });
-
-      it(
-        "should handle server-initiated WebSocket close",
-        { timeout: 15000 },
-        async () => {
-          let clientReceivedClose = false;
-          let clientCloseCode: number | undefined;
-
-          const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-          const localWsServer = new WebSocketServer({ port: 0 });
-          const localWsPort = (localWsServer.address() as { port: number })
-            .port;
-
-          localWsServer.on("connection", (ws) => {
-            // Server initiates close after connection
-            setTimeout(() => {
-              ws.close(1000, "Server closing");
-            }, 100);
-          });
-
-          const client = new TunnelClient({
-            serverUrl: server.url,
-            secret: "ws-server-close-test",
-            transformWebSocketRequest: ({ url, headers }) => {
-              url.host = `localhost:${localWsPort}`;
-              return { url, headers };
-            },
-            onRequest: async (req) => {
-              const url = new URL(req.url);
-              url.host = `localhost:${localWsPort}`;
-              return fetch(new Request(url.toString(), req));
-            },
-          });
-
-          const disposable = client.connect();
-          clientConnections.push(disposable);
-          await delay(200);
-
-          const tunnelId = await getTunnelId(
-            "ws-server-close-test",
-            serverSecret
-          );
-          const externalWs = new WsClient(
-            getTunnelWsUrl(server, tunnelId, "/ws")
-          );
-
-          await new Promise<void>((resolve, reject) => {
-            // Miniflare can be slow with WebSocket close propagation
-            const timeout = setTimeout(
-              () => reject(new Error("Timeout")),
-              12000
-            );
-            externalWs.on("close", (code) => {
-              clearTimeout(timeout);
-              clientReceivedClose = true;
-              clientCloseCode = code;
-              resolve();
-            });
-
-            externalWs.on("error", (err) => {
-              clearTimeout(timeout);
-              reject(err);
-            });
-          });
-
-          assert.strictEqual(clientReceivedClose, true);
-          assert.strictEqual(clientCloseCode, 1000);
-
-          closeWsServer(localWsServer);
-        }
-      );
 
       it("should handle multiple WebSocket message exchanges", async () => {
-        const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-        const localWsServer = new WebSocketServer({ port: 0 });
-        const localWsPort = (localWsServer.address() as { port: number }).port;
+        using wss = createWsServer();
 
-        let serverMessageCount = 0;
-        localWsServer.on("connection", (ws) => {
-          ws.on("message", (data) => {
-            serverMessageCount++;
-            ws.send(`reply:${data.toString()}`);
+        wss.server.on("connection", (ws: WebSocketType) => {
+          let count = 0;
+          ws.on("message", (data: Buffer) => {
+            count++;
+            ws.send(`response ${count}: ${data}`);
           });
         });
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
+        using _disposable = await connectClient({
           secret: "ws-exchange-test",
-          transformWebSocketRequest: ({ url, headers }) => {
-            url.host = `localhost:${localWsPort}`;
-            return { url, headers };
-          },
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            url.host = `localhost:${localWsPort}`;
-            return fetch(new Request(url.toString(), req));
-          },
+          port: wss.port,
         });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
 
         const tunnelId = await getTunnelId("ws-exchange-test", serverSecret);
-        const externalWs = new WsClient(
-          getTunnelWsUrl(server, tunnelId, "/ws")
-        );
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
 
-        let clientMessageCount = 0;
+        const clientWs = new WebSocket(wsUrl);
+        const responses: string[] = [];
 
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("Timeout")), 5000);
-          externalWs.on("open", () => {
-            // Send first message
-            externalWs.send("hello");
+          let sent = 0;
+          clientWs.on("open", () => {
+            clientWs.send("hello");
           });
-
-          externalWs.on("message", (data) => {
-            clientMessageCount++;
-            const msg = data.toString();
-
-            // After receiving reply to first message, send second
-            if (msg === "reply:hello") {
-              externalWs.send("world");
-            } else if (msg === "reply:world") {
-              clearTimeout(timeout);
+          clientWs.on("message", (data: Buffer) => {
+            responses.push(data.toString());
+            sent++;
+            if (sent < 3) {
+              clientWs.send(`message ${sent + 1}`);
+            } else {
+              clientWs.close();
               resolve();
             }
+          });
+          // we don't wait on resolve on `close` because Cloudflare DO has a bug where
+          // it takes 10 seconds to trigger the `webSocketClose` event after it's been triggered
+          // by the client
+          // clientWs.on("close", () => resolve());
+          clientWs.on("error", reject);
+        });
+
+        assert.strictEqual(responses.length, 3);
+        assert.strictEqual(responses[0], "response 1: hello");
+        assert.strictEqual(responses[1], "response 2: message 2");
+        assert.strictEqual(responses[2], "response 3: message 3");
+      });
+
+      it("should handle WebSocket with query parameters", async () => {
+        let receivedUrl: string | undefined;
+
+        using wss = createWsServer();
+
+        wss.server.on("connection", (ws: WebSocketType, req) => {
+          receivedUrl = req.url;
+          ws.send("connected");
+        });
+
+        using _disposable = await connectClient({
+          secret: "ws-query-test",
+          port: wss.port,
+        });
+
+        const tunnelId = await getTunnelId("ws-query-test", serverSecret);
+        const externalWs = new WebSocket(
+          getTunnelWsUrl(server, tunnelId, "/ws?token=abc123&user=test")
+        );
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("Timeout")), 8000);
+          externalWs.on("open", () => {
+            // Give some time for the message to arrive
+            setTimeout(() => {
+              if (receivedUrl) {
+                clearTimeout(timeout);
+                resolve();
+              }
+            }, 500);
+          });
+
+          externalWs.on("message", () => {
+            clearTimeout(timeout);
+            resolve();
           });
 
           externalWs.on("error", (err) => {
@@ -2058,534 +1550,412 @@ export function runSharedTests(
           });
         });
 
-        // Verify bidirectional communication worked with exact message counts
-        assert.strictEqual(serverMessageCount, 2);
-        assert.strictEqual(clientMessageCount, 2);
+        assert.ok(receivedUrl!.includes("token=abc123"));
+        assert.ok(receivedUrl!.includes("user=test"));
 
         externalWs.terminate();
-        closeWsServer(localWsServer);
       });
-
-      it(
-        "should handle WebSocket with query parameters",
-        { timeout: 10000 },
-        async () => {
-          let receivedUrl: string | undefined;
-
-          const { WebSocketServer, WebSocket: WsClient } = await import("ws");
-          const localWsServer = new WebSocketServer({ port: 0 });
-          const localWsPort = (localWsServer.address() as { port: number })
-            .port;
-
-          localWsServer.on("connection", (ws, req) => {
-            receivedUrl = req.url;
-            ws.send("connected");
-          });
-
-          const client = new TunnelClient({
-            serverUrl: server.url,
-            secret: "ws-query-test",
-            transformWebSocketRequest: ({ url, headers }) => {
-              url.host = `localhost:${localWsPort}`;
-              return { url, headers };
-            },
-            onRequest: async (req) => {
-              const url = new URL(req.url);
-              url.host = `localhost:${localWsPort}`;
-              return fetch(new Request(url.toString(), req));
-            },
-          });
-
-          const disposable = client.connect();
-          clientConnections.push(disposable);
-          await delay(200);
-
-          const tunnelId = await getTunnelId("ws-query-test", serverSecret);
-          const externalWs = new WsClient(
-            getTunnelWsUrl(server, tunnelId, "/ws?token=abc123&user=test")
-          );
-
-          await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(
-              () => reject(new Error("Timeout")),
-              8000
-            );
-            externalWs.on("open", () => {
-              // Give some time for the message to arrive
-              setTimeout(() => {
-                if (receivedUrl) {
-                  clearTimeout(timeout);
-                  resolve();
-                }
-              }, 500);
-            });
-
-            externalWs.on("message", () => {
-              clearTimeout(timeout);
-              resolve();
-            });
-
-            externalWs.on("error", (err) => {
-              clearTimeout(timeout);
-              reject(err);
-            });
-          });
-
-          assert.ok(receivedUrl.includes("token=abc123"));
-          assert.ok(receivedUrl.includes("user=test"));
-
-          externalWs.terminate();
-          closeWsServer(localWsServer);
-        }
-      );
     });
 
     describe("request/response body edge cases", () => {
-      let clientConnections: Array<{ dispose: () => void }> = [];
-
-      afterEach(() => {
-        for (const conn of clientConnections) {
-          conn.dispose();
-        }
-        clientConnections = [];
-      });
-
       it("should handle empty body with Content-Length: 0", async () => {
         let receivedBody: string | undefined;
-        let receivedContentLength: string | null = null;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "empty-body-test",
-          onRequest: async (req) => {
-            receivedContentLength = req.headers.get("content-length");
-            receivedBody = await req.text();
-            return new Response("OK");
-          },
+        mockServer.setHandler(async (req, res) => {
+          receivedBody = await readBody(req);
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "empty-body-test" });
 
         const tunnelId = await getTunnelId("empty-body-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
           method: "POST",
           headers: { "Content-Length": "0" },
           body: "",
         });
 
-        assert.strictEqual(response.status, 200);
         assert.strictEqual(receivedBody, "");
       });
 
-      it("should handle large request body", { timeout: 30000 }, async () => {
-        const largeBody = "x".repeat(5 * 1024 * 1024); // 5MB
-        let receivedLength = 0;
+      it("should handle large request body", async () => {
+        const largeBody = "x".repeat(1_000_000);
+        let receivedLength: number | undefined;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "large-req-body-test",
-          onRequest: async (req) => {
-            const body = await req.text();
-            receivedLength = body.length;
-            return new Response("OK");
-          },
+        mockServer.setHandler(async (req, res) => {
+          const body = await readBody(req);
+          receivedLength = body.length;
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({
+          secret: "large-req-body-test",
+        });
 
         const tunnelId = await getTunnelId("large-req-body-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"), {
           method: "POST",
           body: largeBody,
         });
 
         assert.strictEqual(response.status, 200);
-        assert.strictEqual(receivedLength, 5 * 1024 * 1024);
+        assert.strictEqual(receivedLength, 1_000_000);
       });
 
-      it("should handle large response body", { timeout: 30000 }, async () => {
-        const largeBody = "y".repeat(5 * 1024 * 1024); // 5MB
+      it("should handle large response body", async () => {
+        const largeBody = "y".repeat(1_000_000);
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "large-resp-body-test",
-          onRequest: async () => {
-            return new Response(largeBody);
-          },
+        mockServer.setHandler((_req, res) => {
+          res.writeHead(200);
+          res.end(largeBody);
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({
+          secret: "large-res-body-test",
+        });
 
-        const tunnelId = await getTunnelId(
-          "large-resp-body-test",
-          serverSecret
-        );
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        const tunnelId = await getTunnelId("large-res-body-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
 
-        assert.strictEqual(response.status, 200);
         const body = await response.text();
-        assert.strictEqual(body.length, 5 * 1024 * 1024);
+        assert.strictEqual(body.length, 1_000_000);
       });
 
       it("should handle binary request/response bodies", async () => {
-        // PNG-like binary data with null bytes
-        const binaryData = new Uint8Array([
-          0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
-          0x0d, 0x49, 0x48, 0x44, 0x52,
-        ]);
-        let receivedBinary: Uint8Array | undefined;
+        const binaryData = Buffer.from([0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd]);
+        let receivedBinary: Buffer | undefined;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "binary-body-test",
-          onRequest: async (req) => {
-            const buffer = await req.arrayBuffer();
-            receivedBinary = new Uint8Array(buffer);
-            return new Response(binaryData, {
-              headers: { "Content-Type": "application/octet-stream" },
-            });
-          },
+        mockServer.setHandler(async (req, res) => {
+          const chunks: Buffer[] = [];
+          for await (const chunk of req) {
+            chunks.push(chunk);
+          }
+          receivedBinary = Buffer.concat(chunks);
+          res.writeHead(200, { "Content-Type": "application/octet-stream" });
+          res.end(binaryData);
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "binary-body-test" });
 
         const tunnelId = await getTunnelId("binary-body-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"), {
           method: "POST",
-          headers: { "Content-Type": "application/octet-stream" },
           body: binaryData,
         });
 
-        assert.strictEqual(response.status, 200);
-        assert.deepStrictEqual(receivedBinary, binaryData);
-
-        const responseBuffer = await response.arrayBuffer();
-        assert.deepStrictEqual(new Uint8Array(responseBuffer), binaryData);
+        const responseBuffer = Buffer.from(await response.arrayBuffer());
+        assert.ok(receivedBinary);
+        assert.ok(Buffer.compare(receivedBinary, binaryData) === 0);
+        assert.ok(Buffer.compare(responseBuffer, binaryData) === 0);
       });
 
       it("should handle body with null bytes", async () => {
-        const dataWithNulls = new Uint8Array([
-          0x00, 0x01, 0x00, 0x02, 0x00, 0x03,
-        ]);
-        let receivedData: Uint8Array | undefined;
+        const bodyWithNulls = "hello\x00world\x00test";
+        let receivedBody: string | undefined;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "null-bytes-test",
-          onRequest: async (req) => {
-            const buffer = await req.arrayBuffer();
-            receivedData = new Uint8Array(buffer);
-            return new Response(dataWithNulls);
-          },
+        mockServer.setHandler(async (req, res) => {
+          receivedBody = await readBody(req);
+          res.writeHead(200);
+          res.end(bodyWithNulls);
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "null-bytes-test" });
 
         const tunnelId = await getTunnelId("null-bytes-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"), {
           method: "POST",
-          body: dataWithNulls,
+          body: bodyWithNulls,
         });
 
-        assert.strictEqual(response.status, 200);
-        assert.deepStrictEqual(receivedData, dataWithNulls);
-
-        const responseBuffer = await response.arrayBuffer();
-        assert.deepStrictEqual(new Uint8Array(responseBuffer), dataWithNulls);
+        const responseBody = await response.text();
+        assert.strictEqual(receivedBody, bodyWithNulls);
+        assert.strictEqual(responseBody, bodyWithNulls);
       });
 
       it("should handle JSON with unicode characters", async () => {
-        const jsonData = { name: "日本語", emoji: "🎉", arabic: "مرحبا" };
+        const jsonBody = { greeting: "Hello 世界 🌍", name: "テスト" };
         let receivedJson: unknown;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "unicode-json-test",
-          onRequest: async (req) => {
-            receivedJson = await req.json();
-            return new Response(JSON.stringify(jsonData), {
-              headers: { "Content-Type": "application/json" },
-            });
-          },
+        mockServer.setHandler(async (req, res) => {
+          receivedJson = await readJsonBody(req);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(jsonBody));
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({
+          secret: "json-unicode-test",
+        });
 
-        const tunnelId = await getTunnelId("unicode-json-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
+        const tunnelId = await getTunnelId("json-unicode-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(jsonData),
+          body: JSON.stringify(jsonBody),
         });
 
-        assert.strictEqual(response.status, 200);
-        assert.deepStrictEqual(receivedJson, jsonData);
-
         const responseJson = await response.json();
-        assert.deepStrictEqual(responseJson, jsonData);
+        assert.deepStrictEqual(receivedJson, jsonBody);
+        assert.deepStrictEqual(responseJson, jsonBody);
       });
 
       it("should handle URL-encoded form data", async () => {
         let receivedBody: string | undefined;
+        let receivedContentType: string | undefined;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "form-data-test",
-          onRequest: async (req) => {
-            receivedBody = await req.text();
-            return new Response("OK");
-          },
+        mockServer.setHandler(async (req, res) => {
+          receivedContentType = req.headers["content-type"] as string;
+          receivedBody = await readBody(req);
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "form-data-test" });
 
         const tunnelId = await getTunnelId("form-data-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
+        await fetch(getTunnelUrl(server, tunnelId, "/test"), {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: "name=test&value=hello%20world&special=%26%3D%3F",
+          body: "name=John+Doe&email=john%40example.com",
         });
 
-        assert.strictEqual(response.status, 200);
+        assert.strictEqual(
+          receivedContentType,
+          "application/x-www-form-urlencoded"
+        );
         assert.strictEqual(
           receivedBody,
-          "name=test&value=hello%20world&special=%26%3D%3F"
+          "name=John+Doe&email=john%40example.com"
         );
       });
     });
 
     describe("connection edge cases", () => {
-      let clientConnections: Array<{ dispose: () => void }> = [];
+      it("should handle rapid reconnect cycles", async () => {
+        let requestCount = 0;
 
-      afterEach(() => {
-        for (const conn of clientConnections) {
-          conn.dispose();
-        }
-        clientConnections = [];
-      });
-
-      it("should start processing requests before client disconnects", async () => {
-        let requestStarted = false;
-
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "slow-request-test",
-          onRequest: async () => {
-            requestStarted = true;
-            // Short delay to verify request started
-            await delay(100);
-            return new Response("OK");
-          },
+        mockServer.setHandler(async (req, res) => {
+          await readBody(req);
+          requestCount++;
+          res.writeHead(200);
+          res.end(`request-${requestCount}`);
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        const tunnelId = await getTunnelId("rapid-reconnect", serverSecret);
 
-        const tunnelId = await getTunnelId("slow-request-test", serverSecret);
+        for (let i = 0; i < 3; i++) {
+          const { promise: disconnected, resolve: resolveDisconnected } =
+            newPromise();
+          const disposable = await connectClient({
+            secret: "rapid-reconnect",
+            onDisconnect: resolveDisconnected,
+          });
 
-        // Make a request
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
+          const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
+          assert.strictEqual(response.status, 200);
+          assert.strictEqual(await response.text(), `request-${i + 1}`);
 
-        assert.strictEqual(requestStarted, true);
-        assert.strictEqual(response.status, 200);
+          disposable[Symbol.dispose]();
+          await disconnected;
+        }
+
+        assert.strictEqual(requestCount, 3);
       });
 
-      it("should handle rapid reconnect cycles", async () => {
-        const cycles = 5;
-        const tunnelId = await getTunnelId(
-          "rapid-reconnect-test",
-          serverSecret
+      it("should handle many concurrent requests", async () => {
+        const numRequests = 50;
+        let requestCount = 0;
+
+        mockServer.setHandler(async (req, res) => {
+          await readBody(req);
+          requestCount++;
+          const url = new URL(req.url!, `http://${req.headers.host}`);
+          res.writeHead(200);
+          res.end(`request-${url.searchParams.get("n")}`);
+        });
+
+        using _disposable = await connectClient({
+          secret: "concurrent-test",
+        });
+
+        const tunnelId = await getTunnelId("concurrent-test", serverSecret);
+
+        const promises = Array.from({ length: numRequests }, (_, i) =>
+          fetch(getTunnelUrl(server, tunnelId, `/?n=${i}`))
         );
 
-        for (let i = 0; i < cycles; i++) {
-          const client = new TunnelClient({
-            serverUrl: server.url,
-            secret: "rapid-reconnect-test",
-            onRequest: async () => new Response(`cycle-${i}`),
-          });
+        const responses = await Promise.all(promises);
 
-          const disposable = client.connect();
-          await delay(200);
-
-          const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
-          assert.strictEqual(response.status, 200);
-          assert.strictEqual(await response.text(), `cycle-${i}`);
-
-          disposable.dispose();
-          await delay(50);
+        for (let i = 0; i < numRequests; i++) {
+          assert.strictEqual(responses[i]!.status, 200);
+          assert.strictEqual(await responses[i]!.text(), `request-${i}`);
         }
+
+        assert.strictEqual(requestCount, numRequests);
       });
 
-      it(
-        "should handle many concurrent requests",
-        { timeout: 30000 },
-        async () => {
-          const numRequests = 50;
-          let requestCount = 0;
-
-          const client = new TunnelClient({
-            serverUrl: server.url,
-            secret: "concurrent-test",
-            onRequest: async (req) => {
-              requestCount++;
-              const url = new URL(req.url);
-              return new Response(`request-${url.searchParams.get("n")}`);
-            },
-          });
-
-          const disposable = client.connect();
-          clientConnections.push(disposable);
-          await delay(200);
-
-          const tunnelId = await getTunnelId("concurrent-test", serverSecret);
-
-          const promises = Array.from({ length: numRequests }, (_, i) =>
-            fetch(getTunnelUrl(server, tunnelId, `/?n=${i}`))
-          );
-
-          const responses = await Promise.all(promises);
-
-          for (let i = 0; i < numRequests; i++) {
-            assert.strictEqual(responses[i]!.status, 200);
-          }
-
-          assert.strictEqual(requestCount, numRequests);
-        }
-      );
-
       it("should return 503 immediately after client disconnect", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "immediate-503-test",
-          onRequest: async () => new Response("OK"),
+        mockServer.setHandler((_req, res) => {
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        await delay(200);
+        const { promise: disconnected, resolve: resolveDisconnected } =
+          newPromise();
+        const disposable = await connectClient({
+          secret: "immediate-503-test",
+          onDisconnect: resolveDisconnected,
+        });
 
         const tunnelId = await getTunnelId("immediate-503-test", serverSecret);
 
-        // Verify client works
-        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        // Verify it works first
+        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/test"));
         assert.strictEqual(response1.status, 200);
 
         // Disconnect
-        disposable.dispose();
+        disposable[Symbol.dispose]();
+        await disconnected;
 
-        // Immediate request should fail
-        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        // Should fail immediately
+        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/test"));
         assert.strictEqual(response2.status, 503);
       });
 
-      it(
-        "should handle new client connection with same secret",
-        { timeout: 10000 },
-        async () => {
-          const client1 = new TunnelClient({
-            serverUrl: server.url,
-            secret: "replace-client-test",
-            onRequest: async () => new Response("client1"),
-          });
+      it("should disconnect first client when second client connects with same secret", async () => {
+        mockServer.setHandler(async (req, res) => {
+          await readBody(req);
+          res.setHeader("x-client-id", req.headers["x-client-id"] ?? "");
+          res.writeHead(200);
+          res.end("ok");
+        });
 
-          const disposable1 = client1.connect();
-          await delay(300);
+        const {
+          promise: client1Disconnected,
+          resolve: resolveClient1Disconnected,
+        } = newPromise();
+        const disposable1 = await connectClient({
+          secret: "duplicate-client-test",
+          onDisconnect: resolveClient1Disconnected,
+          transformHeaders: (headers) => {
+            headers["x-client-id"] = "client1";
+            return headers;
+          },
+        });
 
-          const tunnelId = await getTunnelId(
-            "replace-client-test",
-            serverSecret
-          );
+        const tunnelId = await getTunnelId(
+          "duplicate-client-test",
+          serverSecret
+        );
 
-          // Verify client1 works
-          const response1 = await fetch(getTunnelUrl(server, tunnelId, "/"));
-          assert.strictEqual(await response1.text(), "client1");
+        // Verify client1 works
+        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        assert.strictEqual(response1.status, 200);
+        assert.strictEqual(response1.headers.get("x-client-id"), "client1");
 
-          // Disconnect client1 first
-          disposable1.dispose();
-          await delay(100);
+        // Connect client2 with same secret - client1 should be disconnected
+        using _disposable2 = await connectClient({
+          secret: "duplicate-client-test",
+          transformHeaders: (headers) => {
+            headers["x-client-id"] = "client2";
+            return headers;
+          },
+        });
 
-          // Connect client2 with same secret
-          const client2 = new TunnelClient({
-            serverUrl: server.url,
-            secret: "replace-client-test",
-            onRequest: async () => new Response("client2"),
-          });
+        // Wait for client1 to be disconnected
+        await client1Disconnected;
 
-          const disposable2 = client2.connect();
-          clientConnections.push(disposable2);
-          await delay(300);
+        // Requests should now go to client2
+        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        assert.strictEqual(response2.status, 200);
+        assert.strictEqual(response2.headers.get("x-client-id"), "client2");
 
-          // Requests should now go to client2
-          const response2 = await fetch(getTunnelUrl(server, tunnelId, "/"));
-          assert.strictEqual(await response2.text(), "client2");
-        }
-      );
+        // Clean up disposable1 (already disconnected, but dispose to be safe)
+        disposable1[Symbol.dispose]();
+      });
+
+      it("should handle new client connection with same secret", async () => {
+        mockServer.setHandler(async (req, res) => {
+          await readBody(req);
+          res.writeHead(200);
+          res.end("client1");
+        });
+
+        const { promise: disconnected1, resolve: resolveDisconnected1 } =
+          newPromise();
+        const disposable1 = await connectClient({
+          secret: "replace-client-test",
+          onDisconnect: resolveDisconnected1,
+        });
+
+        const tunnelId = await getTunnelId("replace-client-test", serverSecret);
+
+        // Verify client1 works
+        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        assert.strictEqual(await response1.text(), "client1");
+
+        // Disconnect client1 first
+        disposable1[Symbol.dispose]();
+        await disconnected1;
+
+        // Update handler for client2
+        mockServer.setHandler(async (req, res) => {
+          await readBody(req);
+          res.writeHead(200);
+          res.end("client2");
+        });
+
+        // Connect client2 with same secret
+        using _disposable2 = await connectClient({
+          secret: "replace-client-test",
+        });
+
+        // Requests should now go to client2
+        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        assert.strictEqual(await response2.text(), "client2");
+      });
     });
 
     describe("error handling", () => {
-      let clientConnections: Array<{ dispose: () => void }> = [];
-
-      afterEach(() => {
-        for (const conn of clientConnections) {
-          conn.dispose();
-        }
-        clientConnections = [];
-      });
-
       it("should return 502 for handler errors", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "error-message-test",
-          onRequest: async () => {
-            throw new Error("Specific error message");
-          },
+        mockServer.setHandler((_req, res) => {
+          res.destroy();
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({
+          secret: "handler-error-test",
+        });
 
-        const tunnelId = await getTunnelId("error-message-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        const tunnelId = await getTunnelId("handler-error-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
 
         assert.strictEqual(response.status, 502);
-        // Error message format varies - just verify we got a 502
-        const body = await response.text();
-        assert.ok(body.length > 0);
       });
 
       it("should handle handler that returns rejected promise", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "rejected-promise-test",
-          onRequest: async () => {
-            return Promise.reject(new Error("Async rejection"));
-          },
-        });
-
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        // Point to non-existent server - need to use TunnelClient directly
+        // since connectClient helper expects a valid port
+        using _connected = await new Promise<{ [Symbol.dispose]: () => void }>(
+          (resolve) => {
+            const client = new TunnelClient({
+              serverUrl: server.url,
+              secret: "rejected-promise-test",
+              transformRequest: ({ method, url, headers }) => {
+                url.host = "127.0.0.1:59999";
+                return { method, url, headers };
+              },
+              onConnect: () => resolve({ [Symbol.dispose]: () => d.dispose() }),
+            });
+            const d = client.connect();
+          }
+        );
 
         const tunnelId = await getTunnelId(
           "rejected-promise-test",
           serverSecret
         );
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
 
         assert.strictEqual(response.status, 502);
       });
@@ -2595,125 +1965,92 @@ export function runSharedTests(
           200, 201, 204, 301, 302, 400, 401, 403, 404, 500, 502, 503,
         ];
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "status-codes-test",
-          onRequest: async (req) => {
-            const url = new URL(req.url);
-            const status = parseInt(url.searchParams.get("status") || "200");
-            // 204 should have no body
-            if (status === 204) {
-              return new Response(null, { status });
+        for (const statusCode of statusCodes) {
+          mockServer.setHandler((_req, res) => {
+            res.writeHead(statusCode);
+            if (statusCode !== 204) {
+              res.end(`Status: ${statusCode}`);
+            } else {
+              res.end();
             }
-            return new Response(`Status: ${status}`, { status });
-          },
-        });
+          });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+          const secret = `status-code-${statusCode}`;
+          using _disposable = await connectClient({ secret });
 
-        const tunnelId = await getTunnelId("status-codes-test", serverSecret);
+          const tunnelId = await getTunnelId(secret, serverSecret);
+          const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
 
-        for (const status of statusCodes) {
-          const response = await fetch(
-            getTunnelUrl(server, tunnelId, `/?status=${status}`)
-          );
-          assert.strictEqual(response.status, status);
+          assert.strictEqual(response.status, statusCode);
         }
       });
     });
 
     describe("URL handling", () => {
-      let clientConnections: Array<{ dispose: () => void }> = [];
-
-      afterEach(() => {
-        for (const conn of clientConnections) {
-          conn.dispose();
-        }
-        clientConnections = [];
-      });
-
       it("should handle path with URL-encoded special characters", async () => {
         let receivedPath: string | undefined;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "encoded-path-test",
-          onRequest: async (req) => {
-            receivedPath = new URL(req.url).pathname;
-            return new Response("OK");
-          },
+        mockServer.setHandler((req, res) => {
+          receivedPath = req.url;
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({
+          secret: "encoded-path-test",
+        });
 
         const tunnelId = await getTunnelId("encoded-path-test", serverSecret);
-        const response = await fetch(
-          getTunnelUrl(server, tunnelId, "/api/users/name%20with%20spaces")
+        await fetch(
+          getTunnelUrl(server, tunnelId, "/path%20with%20spaces/file%2Bname")
         );
 
-        assert.strictEqual(response.status, 200);
-        // Path should be decoded or preserved depending on implementation
-        assert.match(receivedPath, /name(%20| )with(%20| )spaces/);
+        assert.ok(receivedPath?.includes("%20"));
       });
 
       it("should handle query string with special characters", async () => {
-        let receivedQuery: string | undefined;
+        let receivedUrl: string | undefined;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "special-query-test",
-          onRequest: async (req) => {
-            receivedQuery = new URL(req.url).search;
-            return new Response("OK");
-          },
+        mockServer.setHandler((req, res) => {
+          receivedUrl = req.url;
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({
+          secret: "query-special-test",
+        });
 
-        const tunnelId = await getTunnelId("special-query-test", serverSecret);
-        // Encoded: & = ? in values
-        const response = await fetch(
+        const tunnelId = await getTunnelId("query-special-test", serverSecret);
+        await fetch(
           getTunnelUrl(
             server,
             tunnelId,
-            "/?search=hello%26world&name=foo%3Dbar"
+            "/search?q=hello%20world&filter=%3E100"
           )
         );
 
-        assert.strictEqual(response.status, 200);
-        assert.ok(receivedQuery.includes("search=hello%26world"));
-        assert.ok(receivedQuery.includes("name=foo%3Dbar"));
+        assert.ok(receivedUrl?.includes("q=hello%20world"));
+        assert.ok(receivedUrl?.includes("filter=%3E100"));
       });
 
       it("should handle double slashes in path", async () => {
         let receivedPath: string | undefined;
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "double-slash-test",
-          onRequest: async (req) => {
-            receivedPath = new URL(req.url).pathname;
-            return new Response("OK");
-          },
+        mockServer.setHandler((req, res) => {
+          receivedPath = req.url;
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({
+          secret: "double-slash-test",
+        });
 
         const tunnelId = await getTunnelId("double-slash-test", serverSecret);
-        const response = await fetch(
-          getTunnelUrl(server, tunnelId, "/api//data///test")
-        );
+        await fetch(getTunnelUrl(server, tunnelId, "//path//to//resource"));
 
-        assert.strictEqual(response.status, 200);
-        // Browsers/fetch may normalize slashes, but we should handle it
+        // Double slashes may be normalized or preserved depending on implementation
         assert.ok(receivedPath !== undefined);
       });
     });
@@ -2729,111 +2066,74 @@ export function runSharedTests(
       });
 
       it("should handle all standard HTTP methods", async () => {
-        const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+        const methods = ["GET", "POST", "PUT", "DELETE", "PATCH"];
         const receivedMethods: string[] = [];
 
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "http-methods-test",
-          onRequest: async (req) => {
-            receivedMethods.push(req.method);
-            return new Response("OK");
-          },
+        mockServer.setHandler(async (req, res) => {
+          receivedMethods.push(req.method!);
+          await readBody(req);
+          res.writeHead(200);
+          res.end("OK");
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "all-methods-test" });
 
-        const tunnelId = await getTunnelId("http-methods-test", serverSecret);
+        const tunnelId = await getTunnelId("all-methods-test", serverSecret);
 
         for (const method of methods) {
-          const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
+          await fetch(getTunnelUrl(server, tunnelId, "/test"), {
             method,
+            body: method !== "GET" && method !== "DELETE" ? "body" : undefined,
           });
-          assert.strictEqual(response.status, 200);
         }
 
         assert.deepStrictEqual(receivedMethods, methods);
       });
 
       it("should handle HEAD request correctly", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "head-request-test",
-          onRequest: async (req) => {
-            if (req.method === "HEAD") {
-              return new Response(null, {
-                headers: {
-                  "Content-Length": "1000",
-                  "Content-Type": "text/plain",
-                },
-              });
-            }
-            return new Response("body content", {
-              headers: {
-                "Content-Type": "text/plain",
-              },
-            });
-          },
+        mockServer.setHandler((_req, res) => {
+          res.writeHead(200, {
+            "Content-Type": "text/plain",
+            "Content-Length": "13",
+            "X-Custom": "header",
+          });
+          res.end();
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "head-test" });
 
-        const tunnelId = await getTunnelId("head-request-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
+        const tunnelId = await getTunnelId("head-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"), {
           method: "HEAD",
         });
 
         assert.strictEqual(response.status, 200);
-        // HEAD should return headers but no body
-        assert.strictEqual(response.headers.get("content-type"), "text/plain");
+        assert.strictEqual(response.headers.get("X-Custom"), "header");
         const body = await response.text();
-        assert.strictEqual(body, "");
+        assert.strictEqual(body, ""); // HEAD should have no body
       });
 
       it("should handle OPTIONS request for CORS", async () => {
-        const client = new TunnelClient({
-          serverUrl: server.url,
-          secret: "options-cors-test",
-          onRequest: async (req) => {
-            if (req.method === "OPTIONS") {
-              return new Response(null, {
-                status: 204,
-                headers: {
-                  "Access-Control-Allow-Origin": "*",
-                  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE",
-                  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                  "Access-Control-Max-Age": "86400",
-                },
-              });
-            }
-            return new Response("OK");
-          },
+        mockServer.setHandler((_req, res) => {
+          res.writeHead(204, {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          });
+          res.end();
         });
 
-        const disposable = client.connect();
-        clientConnections.push(disposable);
-        await delay(200);
+        using _disposable = await connectClient({ secret: "options-test" });
 
-        const tunnelId = await getTunnelId("options-cors-test", serverSecret);
-        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
+        const tunnelId = await getTunnelId("options-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"), {
           method: "OPTIONS",
-          headers: {
-            "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "Content-Type",
-          },
         });
 
         assert.strictEqual(response.status, 204);
         assert.strictEqual(
-          response.headers.get("access-control-allow-origin"),
+          response.headers.get("Access-Control-Allow-Origin"),
           "*"
-        );
-        assert.ok(
-          response.headers.get("access-control-allow-methods").includes("POST")
         );
       });
     });

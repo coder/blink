@@ -1,5 +1,5 @@
-import Multiplexer, { FrameCodec, type Stream } from "@blink-sdk/multiplexer";
-import { Emitter } from "../emitter";
+import { Emitter } from "@blink-sdk/events";
+import Multiplexer, { type Stream } from "@blink-sdk/multiplexer";
 import {
   ClientMessageType,
   createWebSocketMessagePayload,
@@ -46,7 +46,7 @@ export class Worker {
   private readonly encoder = new TextEncoder();
   private readonly decoder = new TextDecoder();
 
-  constructor(private readonly opts: WorkerOptions) {
+  constructor(readonly opts: WorkerOptions) {
     this.multiplexer = new Multiplexer({
       send: (message: Uint8Array) => {
         opts.sendToClient(message);
@@ -153,7 +153,7 @@ export class Worker {
     );
 
     // Handle WebSocket upgrade
-    if (headers["upgrade"] === "websocket") {
+    if (headers.upgrade === "websocket") {
       this.bindStream(stream);
       return promise;
     }

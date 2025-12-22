@@ -11,48 +11,21 @@
  *   npx wscat -l 8000
  * Then connect via the tunnel URL using wscat or a browser.
  */
+/** biome-ignore-all lint/suspicious/noConsole: this is an example file */
 
 import { TunnelClient } from "../src/client";
 
-const SERVER_URL = "https://try.blink.host";
+const SERVER_URL = "http://localhost:8080";
 const CLIENT_SECRET = crypto.randomUUID();
 const LOCAL_SERVER_PORT = 8000;
 
 const client = new TunnelClient({
   serverUrl: SERVER_URL,
   secret: CLIENT_SECRET,
-  // Transform WebSocket requests to point to local server
-  transformWebSocketRequest: ({ url, headers }) => {
+  transformRequest: async ({ method, url, headers }) => {
+    url.protocol = "http";
     url.host = `localhost:${LOCAL_SERVER_PORT}`;
-    url.protocol = "ws:";
-    return { url, headers };
-  },
-  onRequest: async (request) => {
-    // Forward requests to the local server
-    const url = new URL(request.url);
-    url.host = `localhost:${LOCAL_SERVER_PORT}`;
-    url.protocol = "http:";
-
-    const newRequest = new Request(url.toString(), {
-      method: request.method,
-      headers: request.headers,
-      body: request.body,
-      // @ts-expect-error duplex is needed for streaming bodies
-      duplex: "half",
-    });
-
-    try {
-      return await fetch(newRequest);
-    } catch (error) {
-      console.error("Error forwarding request:", error);
-      return new Response(
-        JSON.stringify({ error: "Failed to connect to local server" }),
-        {
-          status: 502,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
+    return { method, url, headers };
   },
   onConnect: ({ url, id }) => {
     console.log(`Connected to tunnel server!`);

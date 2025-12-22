@@ -121,7 +121,12 @@ export function createLocalServer(opts: LocalServerOptions): {
 
     // Find the session
     const session = sessions.get(tunnelId);
-    if (!session || !session.ws || session.ws.readyState !== WebSocket.OPEN) {
+    if (
+      !session ||
+      !session.ws ||
+      !session.worker ||
+      session.ws.readyState !== WebSocket.OPEN
+    ) {
       res.writeHead(503, { "content-type": "application/json" });
       res.end(
         JSON.stringify({
@@ -152,7 +157,7 @@ export function createLocalServer(opts: LocalServerOptions): {
     // Build headers
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(req.headers)) {
-      if (value) {
+      if (value !== undefined) {
         headers[key] = Array.isArray(value) ? value.join(", ") : value;
       }
     }
@@ -165,7 +170,7 @@ export function createLocalServer(opts: LocalServerOptions): {
         body: body.length > 0 ? body : undefined,
       });
 
-      const worker = session.worker!;
+      const { worker } = session;
       const response = await worker.proxy(proxyRequest);
 
       // Handle WebSocket upgrade - this shouldn't happen for HTTP requests
@@ -217,11 +222,13 @@ export function createLocalServer(opts: LocalServerOptions): {
 
       res.end();
     } catch (err) {
+      // biome-ignore lint/suspicious/noConsole: needed for debugging
+      console.error("Proxy error", err);
       res.writeHead(502, { "content-type": "application/json" });
       res.end(
         JSON.stringify({
           error: "Proxy error",
-          message: err instanceof Error ? err.message : String(err),
+          message: "Internal server error",
         })
       );
     }
@@ -250,7 +257,7 @@ export function createLocalServer(opts: LocalServerOptions): {
 
       // Get or create session
       let session = sessions.get(tunnelId);
-      if (session && session.ws && session.ws.readyState === WebSocket.OPEN) {
+      if (session?.ws && session.ws.readyState === WebSocket.OPEN) {
         // Close existing connection
         session.ws.close(1000, "A new client has connected.");
       }
@@ -277,7 +284,7 @@ export function createLocalServer(opts: LocalServerOptions): {
 
         // Subscribe to WebSocket messages from the tunnel client
         worker.onWebSocketMessage((event) => {
-          const proxyWs = session!.proxiedWebSockets.get(event.stream);
+          const proxyWs = session?.proxiedWebSockets.get(event.stream);
           if (proxyWs && proxyWs.readyState === WebSocket.OPEN) {
             proxyWs.send(event.message);
           }
@@ -285,10 +292,10 @@ export function createLocalServer(opts: LocalServerOptions): {
 
         // Subscribe to WebSocket close events from the tunnel client
         worker.onWebSocketClose((event) => {
-          const proxyWs = session!.proxiedWebSockets.get(event.stream);
+          const proxyWs = session?.proxiedWebSockets.get(event.stream);
           if (proxyWs) {
             proxyWs.close(event.code, event.reason);
-            session!.proxiedWebSockets.delete(event.stream);
+            session?.proxiedWebSockets.delete(event.stream);
           }
         });
 
@@ -307,8 +314,8 @@ export function createLocalServer(opts: LocalServerOptions): {
         });
 
         ws.on("close", () => {
-          if (sessions.get(tunnelId)?.ws === ws) {
-            const s = sessions.get(tunnelId)!;
+          const s = sessions.get(tunnelId);
+          if (s?.ws === ws) {
             // Close all proxied WebSockets when client disconnects
             for (const proxyWs of s.proxiedWebSockets.values()) {
               try {
@@ -363,7 +370,7 @@ export function createLocalServer(opts: LocalServerOptions): {
     // Build headers
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(req.headers)) {
-      if (value) {
+      if (value !== undefined) {
         headers[key] = Array.isArray(value) ? value.join(", ") : value;
       }
     }
@@ -417,7 +424,7 @@ export function createLocalServer(opts: LocalServerOptions): {
           session.proxiedWebSockets.delete(streamID);
         });
       });
-    } catch (err) {
+    } catch (_err) {
       socket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
       socket.destroy();
     }
@@ -458,7 +465,7 @@ function extractTunnelId(
   } else {
     // Wildcard mode
     const baseHost = new URL(baseUrl).hostname;
-    if (host && host.endsWith(`.${baseHost}`)) {
+    if (host?.endsWith(`.${baseHost}`)) {
       const subdomain = host.slice(0, -(baseHost.length + 1));
       // Remove port if present
       const id = subdomain.split(":")[0];
