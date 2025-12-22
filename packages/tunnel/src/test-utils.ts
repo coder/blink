@@ -142,3 +142,14 @@ export async function waitFor(
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Close a WebSocketServer and terminate all its clients.
+ * This ensures sockets are properly destroyed and don't keep the process alive.
+ */
+export function closeWsServer(server: { clients: Set<{ terminate: () => void }>; close: () => void }): void {
+  for (const client of server.clients) {
+    client.terminate();
+  }
+  server.close();
+}

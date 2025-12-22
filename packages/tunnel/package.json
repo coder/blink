@@ -27,11 +27,7 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsgo --noEmit",
-    "test": "vitest run src/tunnel.test.ts",
-    "test:cloudflare": "vitest run src/cloudflare.test.ts",
-    "test:all": "vitest run",
-    "test:watch": "vitest"
+    "typecheck": "tsgo --noEmit"
   },
   "exports": {
     ".": {
@@ -48,7 +44,6 @@
     "@types/ws": "^8.5.10",
     "hono": "^4.7.10",
     "tsdown": "^0.11.12",
-    "vitest": "^3.2.4",
     "wrangler": "^4.22.0"
   }
 }

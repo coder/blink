@@ -15,7 +15,9 @@
  * The HTTP tests are the primary concern for API compatibility.
  */
 
-import { describe, expect, it } from "vitest";
+import assert from "node:assert";
+import { describe, it } from "node:test";
+import { runAsNodeTest } from "../../../scripts/runAsNodeTest";
 import { createCloudflareServerFactory } from "./server/cloudflare.test-adapter";
 import { runSharedTests } from "./shared.test-suite";
 
@@ -24,10 +26,12 @@ const SERVER_SECRET = "test-server-secret";
 // Check if we should skip tests (e.g., in CI without wrangler)
 const SKIP_TESTS = process.env.SKIP_CLOUDFLARE_TESTS === "1";
 
-if (SKIP_TESTS) {
+if (typeof Bun !== "undefined") {
+  runAsNodeTest("cloudflare", __filename, { timeoutMs: 120_000 });
+} else if (SKIP_TESTS) {
   describe("tunnel cloudflare (skipped)", () => {
     it("cloudflare tests are skipped - set SKIP_CLOUDFLARE_TESTS=0 to enable", () => {
-      expect(true).toBe(true);
+      assert.ok(true);
     });
   });
 } else {

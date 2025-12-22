@@ -430,11 +430,11 @@ export function createLocalServer(opts: LocalServerOptions): {
   return {
     server: httpServer,
     close: () => {
-      // Close all WebSocket connections
+      // Terminate all WebSocket connections immediately
       for (const session of sessions.values()) {
-        session.ws?.close(1000, "Server shutting down");
+        session.ws?.terminate();
         for (const ws of session.proxiedWebSockets.values()) {
-          ws.close(1000, "Server shutting down");
+          ws.terminate();
         }
       }
       sessions.clear();

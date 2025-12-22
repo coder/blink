@@ -5,7 +5,8 @@
  * The same tests are also run against the Cloudflare server in cloudflare.test.ts.
  */
 
-import { describe, expect, it } from "vitest";
+import assert from "node:assert";
+import { describe, it } from "node:test";
 import { generateTunnelId, verifyTunnelId } from "./server/crypto";
 import { createLocalServerFactory } from "./server/local.test-adapter";
 import { runSharedTests } from "./shared.test-suite";
@@ -20,45 +21,45 @@ describe("tunnel", () => {
       const id1 = await generateTunnelId(CLIENT_SECRET, SERVER_SECRET);
       const id2 = await generateTunnelId(CLIENT_SECRET, SERVER_SECRET);
 
-      expect(id1).toBe(id2);
-      expect(id1).toHaveLength(16);
-      expect(id1).toMatch(/^[0-9a-z]+$/);
+      assert.strictEqual(id1, id2);
+      assert.strictEqual(id1.length, 16);
+      assert.match(id1, /^[0-9a-z]+$/);
     });
 
     it("should generate different IDs for different client secrets", async () => {
       const id1 = await generateTunnelId("secret1", SERVER_SECRET);
       const id2 = await generateTunnelId("secret2", SERVER_SECRET);
 
-      expect(id1).not.toBe(id2);
+      assert.notStrictEqual(id1, id2);
     });
 
     it("should generate different IDs for different server secrets", async () => {
       const id1 = await generateTunnelId(CLIENT_SECRET, "server1");
       const id2 = await generateTunnelId(CLIENT_SECRET, "server2");
 
-      expect(id1).not.toBe(id2);
+      assert.notStrictEqual(id1, id2);
     });
 
     it("should verify tunnel IDs correctly", async () => {
       const id = await generateTunnelId(CLIENT_SECRET, SERVER_SECRET);
 
       const isValid = await verifyTunnelId(id, CLIENT_SECRET, SERVER_SECRET);
-      expect(isValid).toBe(true);
+      assert.strictEqual(isValid, true);
 
       const isInvalid = await verifyTunnelId(id, "wrong-secret", SERVER_SECRET);
-      expect(isInvalid).toBe(false);
+      assert.strictEqual(isInvalid, false);
     });
 
     it("should handle empty secrets", async () => {
       const id = await generateTunnelId("", SERVER_SECRET);
-      expect(id).toHaveLength(16);
-      expect(id).toMatch(/^[0-9a-z]+$/);
+      assert.strictEqual(id.length, 16);
+      assert.match(id, /^[0-9a-z]+$/);
     });
 
     it("should handle unicode secrets", async () => {
       const id = await generateTunnelId("секрет🔐", SERVER_SECRET);
-      expect(id).toHaveLength(16);
-      expect(id).toMatch(/^[0-9a-z]+$/);
+      assert.strictEqual(id.length, 16);
+      assert.match(id, /^[0-9a-z]+$/);
     });
 
     it("should use full base36 alphabet for maximum entropy", async () => {
@@ -73,9 +74,9 @@ describe("tunnel", () => {
         }
       }
 
-      expect(ids.size).toBe(100);
+      assert.strictEqual(ids.size, 100);
       const beyondHex = [...allChars].filter((c) => c >= "g" && c <= "z");
-      expect(beyondHex.length).toBeGreaterThan(0);
+      assert.ok(beyondHex.length > 0);
     });
   });
 
