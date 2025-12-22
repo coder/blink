@@ -47,7 +47,8 @@ export const createTools = ({
 }: CreateToolsOptions) => {
   const sendMessageDescription =
     "The timestamp of the message to send in response to.";
-  let sendMessageTs = z
+  // Use coerce.string() to handle LLMs that pass timestamps as numbers
+  let sendMessageTs = z.coerce
     .string()
     .describe(sendMessageDescription) as unknown as z.ZodOptional<z.ZodString>;
   if (!disableMessagingInChannels) {
@@ -170,7 +171,9 @@ ${formattingRules}`
 Prefer reacting to the most recent messages in a thread.`,
       inputSchema: z.object({
         channel: z.string().describe("The channel to react to the message in."),
-        ts: z.string().describe("The timestamp of the message to react to."),
+        ts: z.coerce
+          .string()
+          .describe("The timestamp of the message to react to."),
         reaction: z.string().describe(`The Slack reaction to add to the message.
 
 Reactions:
@@ -260,7 +263,7 @@ IMPORTANT: This MUST be text, not an emoji.`),
         "Read a message from a channel by ID. This reads attachments as well.",
       inputSchema: z.object({
         channel: z.string().describe("The channel to read the message from."),
-        ts: z.string().describe("The timestamp of the message to read."),
+        ts: z.coerce.string().describe("The timestamp of the message to read."),
       }),
       execute: async (args) => {
         const messages = await client.conversations.history({
@@ -340,7 +343,7 @@ IMPORTANT: This MUST be text, not an emoji.`),
         channel: z
           .string()
           .describe("The channel to read the thread replies from."),
-        ts: z
+        ts: z.coerce
           .string()
           .describe(
             "The timestamp of the message to read the thread replies from."
@@ -455,7 +458,7 @@ Clear the status by passing an empty string.`,
             "A short present-participle verb + brief user-facing update. NEVER use underscores or non-natural language words. Keep it short - under 100 characters."
           ),
         channel: z.string().describe("The channel to report your status to."),
-        thread_ts: z
+        thread_ts: z.coerce
           .string()
           .describe("The timestamp of the thread to report your status to."),
       }),
