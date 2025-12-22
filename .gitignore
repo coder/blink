@@ -5,3 +5,4 @@ dist/
 .sonda
 .next
 **/tsconfig.tsbuildinfo
+.wrangler

@@ -1,11 +1,11 @@
-# @blink-sdk/devhook
+# @blink-sdk/tunnel
 
 Expose local servers via a public URL. Perfect for webhooks, API testing, and development.
 
 ## Features
 
 - **Secure URLs**: Client secrets are signed with HMAC-SHA256 to generate deterministic, unguessable subdomains
-- **Flexible routing**: Support for wildcard subdomains (`abc123.devhook.example.com`) or subpath routing (`example.com/devhook/abc123`)
+- **Flexible routing**: Support for wildcard subdomains (`abc123.tunnel.example.com`) or subpath routing (`example.com/tunnel/abc123`)
 - **WebSocket support**: Full bidirectional WebSocket proxying
 - **Persistent sessions**: Durable Object state survives restarts
 - **Local testing**: Run the server locally with Node.js
@@ -13,16 +13,16 @@ Expose local servers via a public URL. Perfect for webhooks, API testing, and de
 ## Installation
 
 ```bash
-npm install @blink-sdk/devhook
+npm install @blink-sdk/tunnel
 ```
 
 ## Client Usage
 
 ```typescript
-import { DevhookClient } from "@blink-sdk/devhook";
+import { TunnelClient } from "@blink-sdk/tunnel";
 
-const client = new DevhookClient({
-  serverUrl: "https://devhook.example.com",
+const client = new TunnelClient({
+  serverUrl: "https://tunnel.example.com",
   secret: "my-secret-key",
   // Transform WebSocket requests to point to your local server
   transformWebSocketRequest: ({ url, headers }) => {
@@ -36,8 +36,8 @@ const client = new DevhookClient({
     return fetch(new Request(url.toString(), req));
   },
   onConnect: ({ url, id }) => {
-    console.log(`Devhook available at: ${url}`);
-    console.log(`Devhook ID: ${id}`);
+    console.log(`Tunnel available at: ${url}`);
+    console.log(`Tunnel ID: ${id}`);
   },
   onDisconnect: () => {
     console.log("Disconnected from server");
@@ -61,28 +61,28 @@ const disposable = client.connect();
 2. Configure `wrangler.toml`:
 
 ```toml
-name = "devhook-server"
+name = "tunnel-server"
 main = "src/server/cloudflare.ts"
 compatibility_date = "2025-01-01"
 
 # For wildcard subdomains:
 routes = [
-  { pattern = "*.devhook.example.com/*", zone_name = "example.com" },
-  { pattern = "devhook.example.com/*", zone_name = "example.com" }
+  { pattern = "*.tunnel.example.com/*", zone_name = "example.com" },
+  { pattern = "tunnel.example.com/*", zone_name = "example.com" }
 ]
 
 [vars]
-DEVHOOK_SECRET = "your-secure-server-secret"
-DEVHOOK_BASE_URL = "https://devhook.example.com"
-DEVHOOK_MODE = "wildcard"
+TUNNEL_SECRET = "your-secure-server-secret"
+TUNNEL_BASE_URL = "https://tunnel.example.com"
+TUNNEL_MODE = "wildcard"
 
 [[durable_objects.bindings]]
-name = "DEVHOOK_SESSION"
-class_name = "DevhookSession"
+name = "TUNNEL_SESSION"
+class_name = "TunnelSession"
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["DevhookSession"]
+new_sqlite_classes = ["TunnelSession"]
 ```
 
 3. Deploy:
@@ -95,13 +95,13 @@ wrangler deploy
 
 For wildcard subdomains, configure your DNS:
 
-1. Add a wildcard CNAME record: `*.devhook.example.com` → your Cloudflare zone
+1. Add a wildcard CNAME record: `*.tunnel.example.com` → your Cloudflare zone
 2. Or use Cloudflare's automatic proxying
 
 ### Local Development
 
 ```typescript
-import { createLocalServer } from "@blink-sdk/devhook/server/local";
+import { createLocalServer } from "@blink-sdk/tunnel/server/local";
 
 const server = createLocalServer({
   port: 8080,
@@ -109,7 +109,7 @@ const server = createLocalServer({
   baseUrl: "http://localhost:8080",
   mode: "subpath", // Easier for local testing
   onReady: (port) => {
-    console.log(`Devhook server running on port ${port}`);
+    console.log(`Tunnel server running on port ${port}`);
   },
   onClientConnect: (id) => {
     console.log(`Client connected: ${id}`);
@@ -129,7 +129,7 @@ const server = createLocalServer({
 1. Client provides a secret
 2. Server signs the secret with HMAC-SHA256 using its own secret
 3. The signature is base64url-encoded and truncated to 16 characters
-4. This becomes the devhook ID (subdomain or path prefix)
+4. This becomes the tunnel ID (subdomain or path prefix)
 
 This means:
 
@@ -156,7 +156,7 @@ External Request
          │ WebSocket
          ▼
 ┌─────────────────┐
-│ Devhook Client  │
+│ Tunnel Client   │
 │ (Your Machine)  │
 └────────┬────────┘
          │
@@ -169,11 +169,11 @@ External Request
 
 ## API Reference
 
-### DevhookClient
+### TunnelClient
 
 ```typescript
-interface DevhookClientOptions {
-  /** The devhook server URL */
+interface TunnelClientOptions {
+  /** The tunnel server URL */
   serverUrl: string;
 
   /** Client secret for URL generation */

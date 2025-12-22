@@ -1,5 +1,5 @@
 /**
- * Protocol schema for devhook proxy messages.
+ * Protocol schema for tunnel proxy messages.
  *
  * The protocol uses a binary format over WebSocket with multiplexed streams.
  * Each message has a 1-byte type prefix followed by the payload.
@@ -65,9 +65,9 @@ export interface WebSocketClosePayload {
  * Connection established message sent to client.
  */
 export interface ConnectionEstablished {
-  /** The public URL for this devhook */
+  /** The public URL for this tunnel */
   url: string;
-  /** The devhook ID (subdomain or path prefix) */
+  /** The tunnel ID (subdomain or path prefix) */
   id: string;
 }
 

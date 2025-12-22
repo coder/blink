@@ -1,14 +1,14 @@
 import Multiplexer, { type Stream } from "@blink-sdk/multiplexer";
 import WebSocket from "ws";
-import { type Disposable } from "../emitter";
+import type { Disposable } from "../emitter";
 import {
   ClientMessageType,
-  ServerMessageType,
-  createWebSocketMessagePayload,
-  parseWebSocketMessagePayload,
   type ConnectionEstablished,
+  createWebSocketMessagePayload,
   type ProxyInitRequest,
   type ProxyInitResponse,
+  parseWebSocketMessagePayload,
+  ServerMessageType,
   type WebSocketClosePayload,
 } from "../schema";
 
@@ -21,10 +21,10 @@ export interface WebSocketRequest {
   headers: Record<string, string>;
 }
 
-export interface DevhookClientOptions {
+export interface TunnelClientOptions {
   /**
-   * The devhook server URL.
-   * For wildcard mode: https://devhook.example.com
+   * The tunnel server URL.
+   * For wildcard mode: https://tunnel.example.com
    * For subpath mode: https://example.com
    */
   serverUrl: string;
@@ -43,7 +43,7 @@ export interface DevhookClientOptions {
 
   /**
    * Called when the connection is established.
-   * Receives the public URL that can be used to access this devhook.
+   * Receives the public URL that can be used to access this tunnel.
    */
   onConnect?: (info: ConnectionEstablished) => void;
 
@@ -77,12 +77,12 @@ export interface DevhookClientOptions {
 }
 
 /**
- * Connect to a devhook server and handle proxied requests.
+ * Connect to a tunnel server and handle proxied requests.
  *
  * @example
  * ```ts
- * const client = new DevhookClient({
- *   serverUrl: "https://devhook.example.com",
+ * const client = new TunnelClient({
+ *   serverUrl: "https://tunnel.example.com",
  *   secret: "my-secret-key",
  *   onRequest: async (req) => {
  *     // Forward to local server
@@ -91,7 +91,7 @@ export interface DevhookClientOptions {
  *     return fetch(new Request(url.toString(), req));
  *   },
  *   onConnect: ({ url }) => {
- *     console.log(`Devhook available at: ${url}`);
+ *     console.log(`Tunnel available at: ${url}`);
  *   },
  * });
  *
@@ -99,14 +99,14 @@ export interface DevhookClientOptions {
  * // Later: disposable.dispose();
  * ```
  */
-export class DevhookClient {
+export class TunnelClient {
   private readonly encoder = new TextEncoder();
   private readonly decoder = new TextDecoder();
 
-  constructor(private readonly opts: DevhookClientOptions) {}
+  constructor(private readonly opts: TunnelClientOptions) {}
 
   /**
-   * Connect to the devhook server.
+   * Connect to the tunnel server.
    * Returns a Disposable that can be used to disconnect.
    */
   connect(): Disposable {
@@ -148,11 +148,11 @@ export class DevhookClient {
       try {
         const wsUrl = new URL(this.opts.serverUrl);
         wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
-        wsUrl.pathname = "/api/devhook/connect";
+        wsUrl.pathname = "/api/tunnel/connect";
 
         socket = new WebSocket(wsUrl.toString(), {
           headers: {
-            "x-devhook-secret": this.opts.secret,
+            "x-tunnel-secret": this.opts.secret,
           },
         });
         socket.binaryType = "arraybuffer";

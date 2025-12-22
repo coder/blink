@@ -1,12 +1,12 @@
-import Multiplexer, { type Stream, FrameCodec } from "@blink-sdk/multiplexer";
+import Multiplexer, { FrameCodec, type Stream } from "@blink-sdk/multiplexer";
 import { Emitter } from "../emitter";
 import {
   ClientMessageType,
-  ServerMessageType,
   createWebSocketMessagePayload,
-  parseWebSocketMessagePayload,
   type ProxyInitRequest,
   type ProxyInitResponse,
+  parseWebSocketMessagePayload,
+  ServerMessageType,
   type WebSocketClosePayload,
 } from "../schema";
 
@@ -25,7 +25,7 @@ export interface ProxyResponse {
 }
 
 /**
- * Worker handles the server-side of the devhook protocol.
+ * Worker handles the server-side of the tunnel protocol.
  * It multiplexes proxy requests to the connected client.
  */
 export class Worker {

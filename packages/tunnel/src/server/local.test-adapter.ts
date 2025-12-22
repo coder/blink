@@ -1,9 +1,9 @@
 /**
- * Test adapter for the local devhook server.
+ * Test adapter for the local tunnel server.
  */
 
-import { createLocalServer } from "./local";
 import type { TestServer, TestServerFactory } from "../test-utils";
+import { createLocalServer } from "./local";
 
 let portCounter = 17000;
 

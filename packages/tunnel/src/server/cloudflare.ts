@@ -1,17 +1,17 @@
 /**
- * Cloudflare Worker entry point for the devhook server.
+ * Cloudflare Worker entry point for the tunnel server.
  *
  * This worker handles:
- * 1. Client connections at /api/devhook/connect
+ * 1. Client connections at /api/tunnel/connect
  * 2. Proxy requests via wildcard subdomains (*.example.com)
- * 3. Proxy requests via subpath routing (/devhook/:id/*)
+ * 3. Proxy requests via subpath routing (/tunnel/:id/*)
  */
 
-import { generateDevhookId } from "./crypto";
-import type { DevhookSession, DevhookSessionEnv } from "./durable-object";
+import { generateTunnelId } from "./crypto";
+import type { TunnelSession, TunnelSessionEnv } from "./durable-object";
 
-export interface Env extends DevhookSessionEnv {
-  DEVHOOK_SESSION: DurableObjectNamespace<DevhookSession>;
+export interface Env extends TunnelSessionEnv {
+  TUNNEL_SESSION: DurableObjectNamespace<TunnelSession>;
 }
 
 export default {
@@ -19,14 +19,14 @@ export default {
     const url = new URL(request.url);
 
     // Handle client connection requests
-    if (url.pathname === "/api/devhook/connect") {
+    if (url.pathname === "/api/tunnel/connect") {
       return handleClientConnect(request, env);
     }
 
     // Handle proxy requests
-    const devhookId = extractDevhookId(url, env);
-    if (devhookId) {
-      return handleProxyRequest(request, env, devhookId);
+    const tunnelId = extractTunnelId(url, env);
+    if (tunnelId) {
+      return handleProxyRequest(request, env, tunnelId);
     }
 
     // Health check endpoint
@@ -50,7 +50,7 @@ export default {
 };
 
 /**
- * Handle a client connecting to establish a devhook.
+ * Handle a client connecting to establish a tunnel.
  */
 async function handleClientConnect(
   request: Request,
@@ -71,12 +71,12 @@ async function handleClientConnect(
   }
 
   // Get client secret from header
-  const clientSecret = request.headers.get("x-devhook-secret");
+  const clientSecret = request.headers.get("x-tunnel-secret");
   if (!clientSecret) {
     return new Response(
       JSON.stringify({
         error: "Missing secret",
-        message: "The x-devhook-secret header is required.",
+        message: "The x-tunnel-secret header is required.",
       }),
       {
         status: 401,
@@ -85,17 +85,17 @@ async function handleClientConnect(
     );
   }
 
-  // Generate the devhook ID from the client secret
-  const devhookId = await generateDevhookId(clientSecret, env.DEVHOOK_SECRET);
+  // Generate the tunnel ID from the client secret
+  const tunnelId = await generateTunnelId(clientSecret, env.TUNNEL_SECRET);
 
   // Get or create the Durable Object for this session
-  const sessionId = env.DEVHOOK_SESSION.idFromName(devhookId);
-  const session = env.DEVHOOK_SESSION.get(sessionId);
+  const sessionId = env.TUNNEL_SESSION.idFromName(tunnelId);
+  const session = env.TUNNEL_SESSION.get(sessionId);
 
-  // Forward to the Durable Object with the devhook ID in a header
+  // Forward to the Durable Object with the tunnel ID in a header
   // The DO will handle initialization internally
   const headers = new Headers(request.headers);
-  headers.set("x-devhook-id", devhookId);
+  headers.set("x-tunnel-id", tunnelId);
 
   return session.fetch(
     new Request(request.url, {
@@ -107,17 +107,17 @@ async function handleClientConnect(
 }
 
 /**
- * Extract the devhook ID from the request URL.
+ * Extract the tunnel ID from the request URL.
  * Supports both wildcard subdomain and subpath modes.
  */
-function extractDevhookId(url: URL, env: Env): string | undefined {
-  const mode = env.DEVHOOK_MODE || "wildcard";
-  const baseUrl = new URL(env.DEVHOOK_BASE_URL);
+function extractTunnelId(url: URL, env: Env): string | undefined {
+  const mode = env.TUNNEL_MODE || "wildcard";
+  const baseUrl = new URL(env.TUNNEL_BASE_URL);
 
   if (mode === "subpath") {
-    // Subpath mode: /devhook/:id/*
+    // Subpath mode: /tunnel/:id/*
     // Base36 IDs: 16 characters of [0-9a-z]
-    const match = url.pathname.match(/^\/devhook\/([0-9a-z]{16})(\/.*)?$/);
+    const match = url.pathname.match(/^\/tunnel\/([0-9a-z]{16})(\/.*)?$/);
     if (match) {
       return match[1];
     }
@@ -126,7 +126,7 @@ function extractDevhookId(url: URL, env: Env): string | undefined {
     const baseHost = baseUrl.hostname;
     if (url.hostname.endsWith(`.${baseHost}`) && url.hostname !== baseHost) {
       const subdomain = url.hostname.slice(0, -(baseHost.length + 1));
-      // Validate it looks like a devhook ID (16 base36 characters)
+      // Validate it looks like a tunnel ID (16 base36 characters)
       if (/^[0-9a-z]{16}$/.test(subdomain)) {
         return subdomain;
       }
@@ -137,26 +137,24 @@ function extractDevhookId(url: URL, env: Env): string | undefined {
 }
 
 /**
- * Handle a proxy request to a devhook.
+ * Handle a proxy request to a tunnel.
  */
 async function handleProxyRequest(
   request: Request,
   env: Env,
-  devhookId: string
+  tunnelId: string
 ): Promise<Response> {
-  const sessionId = env.DEVHOOK_SESSION.idFromName(devhookId);
-  const session = env.DEVHOOK_SESSION.get(
-    sessionId
-  ) as unknown as DevhookSession;
+  const sessionId = env.TUNNEL_SESSION.idFromName(tunnelId);
+  const session = env.TUNNEL_SESSION.get(sessionId) as unknown as TunnelSession;
 
   // Build the proxy URL
   const url = new URL(request.url);
-  const mode = env.DEVHOOK_MODE || "wildcard";
+  const mode = env.TUNNEL_MODE || "wildcard";
 
   let proxyPath: string;
   if (mode === "subpath") {
-    // Remove the /devhook/:id prefix
-    proxyPath = url.pathname.replace(/^\/devhook\/[a-z0-9]+/, "") || "/";
+    // Remove the /tunnel/:id prefix
+    proxyPath = url.pathname.replace(/^\/tunnel\/[a-z0-9]+/, "") || "/";
   } else {
     proxyPath = url.pathname;
   }
@@ -166,10 +164,10 @@ async function handleProxyRequest(
 
   // Forward to the Durable Object with the proxy URL header
   const headers = new Headers(request.headers);
-  headers.set("x-devhook-proxy-url", proxyUrl.toString());
+  headers.set("x-tunnel-proxy-url", proxyUrl.toString());
 
   return session.fetch(
-    new Request("https://devhook/proxy", {
+    new Request("https://tunnel/proxy", {
       method: request.method,
       headers,
       body: request.body,
@@ -178,4 +176,4 @@ async function handleProxyRequest(
 }
 
 // Re-export the Durable Object for wrangler
-export { DevhookSession } from "./durable-object";
+export { TunnelSession } from "./durable-object";

@@ -6,14 +6,14 @@
  */
 
 import {
-  DevhookClient,
-  type DevhookClientOptions,
+  TunnelClient,
+  type TunnelClientOptions,
   type WebSocketRequest,
 } from "./client";
-import { generateDevhookId } from "./server/crypto";
+import { generateTunnelId } from "./server/crypto";
 
 /**
- * Common interface for devhook server implementations.
+ * Common interface for tunnel server implementations.
  * Both local and Cloudflare servers should implement this.
  */
 export interface TestServer {
@@ -40,16 +40,16 @@ export interface TestClientOptions {
   secret: string;
   localTargetPort?: number;
   transformWebSocketRequest?: (request: WebSocketRequest) => WebSocketRequest;
-  onRequest?: DevhookClientOptions["onRequest"];
-  onConnect?: DevhookClientOptions["onConnect"];
-  onDisconnect?: DevhookClientOptions["onDisconnect"];
-  onError?: DevhookClientOptions["onError"];
+  onRequest?: TunnelClientOptions["onRequest"];
+  onConnect?: TunnelClientOptions["onConnect"];
+  onDisconnect?: TunnelClientOptions["onDisconnect"];
+  onError?: TunnelClientOptions["onError"];
 }
 
 /**
- * Create a DevhookClient configured for testing.
+ * Create a TunnelClient configured for testing.
  */
-export function createTestClient(opts: TestClientOptions): DevhookClient {
+export function createTestClient(opts: TestClientOptions): TunnelClient {
   const {
     server,
     secret,
@@ -59,7 +59,7 @@ export function createTestClient(opts: TestClientOptions): DevhookClient {
     ...rest
   } = opts;
 
-  return new DevhookClient({
+  return new TunnelClient({
     serverUrl: server.url,
     secret,
     transformWebSocketRequest:
@@ -85,35 +85,35 @@ export function createTestClient(opts: TestClientOptions): DevhookClient {
 }
 
 /**
- * Helper to generate a devhook ID for testing.
+ * Helper to generate a tunnel ID for testing.
  */
-export async function getDevhookId(
+export async function getTunnelId(
   clientSecret: string,
   serverSecret: string
 ): Promise<string> {
-  return generateDevhookId(clientSecret, serverSecret);
+  return generateTunnelId(clientSecret, serverSecret);
 }
 
 /**
- * Helper to build the devhook URL for a given ID.
+ * Helper to build the tunnel URL for a given ID.
  */
-export function getDevhookUrl(
+export function getTunnelUrl(
   server: TestServer,
-  devhookId: string,
+  tunnelId: string,
   path = ""
 ): string {
-  return `${server.url}/devhook/${devhookId}${path}`;
+  return `${server.url}/tunnel/${tunnelId}${path}`;
 }
 
 /**
- * Helper to build the WebSocket URL for a devhook.
+ * Helper to build the WebSocket URL for a tunnel.
  */
-export function getDevhookWsUrl(
+export function getTunnelWsUrl(
   server: TestServer,
-  devhookId: string,
+  tunnelId: string,
   path = ""
 ): string {
-  const url = new URL(getDevhookUrl(server, devhookId, path));
+  const url = new URL(getTunnelUrl(server, tunnelId, path));
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   return url.toString();
 }

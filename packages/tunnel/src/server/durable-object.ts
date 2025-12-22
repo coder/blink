@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
-import { Worker } from "./worker";
 import type { ConnectionEstablished } from "../schema";
+import { Worker } from "./worker";
 
 type WebsocketState =
   | {
@@ -16,27 +16,27 @@ interface WebSocket extends globalThis.WebSocket {
   serializeAttachment(state: WebsocketState): void;
 }
 
-export interface DevhookSessionEnv {
-  DEVHOOK_SECRET: string;
-  DEVHOOK_BASE_URL: string;
-  DEVHOOK_MODE: "wildcard" | "subpath";
+export interface TunnelSessionEnv {
+  TUNNEL_SECRET: string;
+  TUNNEL_BASE_URL: string;
+  TUNNEL_MODE: "wildcard" | "subpath";
 }
 
 /**
- * Durable Object that manages a single devhook session.
+ * Durable Object that manages a single tunnel session.
  *
  * State that survives restarts:
- * - id: The devhook ID (generated from client secret)
+ * - id: The tunnel ID (generated from client secret)
  * - nextStreamID: For multiplexer continuity
  * - clientSecret: To verify reconnections
  */
-export class DevhookSession extends DurableObject<DevhookSessionEnv> {
+export class TunnelSession extends DurableObject<TunnelSessionEnv> {
   private id?: string;
   private clientSecret?: string;
   private nextStreamID?: number;
   private cachedWorker?: Worker;
 
-  constructor(state: DurableObjectState, env: DevhookSessionEnv) {
+  constructor(state: DurableObjectState, env: TunnelSessionEnv) {
     super(state, env);
 
     // Restore persisted state
@@ -63,7 +63,7 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
     // Proxy request (check BEFORE WebSocket upgrade since proxied WS also has upgrade header)
     if (
       url.pathname === "/proxy" ||
-      request.headers.has("x-devhook-proxy-url")
+      request.headers.has("x-tunnel-proxy-url")
     ) {
       return this.handleProxyRequest(request);
     }
@@ -71,13 +71,13 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
     // Client connecting via WebSocket
     if (request.headers.get("upgrade") === "websocket") {
       // Initialize session from the headers if needed
-      const devhookId = request.headers.get("x-devhook-id");
-      const clientSecret = request.headers.get("x-devhook-secret");
+      const tunnelId = request.headers.get("x-tunnel-id");
+      const clientSecret = request.headers.get("x-tunnel-secret");
 
-      if (devhookId && clientSecret && !this.id) {
-        this.id = devhookId;
+      if (tunnelId && clientSecret && !this.id) {
+        this.id = tunnelId;
         this.clientSecret = clientSecret;
-        await this.ctx.storage.put("id", devhookId);
+        await this.ctx.storage.put("id", tunnelId);
         await this.ctx.storage.put("clientSecret", clientSecret);
       }
 
@@ -137,7 +137,7 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
         JSON.stringify({
           error: "No client connected",
           message:
-            "The devhook client is not currently connected. Please ensure your local server is running.",
+            "The tunnel client is not currently connected. Please ensure your local server is running.",
         }),
         {
           status: 503,
@@ -146,9 +146,9 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
       );
     }
 
-    const proxyUrl = request.headers.get("x-devhook-proxy-url") ?? request.url;
+    const proxyUrl = request.headers.get("x-tunnel-proxy-url") ?? request.url;
     const headers = new Headers(request.headers);
-    headers.delete("x-devhook-proxy-url");
+    headers.delete("x-tunnel-proxy-url");
 
     const worker = this.getWorker();
 
@@ -335,14 +335,14 @@ export class DevhookSession extends DurableObject<DevhookSessionEnv> {
   }
 
   /**
-   * Get the public URL for this devhook.
+   * Get the public URL for this tunnel.
    */
   private getPublicUrl(): string {
-    const baseUrl = this.env.DEVHOOK_BASE_URL;
-    const mode = this.env.DEVHOOK_MODE || "wildcard";
+    const baseUrl = this.env.TUNNEL_BASE_URL;
+    const mode = this.env.TUNNEL_MODE || "wildcard";
 
     if (mode === "subpath") {
-      return `${baseUrl}/devhook/${this.id}`;
+      return `${baseUrl}/tunnel/${this.id}`;
     } else {
       // Wildcard mode: insert ID as subdomain
       const url = new URL(baseUrl);

@@ -1,11 +1,10 @@
 {
-  "name": "@blink-sdk/devhook",
-  "description": "Devhook - expose local servers via a public URL",
+  "name": "@blink-sdk/tunnel",
+  "description": "Tunnel - expose local servers via a public URL",
   "version": "0.0.1",
   "type": "module",
   "keywords": [
     "blink",
-    "devhook",
     "tunnel",
     "proxy",
     "webhook"
@@ -19,7 +18,7 @@
     "type": "git",
     "url": "git+https://github.com/coder/blink.git"
   },
-  "homepage": "https://github.com/coder/blink/tree/main/packages/devhook",
+  "homepage": "https://github.com/coder/blink/tree/main/packages/tunnel",
   "bugs": {
     "url": "https://github.com/coder/blink/issues"
   },
@@ -29,7 +28,7 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsgo --noEmit",
-    "test": "vitest run src/devhook.test.ts",
+    "test": "vitest run src/tunnel.test.ts",
     "test:cloudflare": "vitest run src/cloudflare.test.ts",
     "test:all": "vitest run",
     "test:watch": "vitest"

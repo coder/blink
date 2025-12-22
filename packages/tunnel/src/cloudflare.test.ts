@@ -15,7 +15,7 @@
  * The HTTP tests are the primary concern for API compatibility.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createCloudflareServerFactory } from "./server/cloudflare.test-adapter";
 import { runSharedTests } from "./shared.test-suite";
 
@@ -25,7 +25,7 @@ const SERVER_SECRET = "test-server-secret";
 const SKIP_TESTS = process.env.SKIP_CLOUDFLARE_TESTS === "1";
 
 if (SKIP_TESTS) {
-  describe("devhook cloudflare (skipped)", () => {
+  describe("tunnel cloudflare (skipped)", () => {
     it("cloudflare tests are skipped - set SKIP_CLOUDFLARE_TESTS=0 to enable", () => {
       expect(true).toBe(true);
     });

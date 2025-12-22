@@ -1,5 +1,5 @@
 /**
- * Example devhook server for local testing.
+ * Example tunnel server for local testing.
  *
  * Run with: npx tsx examples/server.ts
  */
@@ -15,12 +15,12 @@ const { close } = createLocalServer({
   baseUrl: `http://localhost:${PORT}`,
   mode: "subpath",
   onReady: (port) => {
-    console.log(`Devhook server running on http://localhost:${port}`);
+    console.log(`Tunnel server running on http://localhost:${port}`);
     console.log(`Waiting for clients to connect...`);
   },
   onClientConnect: (id) => {
     console.log(`Client connected: ${id}`);
-    console.log(`Public URL: http://localhost:${PORT}/devhook/${id}`);
+    console.log(`Public URL: http://localhost:${PORT}/tunnel/${id}`);
   },
   onClientDisconnect: (id) => {
     console.log(`Client disconnected: ${id}`);

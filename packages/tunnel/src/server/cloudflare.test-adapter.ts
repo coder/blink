@@ -1,20 +1,20 @@
 /**
- * Test adapter for the Cloudflare devhook server using wrangler's unstable_dev.
+ * Test adapter for the Cloudflare tunnel server using wrangler's unstable_dev.
  *
  * Note: The unstable_dev API can be finicky. This adapter may need adjustments
  * based on the wrangler version and local environment.
  */
 
-import { unstable_dev, type UnstableDevWorker } from "wrangler";
-import type { TestServer, TestServerFactory } from "../test-utils";
-import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { type Unstable_DevWorker, unstable_dev } from "wrangler";
+import type { TestServer, TestServerFactory } from "../test-utils";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(__dirname, "../..");
 
 interface CloudflareTestServer extends TestServer {
-  worker: UnstableDevWorker;
+  worker: Unstable_DevWorker;
 }
 
 /**
@@ -34,9 +34,9 @@ export async function createCloudflareTestServer(
     // Use wrangler.toml for DO bindings but override vars
     config: join(packageRoot, "wrangler.toml"),
     vars: {
-      DEVHOOK_SECRET: secret,
-      DEVHOOK_BASE_URL: `http://localhost:${port}`,
-      DEVHOOK_MODE: "subpath",
+      TUNNEL_SECRET: secret,
+      TUNNEL_BASE_URL: `http://localhost:${port}`,
+      TUNNEL_MODE: "subpath",
     },
     local: true,
     persist: false,

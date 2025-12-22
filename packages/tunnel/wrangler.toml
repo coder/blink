@@ -1,0 +1,41 @@
+# Example wrangler.toml for deploying the tunnel server.
+#
+# To deploy:
+# 1. Copy this file to your project
+# 2. Update the configuration values
+# 3. Run: wrangler deploy
+
+name = "tunnel-server"
+main = "src/server/cloudflare.ts"
+compatibility_date = "2025-01-01"
+
+# For wildcard subdomains, configure routes like:
+# routes = [
+#   { pattern = "*.tunnel.example.com/*", zone_name = "example.com" },
+#   { pattern = "tunnel.example.com/*", zone_name = "example.com" }
+# ]
+#
+# For subpath mode, a single route suffices:
+# routes = [
+#   { pattern = "example.com/tunnel/*", zone_name = "example.com" }
+# ]
+
+[vars]
+# Server secret for HMAC signing. Change this!
+TUNNEL_SECRET = "change-me-to-a-secure-random-string"
+
+# Base URL for generating public URLs
+# For wildcard mode: https://tunnel.example.com
+# For subpath mode: https://example.com
+TUNNEL_BASE_URL = "https://tunnel.example.com"
+
+# Routing mode: "wildcard" or "subpath"
+TUNNEL_MODE = "wildcard"
+
+[[durable_objects.bindings]]
+name = "TUNNEL_SESSION"
+class_name = "TunnelSession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TunnelSession"]

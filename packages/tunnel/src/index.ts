@@ -1,15 +1,15 @@
 /**
- * @blink-sdk/devhook
+ * @blink-sdk/tunnel
  *
  * Expose local servers via a public URL.
  *
  * ## Client Usage
  *
  * ```ts
- * import { DevhookClient } from "@blink-sdk/devhook";
+ * import { TunnelClient } from "@blink-sdk/tunnel";
  *
- * const client = new DevhookClient({
- *   serverUrl: "https://devhook.example.com",
+ * const client = new TunnelClient({
+ *   serverUrl: "https://tunnel.example.com",
  *   secret: "my-secret-key",
  *   onRequest: async (req) => {
  *     // Forward to local server
@@ -18,7 +18,7 @@
  *     return fetch(new Request(url.toString(), req));
  *   },
  *   onConnect: ({ url }) => {
- *     console.log(`Devhook available at: ${url}`);
+ *     console.log(`Tunnel available at: ${url}`);
  *   },
  * });
  *
@@ -35,23 +35,23 @@
  *
  * ```toml
  * # wrangler.toml
- * name = "devhook-server"
- * main = "node_modules/@blink-sdk/devhook/dist/server/cloudflare.js"
+ * name = "tunnel-server"
+ * main = "node_modules/@blink-sdk/tunnel/dist/server/cloudflare.js"
  *
  * [vars]
- * DEVHOOK_SECRET = "your-server-secret"
- * DEVHOOK_BASE_URL = "https://devhook.example.com"
- * DEVHOOK_MODE = "wildcard"  # or "subpath"
+ * TUNNEL_SECRET = "your-server-secret"
+ * TUNNEL_BASE_URL = "https://tunnel.example.com"
+ * TUNNEL_MODE = "wildcard"  # or "subpath"
  *
  * [[durable_objects.bindings]]
- * name = "DEVHOOK_SESSION"
- * class_name = "DevhookSession"
+ * name = "TUNNEL_SESSION"
+ * class_name = "TunnelSession"
  * ```
  *
  * ### Local Testing
  *
  * ```ts
- * import { createLocalServer } from "@blink-sdk/devhook/server/local";
+ * import { createLocalServer } from "@blink-sdk/tunnel/server/local";
  *
  * const server = createLocalServer({
  *   port: 8080,
@@ -63,8 +63,8 @@
  */
 
 export {
-  DevhookClient,
-  type DevhookClientOptions,
+  TunnelClient,
+  type TunnelClientOptions,
   type WebSocketRequest,
 } from "./client";
 export type { Disposable } from "./emitter";

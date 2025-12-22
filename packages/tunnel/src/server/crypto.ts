@@ -1,5 +1,5 @@
 /**
- * Cryptographic utilities for devhook URL generation.
+ * Cryptographic utilities for tunnel URL generation.
  *
  * Deterministically derives a uniform 16-character base36 string from:
  *   - a client secret (password), and
@@ -14,8 +14,8 @@
  * 36^16 ≈ 7.96 × 10^24 ≈ 2^82.7 possible IDs
  */
 
-/** Domain separation constant for devhook ID generation */
-const DOMAIN = "blink-devhook";
+/** Domain separation constant for tunnel ID generation */
+const DOMAIN = "blink-tunnel";
 
 /**
  * Convert 16 bytes to an unsigned 128-bit BigInt (big-endian).
@@ -29,15 +29,15 @@ function bytesToBigInt128(bytes: Uint8Array, off: number): bigint {
 }
 
 /**
- * Generate a secure devhook ID from a client secret.
+ * Generate a secure tunnel ID from a client secret.
  * Uses HMAC-SHA256 with the server secret, then converts to base36 using
  * rejection sampling to ensure uniform distribution.
  *
  * @param clientSecret - The secret provided by the client (password)
  * @param serverSecret - The server's secret key for signing
- * @returns A 16-character base36 devhook ID (a-z, 0-9)
+ * @returns A 16-character base36 tunnel ID (a-z, 0-9)
  */
-export async function generateDevhookId(
+export async function generateTunnelId(
   clientSecret: string,
   serverSecret: string
 ): Promise<string> {
@@ -105,18 +105,18 @@ export async function generateDevhookId(
 }
 
 /**
- * Verify that a devhook ID matches the expected value for a client secret.
+ * Verify that a tunnel ID matches the expected value for a client secret.
  *
- * @param devhookId - The devhook ID to verify
+ * @param tunnelId - The tunnel ID to verify
  * @param clientSecret - The client secret that should produce this ID
  * @param serverSecret - The server's secret key
  * @returns True if the ID is valid for this client secret
  */
-export async function verifyDevhookId(
-  devhookId: string,
+export async function verifyTunnelId(
+  tunnelId: string,
   clientSecret: string,
   serverSecret: string
 ): Promise<boolean> {
-  const expected = await generateDevhookId(clientSecret, serverSecret);
-  return devhookId === expected;
+  const expected = await generateTunnelId(clientSecret, serverSecret);
+  return tunnelId === expected;
 }

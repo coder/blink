@@ -1,15 +1,15 @@
 /**
- * Local server implementation for testing devhook.
+ * Local server implementation for testing tunnel.
  *
  * This provides the same functionality as the Cloudflare Worker
  * but runs locally using Node.js.
  */
 
 import { createServer, type Server as HttpServer } from "node:http";
-import { WebSocketServer, WebSocket } from "ws";
-import { Worker } from "./worker";
-import { generateDevhookId } from "./crypto";
+import { WebSocket, WebSocketServer } from "ws";
 import type { ConnectionEstablished } from "../schema";
+import { generateTunnelId } from "./crypto";
+import { Worker } from "./worker";
 
 export interface LocalServerOptions {
   /**
@@ -24,8 +24,8 @@ export interface LocalServerOptions {
 
   /**
    * Base URL for generating public URLs.
-   * In wildcard mode, devhook IDs become subdomains.
-   * In subpath mode, devhook IDs become path prefixes.
+   * In wildcard mode, tunnel IDs become subdomains.
+   * In subpath mode, tunnel IDs become path prefixes.
    */
   baseUrl: string;
 
@@ -61,7 +61,7 @@ interface Session {
 }
 
 /**
- * Create a local devhook server for testing.
+ * Create a local tunnel server for testing.
  *
  * @example
  * ```ts
@@ -94,7 +94,7 @@ export function createLocalServer(opts: LocalServerOptions): {
     }
 
     // WebSocket connection handled separately
-    if (url.pathname === "/api/devhook/connect") {
+    if (url.pathname === "/api/tunnel/connect") {
       // WebSocket upgrade is handled by the WebSocketServer
       res.writeHead(426, { "content-type": "application/json" });
       res.end(
@@ -106,14 +106,9 @@ export function createLocalServer(opts: LocalServerOptions): {
       return;
     }
 
-    // Extract devhook ID
-    const devhookId = extractDevhookId(
-      url,
-      opts.baseUrl,
-      mode,
-      req.headers.host
-    );
-    if (!devhookId) {
+    // Extract tunnel ID
+    const tunnelId = extractTunnelId(url, opts.baseUrl, mode, req.headers.host);
+    if (!tunnelId) {
       res.writeHead(404, { "content-type": "application/json" });
       res.end(
         JSON.stringify({
@@ -125,14 +120,14 @@ export function createLocalServer(opts: LocalServerOptions): {
     }
 
     // Find the session
-    const session = sessions.get(devhookId);
+    const session = sessions.get(tunnelId);
     if (!session || !session.ws || session.ws.readyState !== WebSocket.OPEN) {
       res.writeHead(503, { "content-type": "application/json" });
       res.end(
         JSON.stringify({
           error: "No client connected",
           message:
-            "The devhook client is not currently connected. Please ensure your local server is running.",
+            "The tunnel client is not currently connected. Please ensure your local server is running.",
         })
       );
       return;
@@ -141,7 +136,7 @@ export function createLocalServer(opts: LocalServerOptions): {
     // Build proxy URL
     let proxyPath: string;
     if (mode === "subpath") {
-      proxyPath = url.pathname.replace(/^\/devhook\/[a-z0-9]+/, "") || "/";
+      proxyPath = url.pathname.replace(/^\/tunnel\/[a-z0-9]+/, "") || "/";
     } else {
       proxyPath = url.pathname;
     }
@@ -240,21 +235,21 @@ export function createLocalServer(opts: LocalServerOptions): {
   httpServer.on("upgrade", async (req, socket, head) => {
     const url = new URL(req.url || "/", `http://${req.headers.host}`);
 
-    // Handle devhook client connections
-    if (url.pathname === "/api/devhook/connect") {
+    // Handle tunnel client connections
+    if (url.pathname === "/api/tunnel/connect") {
       // Get client secret
-      const clientSecret = req.headers["x-devhook-secret"] as string;
+      const clientSecret = req.headers["x-tunnel-secret"] as string;
       if (!clientSecret) {
         socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
         socket.destroy();
         return;
       }
 
-      // Generate devhook ID
-      const devhookId = await generateDevhookId(clientSecret, opts.secret);
+      // Generate tunnel ID
+      const tunnelId = await generateTunnelId(clientSecret, opts.secret);
 
       // Get or create session
-      let session = sessions.get(devhookId);
+      let session = sessions.get(tunnelId);
       if (session && session.ws && session.ws.readyState === WebSocket.OPEN) {
         // Close existing connection
         session.ws.close(1000, "A new client has connected.");
@@ -272,15 +267,15 @@ export function createLocalServer(opts: LocalServerOptions): {
         });
 
         session = {
-          id: devhookId,
+          id: tunnelId,
           clientSecret,
           ws,
           worker,
           proxiedWebSockets: session?.proxiedWebSockets ?? new Map(),
         };
-        sessions.set(devhookId, session);
+        sessions.set(tunnelId, session);
 
-        // Subscribe to WebSocket messages from the devhook client
+        // Subscribe to WebSocket messages from the tunnel client
         worker.onWebSocketMessage((event) => {
           const proxyWs = session!.proxiedWebSockets.get(event.stream);
           if (proxyWs && proxyWs.readyState === WebSocket.OPEN) {
@@ -288,7 +283,7 @@ export function createLocalServer(opts: LocalServerOptions): {
           }
         });
 
-        // Subscribe to WebSocket close events from the devhook client
+        // Subscribe to WebSocket close events from the tunnel client
         worker.onWebSocketClose((event) => {
           const proxyWs = session!.proxiedWebSockets.get(event.stream);
           if (proxyWs) {
@@ -298,26 +293,26 @@ export function createLocalServer(opts: LocalServerOptions): {
         });
 
         // Send connection info
-        const publicUrl = getPublicUrl(devhookId, opts.baseUrl, mode);
+        const publicUrl = getPublicUrl(tunnelId, opts.baseUrl, mode);
         const connectionInfo: ConnectionEstablished = {
           url: publicUrl,
-          id: devhookId,
+          id: tunnelId,
         };
         ws.send(JSON.stringify(connectionInfo));
 
-        opts.onClientConnect?.(devhookId);
+        opts.onClientConnect?.(tunnelId);
 
         ws.on("message", (data: Buffer) => {
           worker.handleClientMessage(new Uint8Array(data));
         });
 
         ws.on("close", () => {
-          if (sessions.get(devhookId)?.ws === ws) {
-            const s = sessions.get(devhookId)!;
+          if (sessions.get(tunnelId)?.ws === ws) {
+            const s = sessions.get(tunnelId)!;
             // Close all proxied WebSockets when client disconnects
             for (const proxyWs of s.proxiedWebSockets.values()) {
               try {
-                proxyWs.close(1001, "Devhook client disconnected");
+                proxyWs.close(1001, "Tunnel client disconnected");
               } catch {
                 // Ignore close errors
               }
@@ -326,7 +321,7 @@ export function createLocalServer(opts: LocalServerOptions): {
             s.ws = null;
             s.worker = null;
           }
-          opts.onClientDisconnect?.(devhookId);
+          opts.onClientDisconnect?.(tunnelId);
         });
 
         ws.on("error", () => {
@@ -336,20 +331,15 @@ export function createLocalServer(opts: LocalServerOptions): {
       return;
     }
 
-    // Handle proxied WebSocket connections (external -> devhook -> local)
-    const devhookId = extractDevhookId(
-      url,
-      opts.baseUrl,
-      mode,
-      req.headers.host
-    );
-    if (!devhookId) {
+    // Handle proxied WebSocket connections (external -> tunnel -> local)
+    const tunnelId = extractTunnelId(url, opts.baseUrl, mode, req.headers.host);
+    if (!tunnelId) {
       socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
       socket.destroy();
       return;
     }
 
-    const session = sessions.get(devhookId);
+    const session = sessions.get(tunnelId);
     if (
       !session ||
       !session.ws ||
@@ -361,10 +351,10 @@ export function createLocalServer(opts: LocalServerOptions): {
       return;
     }
 
-    // Build proxy URL (strip devhook prefix in subpath mode)
+    // Build proxy URL (strip tunnel prefix in subpath mode)
     let proxyPath: string;
     if (mode === "subpath") {
-      proxyPath = url.pathname.replace(/^\/devhook\/[a-z0-9]+/, "") || "/";
+      proxyPath = url.pathname.replace(/^\/tunnel\/[a-z0-9]+/, "") || "/";
     } else {
       proxyPath = url.pathname;
     }
@@ -378,7 +368,7 @@ export function createLocalServer(opts: LocalServerOptions): {
       }
     }
 
-    // Send the WebSocket upgrade request through the worker to the devhook client
+    // Send the WebSocket upgrade request through the worker to the tunnel client
     const worker = session.worker;
     const proxyRequest = new Request(proxyUrl.toString(), {
       method: "GET",
@@ -404,7 +394,7 @@ export function createLocalServer(opts: LocalServerOptions): {
         // Store the proxied WebSocket
         session.proxiedWebSockets.set(streamID, externalWs);
 
-        // Forward messages from external WebSocket to devhook client
+        // Forward messages from external WebSocket to tunnel client
         externalWs.on("message", (data: Buffer | ArrayBuffer | Buffer[]) => {
           const payload =
             data instanceof ArrayBuffer
@@ -455,15 +445,15 @@ export function createLocalServer(opts: LocalServerOptions): {
   };
 }
 
-function extractDevhookId(
+function extractTunnelId(
   url: URL,
   baseUrl: string,
   mode: "wildcard" | "subpath",
   host?: string
 ): string | undefined {
   if (mode === "subpath") {
-    // Match devhook IDs that are 16 base36 characters [0-9a-z]
-    const match = url.pathname.match(/^\/devhook\/([0-9a-z]{16})(\/.*)?$/);
+    // Match tunnel IDs that are 16 base36 characters [0-9a-z]
+    const match = url.pathname.match(/^\/tunnel\/([0-9a-z]{16})(\/.*)?$/);
     return match?.[1];
   } else {
     // Wildcard mode
@@ -486,7 +476,7 @@ function getPublicUrl(
   mode: "wildcard" | "subpath"
 ): string {
   if (mode === "subpath") {
-    return `${baseUrl}/devhook/${id}`;
+    return `${baseUrl}/tunnel/${id}`;
   } else {
     const url = new URL(baseUrl);
     url.hostname = `${id}.${url.hostname}`;

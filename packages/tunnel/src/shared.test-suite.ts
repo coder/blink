@@ -1,19 +1,19 @@
 /**
- * Shared test suite that runs against any devhook server implementation.
+ * Shared test suite that runs against any tunnel server implementation.
  *
  * This file exports test functions that can be called with different server factories
  * to ensure both local and Cloudflare servers behave identically.
  */
 
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
-import { DevhookClient } from "./client";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { TunnelClient } from "./client";
 import {
+  delay,
+  getTunnelId,
+  getTunnelUrl,
+  getTunnelWsUrl,
   type TestServer,
   type TestServerFactory,
-  getDevhookId,
-  getDevhookUrl,
-  getDevhookWsUrl,
-  delay,
 } from "./test-utils";
 
 export interface SharedTestOptions {
@@ -60,7 +60,7 @@ export function runSharedTests(
       });
 
       it("should return 426 for non-WebSocket connect requests", async () => {
-        const response = await fetch(`${server.url}/api/devhook/connect`);
+        const response = await fetch(`${server.url}/api/tunnel/connect`);
         expect(response.status).toBe(426);
       });
     });
@@ -79,7 +79,7 @@ export function runSharedTests(
         let connectedUrl: string | undefined;
         let connectedId: string | undefined;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "test-client",
           onRequest: async () => new Response("OK"),
@@ -103,7 +103,7 @@ export function runSharedTests(
       it("should proxy GET requests", async () => {
         let receivedRequest: Request | undefined;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "get-test",
           onRequest: async (req) => {
@@ -116,9 +116,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("get-test", serverSecret);
+        const tunnelId = await getTunnelId("get-test", serverSecret);
         const response = await fetch(
-          getDevhookUrl(server, devhookId, "/api/data")
+          getTunnelUrl(server, tunnelId, "/api/data")
         );
 
         expect(response.status).toBe(200);
@@ -130,7 +130,7 @@ export function runSharedTests(
       it("should proxy POST requests with JSON body", async () => {
         let receivedBody: unknown;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "post-test",
           onRequest: async (req) => {
@@ -145,9 +145,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("post-test", serverSecret);
+        const tunnelId = await getTunnelId("post-test", serverSecret);
         const response = await fetch(
-          getDevhookUrl(server, devhookId, "/api/submit"),
+          getTunnelUrl(server, tunnelId, "/api/submit"),
           {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -164,7 +164,7 @@ export function runSharedTests(
       it("should preserve query parameters", async () => {
         let receivedUrl: string | undefined;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "query-test",
           onRequest: async (req) => {
@@ -177,8 +177,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("query-test", serverSecret);
-        await fetch(getDevhookUrl(server, devhookId, "/search?q=test&page=1"));
+        const tunnelId = await getTunnelId("query-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/search?q=test&page=1"));
 
         expect(receivedUrl).toBeDefined();
         const url = new URL(receivedUrl!);
@@ -187,9 +187,9 @@ export function runSharedTests(
       });
 
       it("should preserve request headers", async () => {
-        let receivedHeaders: Record<string, string> = {};
+        const receivedHeaders: Record<string, string> = {};
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "headers-test",
           onRequest: async (req) => {
@@ -204,8 +204,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("headers-test", serverSecret);
-        await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("headers-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: {
             "x-custom-header": "custom-value",
             authorization: "Bearer token123",
@@ -217,7 +217,7 @@ export function runSharedTests(
       });
 
       it("should return response headers from client", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "resp-headers-test",
           onRequest: async () => {
@@ -234,8 +234,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("resp-headers-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const tunnelId = await getTunnelId("resp-headers-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.headers.get("x-custom-response")).toBe(
           "response-value"
@@ -244,7 +244,7 @@ export function runSharedTests(
       });
 
       it("should handle different HTTP status codes", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "status-test",
           onRequest: async (req) => {
@@ -258,27 +258,27 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("status-test", serverSecret);
+        const tunnelId = await getTunnelId("status-test", serverSecret);
 
         const response201 = await fetch(
-          getDevhookUrl(server, devhookId, "/?status=201")
+          getTunnelUrl(server, tunnelId, "/?status=201")
         );
         expect(response201.status).toBe(201);
 
         const response404 = await fetch(
-          getDevhookUrl(server, devhookId, "/?status=404")
+          getTunnelUrl(server, tunnelId, "/?status=404")
         );
         expect(response404.status).toBe(404);
 
         const response500 = await fetch(
-          getDevhookUrl(server, devhookId, "/?status=500")
+          getTunnelUrl(server, tunnelId, "/?status=500")
         );
         expect(response500.status).toBe(500);
       });
 
       it("should return 503 when no client is connected", async () => {
-        const devhookId = await getDevhookId("no-client", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const tunnelId = await getTunnelId("no-client", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.status).toBe(503);
         const body = (await response.json()) as { error: string };
@@ -286,7 +286,7 @@ export function runSharedTests(
       });
 
       it("should handle client disconnection gracefully", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "disconnect-test",
           onRequest: async () => new Response("OK"),
@@ -295,10 +295,10 @@ export function runSharedTests(
         const disposable = client.connect();
         await delay(200);
 
-        const devhookId = await getDevhookId("disconnect-test", serverSecret);
+        const tunnelId = await getTunnelId("disconnect-test", serverSecret);
 
         // First request should work
-        const response1 = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/"));
         expect(response1.status).toBe(200);
 
         // Disconnect
@@ -306,14 +306,14 @@ export function runSharedTests(
         await delay(100);
 
         // Second request should fail
-        const response2 = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/"));
         expect(response2.status).toBe(503);
       });
 
       it("should handle reconnection with same secret", async () => {
         const secret = "reconnect-test";
 
-        const client1 = new DevhookClient({
+        const client1 = new TunnelClient({
           serverUrl: server.url,
           secret,
           onRequest: async () => new Response("client1"),
@@ -322,8 +322,8 @@ export function runSharedTests(
         const disposable1 = client1.connect();
         await delay(200);
 
-        const devhookId = await getDevhookId(secret, serverSecret);
-        const response1 = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const tunnelId = await getTunnelId(secret, serverSecret);
+        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/"));
         expect(await response1.text()).toBe("client1");
 
         // Disconnect first client
@@ -331,7 +331,7 @@ export function runSharedTests(
         await delay(100);
 
         // Connect second client with same secret
-        const client2 = new DevhookClient({
+        const client2 = new TunnelClient({
           serverUrl: server.url,
           secret,
           onRequest: async () => new Response("client2"),
@@ -342,18 +342,18 @@ export function runSharedTests(
         await delay(200);
 
         // Should get response from new client
-        const response2 = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/"));
         expect(await response2.text()).toBe("client2");
       });
 
       it("should handle multiple concurrent clients with different secrets", async () => {
-        const client1 = new DevhookClient({
+        const client1 = new TunnelClient({
           serverUrl: server.url,
           secret: "multi-1",
           onRequest: async () => new Response("response1"),
         });
 
-        const client2 = new DevhookClient({
+        const client2 = new TunnelClient({
           serverUrl: server.url,
           secret: "multi-2",
           onRequest: async () => new Response("response2"),
@@ -364,12 +364,12 @@ export function runSharedTests(
         clientConnections.push(disposable1, disposable2);
         await delay(200);
 
-        const devhookId1 = await getDevhookId("multi-1", serverSecret);
-        const devhookId2 = await getDevhookId("multi-2", serverSecret);
+        const tunnelId1 = await getTunnelId("multi-1", serverSecret);
+        const tunnelId2 = await getTunnelId("multi-2", serverSecret);
 
         const [response1, response2] = await Promise.all([
-          fetch(getDevhookUrl(server, devhookId1, "/")),
-          fetch(getDevhookUrl(server, devhookId2, "/")),
+          fetch(getTunnelUrl(server, tunnelId1, "/")),
+          fetch(getTunnelUrl(server, tunnelId2, "/")),
         ]);
 
         expect(await response1.text()).toBe("response1");
@@ -377,7 +377,7 @@ export function runSharedTests(
       });
 
       it("should handle request errors gracefully", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "error-test",
           onRequest: async () => {
@@ -389,8 +389,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("error-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const tunnelId = await getTunnelId("error-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.status).toBe(502);
       });
@@ -422,7 +422,7 @@ export function runSharedTests(
           });
         });
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-test",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -440,9 +440,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("ws-test", serverSecret);
+        const tunnelId = await getTunnelId("ws-test", serverSecret);
         const externalWs = new WsClient(
-          getDevhookWsUrl(server, devhookId, "/ws")
+          getTunnelWsUrl(server, tunnelId, "/ws")
         );
 
         const externalMessages: string[] = [];
@@ -485,7 +485,7 @@ export function runSharedTests(
           });
         });
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-close-test",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -503,9 +503,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("ws-close-test", serverSecret);
+        const tunnelId = await getTunnelId("ws-close-test", serverSecret);
         const externalWs = new WsClient(
-          getDevhookWsUrl(server, devhookId, "/ws")
+          getTunnelWsUrl(server, tunnelId, "/ws")
         );
 
         await new Promise<void>((resolve, reject) => {
@@ -548,7 +548,7 @@ export function runSharedTests(
           });
         });
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-concurrent-test",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -566,10 +566,7 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "ws-concurrent-test",
-          serverSecret
-        );
+        const tunnelId = await getTunnelId("ws-concurrent-test", serverSecret);
 
         // Create 5 concurrent WebSocket connections
         const numConnections = 5;
@@ -578,9 +575,7 @@ export function runSharedTests(
 
         for (let i = 0; i < numConnections; i++) {
           receivedMessages.set(i, []);
-          const ws = new WsClient(
-            getDevhookWsUrl(server, devhookId, `/ws${i}`)
-          );
+          const ws = new WsClient(getTunnelWsUrl(server, tunnelId, `/ws${i}`));
           externalWsConnections.push(ws);
         }
 
@@ -626,7 +621,7 @@ export function runSharedTests(
         localWsServer.close();
       });
 
-      it("should handle WebSocket connections from multiple devhook clients simultaneously", async () => {
+      it("should handle WebSocket connections from multiple tunnel clients simultaneously", async () => {
         const { WebSocketServer, WebSocket: WsClient } = await import("ws");
 
         const localWsServer1 = new WebSocketServer({ port: 0 });
@@ -653,7 +648,7 @@ export function runSharedTests(
           });
         });
 
-        const client1 = new DevhookClient({
+        const client1 = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-multi-1",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -667,7 +662,7 @@ export function runSharedTests(
           },
         });
 
-        const client2 = new DevhookClient({
+        const client2 = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-multi-2",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -686,14 +681,14 @@ export function runSharedTests(
         clientConnections.push(disposable1, disposable2);
         await delay(200);
 
-        const devhookId1 = await getDevhookId("ws-multi-1", serverSecret);
-        const devhookId2 = await getDevhookId("ws-multi-2", serverSecret);
+        const tunnelId1 = await getTunnelId("ws-multi-1", serverSecret);
+        const tunnelId2 = await getTunnelId("ws-multi-2", serverSecret);
 
         const externalWs1 = new WsClient(
-          getDevhookWsUrl(server, devhookId1, "/ws")
+          getTunnelWsUrl(server, tunnelId1, "/ws")
         );
         const externalWs2 = new WsClient(
-          getDevhookWsUrl(server, devhookId2, "/ws")
+          getTunnelWsUrl(server, tunnelId2, "/ws")
         );
 
         const received1: string[] = [];
@@ -751,7 +746,7 @@ export function runSharedTests(
           ws.on("message", (data) => ws.send(data));
         });
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-isolate-test",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -769,11 +764,11 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("ws-isolate-test", serverSecret);
+        const tunnelId = await getTunnelId("ws-isolate-test", serverSecret);
 
-        const ws1 = new WsClient(getDevhookWsUrl(server, devhookId, "/a"));
-        const ws2 = new WsClient(getDevhookWsUrl(server, devhookId, "/b"));
-        const ws3 = new WsClient(getDevhookWsUrl(server, devhookId, "/c"));
+        const ws1 = new WsClient(getTunnelWsUrl(server, tunnelId, "/a"));
+        const ws2 = new WsClient(getTunnelWsUrl(server, tunnelId, "/b"));
+        const ws3 = new WsClient(getTunnelWsUrl(server, tunnelId, "/c"));
 
         const received2: string[] = [];
         const received3: string[] = [];
@@ -824,7 +819,7 @@ export function runSharedTests(
       // Note: miniflare/wrangler dev can be slow with WebSocket close propagation
       // See: https://github.com/cloudflare/workers-sdk/issues/10307
       it(
-        "should close proxied WebSockets when devhook client disconnects",
+        "should close proxied WebSockets when tunnel client disconnects",
         { timeout: 30000 },
         async () => {
           let externalWsClosed = false;
@@ -840,7 +835,7 @@ export function runSharedTests(
             });
           });
 
-          const client = new DevhookClient({
+          const client = new TunnelClient({
             serverUrl: server.url,
             secret: "ws-disconnect-test",
             transformWebSocketRequest: ({ url, headers }) => {
@@ -858,12 +853,12 @@ export function runSharedTests(
           // Don't add to clientConnections - we'll manually dispose
           await delay(200);
 
-          const devhookId = await getDevhookId(
+          const tunnelId = await getTunnelId(
             "ws-disconnect-test",
             serverSecret
           );
           const externalWs = new WsClient(
-            getDevhookWsUrl(server, devhookId, "/ws")
+            getTunnelWsUrl(server, tunnelId, "/ws")
           );
 
           await new Promise<void>((resolve, reject) => {
@@ -874,7 +869,7 @@ export function runSharedTests(
             setTimeout(() => reject(new Error("Timeout connecting")), 5000);
           });
 
-          // Disconnect the devhook client and wait for external WS to close
+          // Disconnect the tunnel client and wait for external WS to close
           await new Promise<void>((resolve, reject) => {
             externalWs.on("close", () => {
               externalWsClosed = true;
@@ -887,7 +882,7 @@ export function runSharedTests(
             setTimeout(() => {
               reject(
                 new Error(
-                  "External WS did not close after devhook client disconnect"
+                  "External WS did not close after tunnel client disconnect"
                 )
               );
             }, 20000);
@@ -901,10 +896,10 @@ export function runSharedTests(
 
       it("should return 503 when no client is connected for WebSocket", async () => {
         const { WebSocket: WsClient } = await import("ws");
-        const devhookId = await getDevhookId("nonexistent-ws", serverSecret);
+        const tunnelId = await getTunnelId("nonexistent-ws", serverSecret);
 
         const externalWs = new WsClient(
-          getDevhookWsUrl(server, devhookId, "/ws")
+          getTunnelWsUrl(server, tunnelId, "/ws")
         );
 
         await new Promise<void>((resolve) => {
@@ -935,7 +930,7 @@ export function runSharedTests(
       });
 
       it("should preserve multiple Set-Cookie headers", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "multi-cookie-test",
           onRequest: async () => {
@@ -951,8 +946,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("multi-cookie-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const tunnelId = await getTunnelId("multi-cookie-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.status).toBe(200);
 
@@ -965,7 +960,7 @@ export function runSharedTests(
       });
 
       it("should handle Set-Cookie with comma in Expires date", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "cookie-expires-test",
           onRequest: async () => {
@@ -987,11 +982,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "cookie-expires-test",
-          serverSecret
-        );
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const tunnelId = await getTunnelId("cookie-expires-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.status).toBe(200);
 
@@ -1012,7 +1004,7 @@ export function runSharedTests(
       });
 
       it("should preserve Set-Cookie with all attributes", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "cookie-attrs-test",
           onRequest: async () => {
@@ -1029,8 +1021,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("cookie-attrs-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const tunnelId = await getTunnelId("cookie-attrs-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.status).toBe(200);
         const cookie = response.headers.get("set-cookie");
@@ -1044,7 +1036,7 @@ export function runSharedTests(
       });
 
       it("should handle multiple values for headers that can be combined", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "vary-header-test",
           onRequest: async () => {
@@ -1061,8 +1053,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("vary-header-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const tunnelId = await getTunnelId("vary-header-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.status).toBe(200);
         // Vary headers can be combined with commas
@@ -1085,7 +1077,7 @@ export function runSharedTests(
       it("should preserve multiple cookies in request Cookie header", async () => {
         let receivedCookies: string | null = null;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "multi-req-cookie-test",
           onRequest: async (req) => {
@@ -1098,11 +1090,11 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
+        const tunnelId = await getTunnelId(
           "multi-req-cookie-test",
           serverSecret
         );
-        await fetch(getDevhookUrl(server, devhookId, "/"), {
+        await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: {
             Cookie: "a=1; b=2; c=3",
           },
@@ -1114,7 +1106,7 @@ export function runSharedTests(
       it("should handle cookies with URL-encoded special characters", async () => {
         let receivedCookies: string | null = null;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "encoded-cookie-test",
           onRequest: async (req) => {
@@ -1127,12 +1119,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "encoded-cookie-test",
-          serverSecret
-        );
+        const tunnelId = await getTunnelId("encoded-cookie-test", serverSecret);
         // URL-encoded value with special chars: hello=world; foo=bar
-        await fetch(getDevhookUrl(server, devhookId, "/"), {
+        await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: {
             Cookie: "data=hello%3Dworld%3B%20foo%3Dbar",
           },
@@ -1145,7 +1134,7 @@ export function runSharedTests(
         let receivedCookies: string | null = null;
         const longValue = "x".repeat(4000); // Near 4KB limit
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "long-cookie-test",
           onRequest: async (req) => {
@@ -1158,8 +1147,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("long-cookie-test", serverSecret);
-        await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("long-cookie-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: {
             Cookie: `longcookie=${longValue}`,
           },
@@ -1171,7 +1160,7 @@ export function runSharedTests(
       it("should handle empty cookie value", async () => {
         let receivedCookies: string | null = null;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "empty-cookie-test",
           onRequest: async (req) => {
@@ -1184,8 +1173,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("empty-cookie-test", serverSecret);
-        await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("empty-cookie-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: {
             Cookie: "empty=",
           },
@@ -1197,7 +1186,7 @@ export function runSharedTests(
       it("should handle cookies with unicode characters (URL-encoded)", async () => {
         let receivedCookies: string | null = null;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "unicode-cookie-test",
           onRequest: async (req) => {
@@ -1210,12 +1199,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "unicode-cookie-test",
-          serverSecret
-        );
+        const tunnelId = await getTunnelId("unicode-cookie-test", serverSecret);
         // URL-encoded "值" (Chinese character for "value")
-        await fetch(getDevhookUrl(server, devhookId, "/"), {
+        await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: {
             Cookie: "name=%E5%80%BC",
           },
@@ -1238,7 +1224,7 @@ export function runSharedTests(
       it("should handle empty header value", async () => {
         let receivedHeader: string | null = null;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "empty-header-test",
           onRequest: async (req) => {
@@ -1253,8 +1239,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("empty-header-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("empty-header-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: { "x-empty": "" },
         });
 
@@ -1267,7 +1253,7 @@ export function runSharedTests(
         const longValue = "x".repeat(8000);
         let receivedHeader: string | null = null;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "long-header-test",
           onRequest: async (req) => {
@@ -1282,8 +1268,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("long-header-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("long-header-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: { "x-long": longValue },
         });
 
@@ -1301,7 +1287,7 @@ export function runSharedTests(
 
         let receivedCount = 0;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "many-headers-test",
           onRequest: async (req) => {
@@ -1318,8 +1304,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("many-headers-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("many-headers-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: sentHeaders,
         });
 
@@ -1335,7 +1321,7 @@ export function runSharedTests(
       it("should preserve header value case", async () => {
         let receivedValue: string | null = null;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "header-case-test",
           onRequest: async (req) => {
@@ -1350,8 +1336,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("header-case-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("header-case-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: { "X-Mixed-Case": "MixedCaseValue" },
         });
 
@@ -1362,7 +1348,7 @@ export function runSharedTests(
       });
 
       it("should preserve Content-Type with charset", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "content-type-charset-test",
           onRequest: async () => {
@@ -1376,11 +1362,11 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
+        const tunnelId = await getTunnelId(
           "content-type-charset-test",
           serverSecret
         );
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.status).toBe(200);
         const contentType = response.headers.get("content-type");
@@ -1391,7 +1377,7 @@ export function runSharedTests(
       it("should preserve Accept header with quality values", async () => {
         let receivedAccept: string | null = null;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "accept-quality-test",
           onRequest: async (req) => {
@@ -1404,11 +1390,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "accept-quality-test",
-          serverSecret
-        );
-        await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("accept-quality-test", serverSecret);
+        await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: { Accept: "text/html, application/json;q=0.9, */*;q=0.8" },
         });
 
@@ -1420,7 +1403,7 @@ export function runSharedTests(
       it("should handle headers with leading/trailing whitespace in values", async () => {
         let receivedHeader: string | null = null;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "whitespace-header-test",
           onRequest: async (req) => {
@@ -1433,17 +1416,18 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
+        const tunnelId = await getTunnelId(
           "whitespace-header-test",
           serverSecret
         );
-        await fetch(getDevhookUrl(server, devhookId, "/"), {
+        await fetch(getTunnelUrl(server, tunnelId, "/"), {
           headers: { "x-whitespace": "  value with spaces  " },
         });
 
         // HTTP spec says leading/trailing whitespace should be trimmed
         // but the exact behavior depends on implementation
-        expect(receivedHeader?.includes("value with spaces")).toBe(true);
+        expect(receivedHeader).toBeTruthy();
+        expect(receivedHeader!.includes("value with spaces")).toBe(true);
       });
     });
 
@@ -1473,7 +1457,7 @@ export function runSharedTests(
           });
         });
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-utf8-test",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -1491,9 +1475,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("ws-utf8-test", serverSecret);
+        const tunnelId = await getTunnelId("ws-utf8-test", serverSecret);
         const externalWs = new WsClient(
-          getDevhookWsUrl(server, devhookId, "/ws")
+          getTunnelWsUrl(server, tunnelId, "/ws")
         );
 
         await new Promise<void>((resolve, reject) => {
@@ -1542,7 +1526,7 @@ export function runSharedTests(
             });
           });
 
-          const client = new DevhookClient({
+          const client = new TunnelClient({
             serverUrl: server.url,
             secret: "ws-large-binary-test",
             transformWebSocketRequest: ({ url, headers }) => {
@@ -1560,12 +1544,12 @@ export function runSharedTests(
           clientConnections.push(disposable);
           await delay(200);
 
-          const devhookId = await getDevhookId(
+          const tunnelId = await getTunnelId(
             "ws-large-binary-test",
             serverSecret
           );
           const externalWs = new WsClient(
-            getDevhookWsUrl(server, devhookId, "/ws")
+            getTunnelWsUrl(server, tunnelId, "/ws")
           );
 
           let echoedSize = 0;
@@ -1607,7 +1591,7 @@ export function runSharedTests(
           });
         });
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-empty-msg-test",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -1625,9 +1609,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("ws-empty-msg-test", serverSecret);
+        const tunnelId = await getTunnelId("ws-empty-msg-test", serverSecret);
         const externalWs = new WsClient(
-          getDevhookWsUrl(server, devhookId, "/ws")
+          getTunnelWsUrl(server, tunnelId, "/ws")
         );
 
         let receivedEmptyEcho = false;
@@ -1668,7 +1652,7 @@ export function runSharedTests(
           });
         });
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-rapid-test",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -1686,9 +1670,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("ws-rapid-test", serverSecret);
+        const tunnelId = await getTunnelId("ws-rapid-test", serverSecret);
         const externalWs = new WsClient(
-          getDevhookWsUrl(server, devhookId, "/ws")
+          getTunnelWsUrl(server, tunnelId, "/ws")
         );
 
         await new Promise<void>((resolve, reject) => {
@@ -1732,7 +1716,7 @@ export function runSharedTests(
           });
         });
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-close-3000-test",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -1750,12 +1734,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "ws-close-3000-test",
-          serverSecret
-        );
+        const tunnelId = await getTunnelId("ws-close-3000-test", serverSecret);
         const externalWs = new WsClient(
-          getDevhookWsUrl(server, devhookId, "/ws")
+          getTunnelWsUrl(server, tunnelId, "/ws")
         );
 
         await new Promise<void>((resolve, reject) => {
@@ -1789,7 +1770,7 @@ export function runSharedTests(
           });
         });
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-close-4000-test",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -1807,12 +1788,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "ws-close-4000-test",
-          serverSecret
-        );
+        const tunnelId = await getTunnelId("ws-close-4000-test", serverSecret);
         const externalWs = new WsClient(
-          getDevhookWsUrl(server, devhookId, "/ws")
+          getTunnelWsUrl(server, tunnelId, "/ws")
         );
 
         await new Promise<void>((resolve, reject) => {
@@ -1852,7 +1830,7 @@ export function runSharedTests(
             }, 100);
           });
 
-          const client = new DevhookClient({
+          const client = new TunnelClient({
             serverUrl: server.url,
             secret: "ws-server-close-test",
             transformWebSocketRequest: ({ url, headers }) => {
@@ -1870,12 +1848,12 @@ export function runSharedTests(
           clientConnections.push(disposable);
           await delay(200);
 
-          const devhookId = await getDevhookId(
+          const tunnelId = await getTunnelId(
             "ws-server-close-test",
             serverSecret
           );
           const externalWs = new WsClient(
-            getDevhookWsUrl(server, devhookId, "/ws")
+            getTunnelWsUrl(server, tunnelId, "/ws")
           );
 
           await new Promise<void>((resolve, reject) => {
@@ -1910,7 +1888,7 @@ export function runSharedTests(
           });
         });
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "ws-exchange-test",
           transformWebSocketRequest: ({ url, headers }) => {
@@ -1928,9 +1906,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("ws-exchange-test", serverSecret);
+        const tunnelId = await getTunnelId("ws-exchange-test", serverSecret);
         const externalWs = new WsClient(
-          getDevhookWsUrl(server, devhookId, "/ws")
+          getTunnelWsUrl(server, tunnelId, "/ws")
         );
 
         let clientMessageCount = 0;
@@ -1981,7 +1959,7 @@ export function runSharedTests(
             ws.send("connected");
           });
 
-          const client = new DevhookClient({
+          const client = new TunnelClient({
             serverUrl: server.url,
             secret: "ws-query-test",
             transformWebSocketRequest: ({ url, headers }) => {
@@ -1999,9 +1977,9 @@ export function runSharedTests(
           clientConnections.push(disposable);
           await delay(200);
 
-          const devhookId = await getDevhookId("ws-query-test", serverSecret);
+          const tunnelId = await getTunnelId("ws-query-test", serverSecret);
           const externalWs = new WsClient(
-            getDevhookWsUrl(server, devhookId, "/ws?token=abc123&user=test")
+            getTunnelWsUrl(server, tunnelId, "/ws?token=abc123&user=test")
           );
 
           await new Promise<void>((resolve, reject) => {
@@ -2045,7 +2023,7 @@ export function runSharedTests(
         let receivedBody: string | undefined;
         let receivedContentLength: string | null = null;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "empty-body-test",
           onRequest: async (req) => {
@@ -2059,8 +2037,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("empty-body-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("empty-body-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           method: "POST",
           headers: { "Content-Length": "0" },
           body: "",
@@ -2074,7 +2052,7 @@ export function runSharedTests(
         const largeBody = "x".repeat(5 * 1024 * 1024); // 5MB
         let receivedLength = 0;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "large-req-body-test",
           onRequest: async (req) => {
@@ -2088,11 +2066,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "large-req-body-test",
-          serverSecret
-        );
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("large-req-body-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           method: "POST",
           body: largeBody,
         });
@@ -2104,7 +2079,7 @@ export function runSharedTests(
       it("should handle large response body", { timeout: 30000 }, async () => {
         const largeBody = "y".repeat(5 * 1024 * 1024); // 5MB
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "large-resp-body-test",
           onRequest: async () => {
@@ -2116,11 +2091,11 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
+        const tunnelId = await getTunnelId(
           "large-resp-body-test",
           serverSecret
         );
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.status).toBe(200);
         const body = await response.text();
@@ -2135,7 +2110,7 @@ export function runSharedTests(
         ]);
         let receivedBinary: Uint8Array | undefined;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "binary-body-test",
           onRequest: async (req) => {
@@ -2151,8 +2126,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("binary-body-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("binary-body-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           method: "POST",
           headers: { "Content-Type": "application/octet-stream" },
           body: binaryData,
@@ -2171,7 +2146,7 @@ export function runSharedTests(
         ]);
         let receivedData: Uint8Array | undefined;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "null-bytes-test",
           onRequest: async (req) => {
@@ -2185,8 +2160,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("null-bytes-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("null-bytes-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           method: "POST",
           body: dataWithNulls,
         });
@@ -2202,7 +2177,7 @@ export function runSharedTests(
         const jsonData = { name: "日本語", emoji: "🎉", arabic: "مرحبا" };
         let receivedJson: unknown;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "unicode-json-test",
           onRequest: async (req) => {
@@ -2217,8 +2192,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("unicode-json-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("unicode-json-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(jsonData),
@@ -2234,7 +2209,7 @@ export function runSharedTests(
       it("should handle URL-encoded form data", async () => {
         let receivedBody: string | undefined;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "form-data-test",
           onRequest: async (req) => {
@@ -2247,8 +2222,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("form-data-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("form-data-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: "name=test&value=hello%20world&special=%26%3D%3F",
@@ -2274,7 +2249,7 @@ export function runSharedTests(
       it("should start processing requests before client disconnects", async () => {
         let requestStarted = false;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "slow-request-test",
           onRequest: async () => {
@@ -2289,10 +2264,10 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("slow-request-test", serverSecret);
+        const tunnelId = await getTunnelId("slow-request-test", serverSecret);
 
         // Make a request
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(requestStarted).toBe(true);
         expect(response.status).toBe(200);
@@ -2300,13 +2275,13 @@ export function runSharedTests(
 
       it("should handle rapid reconnect cycles", async () => {
         const cycles = 5;
-        const devhookId = await getDevhookId(
+        const tunnelId = await getTunnelId(
           "rapid-reconnect-test",
           serverSecret
         );
 
         for (let i = 0; i < cycles; i++) {
-          const client = new DevhookClient({
+          const client = new TunnelClient({
             serverUrl: server.url,
             secret: "rapid-reconnect-test",
             onRequest: async () => new Response(`cycle-${i}`),
@@ -2315,7 +2290,7 @@ export function runSharedTests(
           const disposable = client.connect();
           await delay(200);
 
-          const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+          const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
           expect(response.status).toBe(200);
           expect(await response.text()).toBe(`cycle-${i}`);
 
@@ -2331,7 +2306,7 @@ export function runSharedTests(
           const numRequests = 50;
           let requestCount = 0;
 
-          const client = new DevhookClient({
+          const client = new TunnelClient({
             serverUrl: server.url,
             secret: "concurrent-test",
             onRequest: async (req) => {
@@ -2345,10 +2320,10 @@ export function runSharedTests(
           clientConnections.push(disposable);
           await delay(200);
 
-          const devhookId = await getDevhookId("concurrent-test", serverSecret);
+          const tunnelId = await getTunnelId("concurrent-test", serverSecret);
 
           const promises = Array.from({ length: numRequests }, (_, i) =>
-            fetch(getDevhookUrl(server, devhookId, `/?n=${i}`))
+            fetch(getTunnelUrl(server, tunnelId, `/?n=${i}`))
           );
 
           const responses = await Promise.all(promises);
@@ -2362,7 +2337,7 @@ export function runSharedTests(
       );
 
       it("should return 503 immediately after client disconnect", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "immediate-503-test",
           onRequest: async () => new Response("OK"),
@@ -2371,20 +2346,17 @@ export function runSharedTests(
         const disposable = client.connect();
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "immediate-503-test",
-          serverSecret
-        );
+        const tunnelId = await getTunnelId("immediate-503-test", serverSecret);
 
         // Verify client works
-        const response1 = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const response1 = await fetch(getTunnelUrl(server, tunnelId, "/"));
         expect(response1.status).toBe(200);
 
         // Disconnect
         disposable.dispose();
 
         // Immediate request should fail
-        const response2 = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const response2 = await fetch(getTunnelUrl(server, tunnelId, "/"));
         expect(response2.status).toBe(503);
       });
 
@@ -2392,7 +2364,7 @@ export function runSharedTests(
         "should handle new client connection with same secret",
         { timeout: 10000 },
         async () => {
-          const client1 = new DevhookClient({
+          const client1 = new TunnelClient({
             serverUrl: server.url,
             secret: "replace-client-test",
             onRequest: async () => new Response("client1"),
@@ -2401,13 +2373,13 @@ export function runSharedTests(
           const disposable1 = client1.connect();
           await delay(300);
 
-          const devhookId = await getDevhookId(
+          const tunnelId = await getTunnelId(
             "replace-client-test",
             serverSecret
           );
 
           // Verify client1 works
-          const response1 = await fetch(getDevhookUrl(server, devhookId, "/"));
+          const response1 = await fetch(getTunnelUrl(server, tunnelId, "/"));
           expect(await response1.text()).toBe("client1");
 
           // Disconnect client1 first
@@ -2415,7 +2387,7 @@ export function runSharedTests(
           await delay(100);
 
           // Connect client2 with same secret
-          const client2 = new DevhookClient({
+          const client2 = new TunnelClient({
             serverUrl: server.url,
             secret: "replace-client-test",
             onRequest: async () => new Response("client2"),
@@ -2426,7 +2398,7 @@ export function runSharedTests(
           await delay(300);
 
           // Requests should now go to client2
-          const response2 = await fetch(getDevhookUrl(server, devhookId, "/"));
+          const response2 = await fetch(getTunnelUrl(server, tunnelId, "/"));
           expect(await response2.text()).toBe("client2");
         }
       );
@@ -2443,7 +2415,7 @@ export function runSharedTests(
       });
 
       it("should return 502 for handler errors", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "error-message-test",
           onRequest: async () => {
@@ -2455,11 +2427,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "error-message-test",
-          serverSecret
-        );
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const tunnelId = await getTunnelId("error-message-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.status).toBe(502);
         // Error message format varies - just verify we got a 502
@@ -2468,7 +2437,7 @@ export function runSharedTests(
       });
 
       it("should handle handler that returns rejected promise", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "rejected-promise-test",
           onRequest: async () => {
@@ -2480,11 +2449,11 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
+        const tunnelId = await getTunnelId(
           "rejected-promise-test",
           serverSecret
         );
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"));
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"));
 
         expect(response.status).toBe(502);
       });
@@ -2494,7 +2463,7 @@ export function runSharedTests(
           200, 201, 204, 301, 302, 400, 401, 403, 404, 500, 502, 503,
         ];
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "status-codes-test",
           onRequest: async (req) => {
@@ -2512,11 +2481,11 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("status-codes-test", serverSecret);
+        const tunnelId = await getTunnelId("status-codes-test", serverSecret);
 
         for (const status of statusCodes) {
           const response = await fetch(
-            getDevhookUrl(server, devhookId, `/?status=${status}`)
+            getTunnelUrl(server, tunnelId, `/?status=${status}`)
           );
           expect(response.status).toBe(status);
         }
@@ -2536,7 +2505,7 @@ export function runSharedTests(
       it("should handle path with URL-encoded special characters", async () => {
         let receivedPath: string | undefined;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "encoded-path-test",
           onRequest: async (req) => {
@@ -2549,9 +2518,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("encoded-path-test", serverSecret);
+        const tunnelId = await getTunnelId("encoded-path-test", serverSecret);
         const response = await fetch(
-          getDevhookUrl(server, devhookId, "/api/users/name%20with%20spaces")
+          getTunnelUrl(server, tunnelId, "/api/users/name%20with%20spaces")
         );
 
         expect(response.status).toBe(200);
@@ -2562,7 +2531,7 @@ export function runSharedTests(
       it("should handle query string with special characters", async () => {
         let receivedQuery: string | undefined;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "special-query-test",
           onRequest: async (req) => {
@@ -2575,15 +2544,12 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId(
-          "special-query-test",
-          serverSecret
-        );
+        const tunnelId = await getTunnelId("special-query-test", serverSecret);
         // Encoded: & = ? in values
         const response = await fetch(
-          getDevhookUrl(
+          getTunnelUrl(
             server,
-            devhookId,
+            tunnelId,
             "/?search=hello%26world&name=foo%3Dbar"
           )
         );
@@ -2596,7 +2562,7 @@ export function runSharedTests(
       it("should handle double slashes in path", async () => {
         let receivedPath: string | undefined;
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "double-slash-test",
           onRequest: async (req) => {
@@ -2609,9 +2575,9 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("double-slash-test", serverSecret);
+        const tunnelId = await getTunnelId("double-slash-test", serverSecret);
         const response = await fetch(
-          getDevhookUrl(server, devhookId, "/api//data///test")
+          getTunnelUrl(server, tunnelId, "/api//data///test")
         );
 
         expect(response.status).toBe(200);
@@ -2634,7 +2600,7 @@ export function runSharedTests(
         const methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
         const receivedMethods: string[] = [];
 
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "http-methods-test",
           onRequest: async (req) => {
@@ -2647,10 +2613,10 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("http-methods-test", serverSecret);
+        const tunnelId = await getTunnelId("http-methods-test", serverSecret);
 
         for (const method of methods) {
-          const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+          const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
             method,
           });
           expect(response.status).toBe(200);
@@ -2660,7 +2626,7 @@ export function runSharedTests(
       });
 
       it("should handle HEAD request correctly", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "head-request-test",
           onRequest: async (req) => {
@@ -2684,8 +2650,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("head-request-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("head-request-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           method: "HEAD",
         });
 
@@ -2697,7 +2663,7 @@ export function runSharedTests(
       });
 
       it("should handle OPTIONS request for CORS", async () => {
-        const client = new DevhookClient({
+        const client = new TunnelClient({
           serverUrl: server.url,
           secret: "options-cors-test",
           onRequest: async (req) => {
@@ -2720,8 +2686,8 @@ export function runSharedTests(
         clientConnections.push(disposable);
         await delay(200);
 
-        const devhookId = await getDevhookId("options-cors-test", serverSecret);
-        const response = await fetch(getDevhookUrl(server, devhookId, "/"), {
+        const tunnelId = await getTunnelId("options-cors-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/"), {
           method: "OPTIONS",
           headers: {
             "Access-Control-Request-Method": "POST",

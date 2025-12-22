@@ -5,9 +5,7 @@ export interface Disposable {
   dispose(): void;
 }
 
-export interface Event<T> {
-  (listener: (event: T) => void): Disposable;
-}
+export type Event<T> = (listener: (event: T) => void) => Disposable;
 
 export class Emitter<T = void> {
   private listeners: ((event: T) => void)[] = [];
