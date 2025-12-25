@@ -53,10 +53,11 @@
     "exa-js": "^2.0.3"
   },
   "devDependencies": {
+    "@ai-sdk/provider": "^2.0.0",
     "@ai-sdk/provider-utils": ">= 2",
     "@biomejs/biome": "2.3.2",
     "@types/node": "latest",
-    "ai": "latest",
+    "ai": "^5.0.0",
     "blink": "^1.1.29",
     "esbuild": "latest",
     "msw": "^2.12.1",
@@ -67,7 +68,7 @@
   "peerDependencies": {
     "@ai-sdk/provider-utils": ">= 2",
     "@daytonaio/sdk": "^0.117.0",
-    "ai": ">= 4",
+    "ai": "^5.0.0",
     "blink": ">= 1"
   }
 }

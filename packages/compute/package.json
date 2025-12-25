@@ -39,7 +39,7 @@
   "peerDependencies": {
     "@blink-sdk/compute-protocol": ">= 0.0.6",
     "zod": ">= 4",
-    "ai": ">= 5"
+    "ai": "^5.0.0"
   },
   "devDependencies": {
     "blink": "workspace:*",

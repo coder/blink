@@ -40,7 +40,7 @@
     "zod-validation-error": "^4.0.1"
   },
   "peerDependencies": {
-    "ai": ">= 5",
+    "ai": "^5.0.0",
     "zod": ">= 4",
     "react": ">= 18"
   },
