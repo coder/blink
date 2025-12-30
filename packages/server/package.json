@@ -26,6 +26,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "devDependencies": {
+    "blink": "workspace:*",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
     "@types/ws": "^8.5.13",

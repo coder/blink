@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "tsdown",
+    "dev": "tsdown --watch",
     "typecheck": "tsgo --noEmit"
   },
   "exports": {

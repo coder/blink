@@ -2,20 +2,25 @@
   "private": true,
   "name": "blink-repo",
   "type": "module",
+  "packageManager": "bun@1.3.2",
   "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
     "format": "prettier --write --cache .",
     "test": "bun test",
-    "typecheck": "bun run --filter='*' typecheck"
+    "typecheck": "turbo typecheck"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "internal/*"
   ],
   "devDependencies": {
     "@types/bun": "latest",
     "@typescript/native-preview": "^7.0.0-dev.20250907.1",
     "prettier": "^3.6.2",
     "tsdown": "^0.15.7",
-    "tsx": "^4.20.5"
+    "tsx": "^4.20.5",
+    "turbo": "^2.7.2"
   },
   "peerDependencies": {
     "typescript": "^5"

@@ -23,15 +23,7 @@ jobs:
         run: bun install
 
       - name: Build packages
-        run: |
-          bun run --cwd packages/events build
-          bun run --cwd packages/multiplexer build
-          bun run --cwd packages/compute-protocol build
-          bun run --cwd packages/compute build
-          bun run --cwd packages/github build
-          bun run --cwd packages/slack build
-          bun run --cwd packages/model-intent build
-          bun run --cwd packages/blink build
+        run: bun run build
 
       - name: Run formatter check
         run: bun run format --check

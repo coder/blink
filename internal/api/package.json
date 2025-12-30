@@ -27,6 +27,7 @@
     "publish": "bun run pack && cd dist && npm publish"
   },
   "devDependencies": {
+    "@blink-sdk/events": "workspace:*",
     "@bufbuild/protobuf": "^2.9.0",
     "@testing-library/react": "^16.3.0",
     "eventsource-parser": "^3.0.6",

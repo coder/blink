@@ -15,7 +15,10 @@
     "typecheck": "tsgo --noEmit"
   },
   "devDependencies": {
-    "@blink-sdk/compute-protocol": "^0.0.2",
+    "blink": "workspace:*",
+    "@blink-sdk/compute-protocol": "workspace:*",
+    "@blink-sdk/events": "workspace:*",
+    "@blink-sdk/multiplexer": "workspace:*",
     "@clickhouse/client-web": "^1.12.1",
     "@daytonaio/sdk": "^0.106.4",
     "@microlabs/otel-cf-workers": "^1.0.0-rc.52",

@@ -5,7 +5,11 @@ const fs = require("fs");
 const path = require("path");
 
 const inputFile = path.join(__dirname, "src/globals.css");
-const outputFile = path.join(__dirname, "dist/welcome.css");
+const distDir = path.join(__dirname, "dist");
+const outputFile = path.join(distDir, "welcome.css");
+
+// Ensure dist directory exists
+fs.mkdirSync(distDir, { recursive: true });
 
 const css = fs.readFileSync(inputFile, "utf8");
 

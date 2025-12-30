@@ -70,6 +70,7 @@
   ],
   "scripts": {
     "build": "tsdown",
+    "dev": "tsdown --watch",
     "dev-install": "rm -rf ./*.tgz && bun run build && npm pack && bun remove -g blink && bun install -g $(pwd)/*.tgz",
     "gen-templates": "bun run src/cli/scripts/generate-templates.ts && cd ../.. && bun format",
     "typecheck": "tsgo --noEmit"

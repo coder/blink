@@ -27,6 +27,7 @@
   "type": "module",
   "scripts": {
     "build": "tsdown",
+    "dev": "tsdown --watch",
     "typecheck": "tsgo --noEmit"
   },
   "exports": {
@@ -38,11 +39,11 @@
   },
   "peerDependencies": {
     "@blink-sdk/compute-protocol": ">= 0.0.6",
+    "blink": ">= 1.1.0",
     "zod": ">= 4",
     "ai": "^5.0.0"
   },
   "devDependencies": {
-    "blink": "workspace:*",
     "diff": "^8.0.2"
   }
 }

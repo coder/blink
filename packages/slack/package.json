@@ -38,6 +38,7 @@
   },
   "scripts": {
     "build": "tsdown src/index.ts --dts --format esm,cjs",
+    "dev": "tsdown src/index.ts --dts --format esm,cjs --watch",
     "typecheck": "tsgo --noEmit"
   },
   "type": "module",

@@ -68,7 +68,7 @@ function buildNextSite() {
 }
 
 function copyMigrations() {
-  const databasePackage = join(repoRoot, "packages", "database");
+  const databasePackage = join(repoRoot, "internal", "database");
 
   rmSync(join(distDir, "migrations"), { recursive: true, force: true });
   cpSync(join(databasePackage, "migrations"), join(distDir, "migrations"), {

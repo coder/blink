@@ -10,7 +10,7 @@
     "./hooks/use-chat": "./hooks/use-chat.tsx"
   },
   "scripts": {
-    "vercel-build": "cd ../.. && bun run --cwd packages/events build && bun run --cwd packages/multiplexer build && bun run --cwd packages/compute-protocol build && cd packages/site && next build",
+    "vercel-build": "cd ../.. && bun turbo build --filter=@blink.so/site",
     "build": "next build",
     "dev": "next dev --turbopack",
     "typecheck": "tsgo --noEmit",
@@ -22,6 +22,7 @@
     "typescript": "^5"
   },
   "devDependencies": {
+    "@blink-sdk/events": "workspace:*",
     "@cloudflare/workers-types": "^4.20251211.0",
     "@lexical/react": "^0.32.1",
     "@lexical/utils": "^0.32.1",
