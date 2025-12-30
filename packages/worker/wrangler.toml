@@ -1,0 +1,160 @@
+name = "blink-worker"
+main = "src/index.ts"
+compatibility_date = "2025-05-05"
+account_id = "2d47ab6cd61acf830db9324581fb41d1"
+
+compatibility_flags = [
+    "nodejs_compat",
+    "nodejs_compat_populate_process_env"
+]
+routes = [
+    # The * is needed to pick up query parameters.
+    { pattern = "blink.so/api/legacy-chat-stream*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/chat-read", zone_name = "blink.so" },
+    { pattern = "blink.so/api/chat-search*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/chat-debug*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/static-deployment", zone_name = "blink.so" },
+    { pattern = "blink.so/api/user-state", zone_name = "blink.so" },
+    { pattern = "blink.so/webhook/slack", zone_name = "blink.so" },
+    { pattern = "blink.so/webhook/github", zone_name = "blink.so" },
+    { pattern = "blink.so/webhook/stripe", zone_name = "blink.so" },
+    { pattern = "blink.so/webhook/metronome", zone_name = "blink.so" },
+    { pattern = "blink.so/api/connect", zone_name = "blink.so" },
+    { pattern = "blink.so/api/connect-error", zone_name = "blink.so" },
+    { pattern = "blink.so/api/connect-client*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/connect-token", zone_name = "blink.so" },
+    { pattern = "blink.so/api/connect-chat*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/text-to-speech", zone_name = "blink.so" },
+    { pattern = "blink.so/static/*", zone_name = "blink.so" },
+    { pattern = "blink.so/legacy-auth*", zone_name = "blink.so" },
+    { pattern = "*.build.party/*", zone_name = "build.party" },
+
+    # Migrate to the new routes.
+    { pattern = "blink.so/api/agents*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/files*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/users*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/organizations*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/invites*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/chats*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/messages*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/webhook*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/devhook*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/auth*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/tools*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/ai-gateway*", zone_name = "blink.so" },
+    { pattern = "blink.so/api/otlp*", zone_name = "blink.so" },
+    { pattern = "*.blink.host/*", zone_name = "blink.host" },
+    { pattern = "*.agent.blink.host/*", zone_name = "blink.host" },
+    { pattern = "*.dev.blink.host/*", zone_name = "blink.host" }
+]
+# This disables the default worker domain.
+workers_dev = false
+upload_source_maps = true
+
+browser = { binding = "BROWSER" }
+
+tail_consumers = [
+  { service = "blink-tail-worker" }
+]
+
+[[durable_objects.bindings]]
+name = "WORKSPACE"
+class_name = "Workspace"
+
+[[durable_objects.bindings]]
+name = "COMMAND_LINE_AUTH"
+class_name = "CommandLineAuth"
+
+[[durable_objects.bindings]]
+name = "AGENT_DEPLOYMENT"
+class_name = "AgentDeployment"
+
+[[durable_objects.bindings]]
+name = "CHAT"
+class_name = "Chat"
+
+[[r2_buckets]]
+binding = "REPO_STORAGE"
+bucket_name = "blink-repos"
+
+[[kv_namespaces]]
+binding = "EXTERNAL_API_CACHE"
+id = "719710fcce34479eb33a5327e8523f88"
+
+[[kv_namespaces]]
+binding = "AGENT_STORE"
+id = "44713bef54914e4f83c938781362ad63"
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "2144638c988b4396a12adca331aebc32"
+localConnectionString = "postgresql://postgres:mysecretpassword@localhost:5432/postgres"
+
+[[migrations]]
+tag = "v7"
+new_sqlite_classes = [ "Agent" ]
+
+[[migrations]]
+tag = "v8"
+new_sqlite_classes = [ "Slackbot" ]
+
+[[migrations]]
+tag = "v9"
+deleted_classes = [ "Slackbot" ]
+
+[[migrations]]
+tag = "v10"
+new_sqlite_classes = [ "Sandbox" ]
+
+[[migrations]]
+tag = "v11"
+renamed_classes = [ { "from" = "Sandbox", "to" = "Workspace" } ]
+
+[[migrations]]
+tag = "v12"
+new_sqlite_classes = [ "WorkspaceProviderStateful" ]
+renamed_classes = [ { "from" = "Workspace", "to" = "CloudflareContainer" } ]
+
+[[migrations]]
+tag = "v13"
+new_sqlite_classes = [ "UserState" ]
+
+[[migrations]]
+tag = "v14"
+new_sqlite_classes = [ "MCPReverseProxy" ]
+
+[[migrations]]
+tag = "v15"
+deleted_classes = [ "WorkspaceProviderStateful", "CloudflareContainer" ]
+new_sqlite_classes = [ "Workspace", "WorkspacePool" ]
+
+[[migrations]]
+tag = "v16"
+new_sqlite_classes = [ "CommandLineAuth" ]
+
+[[migrations]]
+tag = "v17"
+deleted_classes = [ "MCPReverseProxy" ]
+
+[[migrations]]
+tag = "v18"
+new_sqlite_classes = [ "Chat" ]
+
+[[migrations]]
+tag = "v19"
+new_sqlite_classes = [ "AgentDeployment" ]
+
+[[migrations]]
+tag = "v20"
+deleted_classes = [ "Agent", "UserState", "WorkspacePool" ]
+
+[observability]
+enabled = true
+
+[[r2_buckets]]
+binding = "USER_FILES"
+bucket_name = "blink-user-files"
+
+[[r2_buckets]]
+binding = "STATIC_DEPLOYMENTS"
+bucket_name = "blink-deployments"

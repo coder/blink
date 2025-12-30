@@ -35,16 +35,16 @@
       "require": "./dist/node/build/index.cjs"
     },
     "./client": {
+      "browser": "./dist/browser/agent/client/index.js",
       "types": "./dist/browser/agent/client/index.d.ts",
       "import": "./dist/browser/agent/client/index.js",
-      "require": "./dist/browser/agent/client/index.cjs",
-      "browser": "./dist/browser/agent/client/index.js"
+      "require": "./dist/browser/agent/client/index.cjs"
     },
     "./control": {
+      "browser": "./dist/browser/control/index.js",
       "types": "./dist/browser/control/index.d.ts",
       "import": "./dist/browser/control/index.js",
-      "require": "./dist/browser/control/index.cjs",
-      "browser": "./dist/browser/control/index.js"
+      "require": "./dist/browser/control/index.cjs"
     },
     "./react": {
       "browser": {

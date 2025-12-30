@@ -1,0 +1,27 @@
+{
+  "name": "@blink.so/worker",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    "./api/text-to-speech": "./src/api/text-to-speech.ts",
+    "./test": "./test.ts"
+  },
+  "scripts": {
+    "dev": "bun scripts/dev.ts",
+    "build": "wrangler build",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types --include-runtime=false",
+    "typecheck": "tsgo --noEmit"
+  },
+  "devDependencies": {
+    "@blink-sdk/compute-protocol": "^0.0.2",
+    "@clickhouse/client-web": "^1.12.1",
+    "@daytonaio/sdk": "^0.106.4",
+    "@microlabs/otel-cf-workers": "^1.0.0-rc.52",
+    "@opentelemetry/api": "^1.9.0",
+    "@types/bun": "^1.2.15",
+    "re2js": "^1.2.0",
+    "wrangler": "^4.42.2"
+  }
+}
