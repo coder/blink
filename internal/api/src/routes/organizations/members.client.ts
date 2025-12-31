@@ -45,6 +45,7 @@ export type OrganizationMember = z.infer<typeof schemaOrganizationMember>;
 const schemaListOrganizationMembersRequest = schemaPaginatedRequest.extend({
   organization_id: z.uuid(),
   query: z.string().optional(),
+  order_by: z.enum(["role", "name", "created_at"]).optional(),
 });
 
 export type ListOrganizationMembersRequest = z.infer<
@@ -112,6 +113,9 @@ export default class OrganizationMembers {
     }
     if (request.query) {
       query.set("query", request.query);
+    }
+    if (request.order_by) {
+      query.set("order_by", request.order_by);
     }
     const resp = await this.client.request(
       "GET",

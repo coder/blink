@@ -37,6 +37,7 @@ export type AgentMember = z.infer<typeof schemaAgentMember>;
 
 export const schemaListAgentMembersRequest = schemaPaginatedRequest.extend({
   agent_id: z.uuid(),
+  order_by: z.enum(["permission", "name", "created_at"]).optional(),
 });
 
 export type ListAgentMembersRequest = z.infer<
@@ -95,6 +96,9 @@ export default class AgentMembers {
     }
     if (request.page) {
       query.set("page", request.page.toString());
+    }
+    if (request.order_by) {
+      query.set("order_by", request.order_by);
     }
     const resp = await this.client.request(
       "GET",

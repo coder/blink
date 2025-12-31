@@ -3,13 +3,15 @@
 import { PageContainer, PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import Client from "@blink.so/api";
-import { UserPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { AddMemberModal } from "./add-member-modal";
 import { MembersTable } from "./members-table";
 import { PermissionsReferenceModal } from "./permissions-reference";
 import { VisibilitySection } from "./visibility-section";
+
+const PER_PAGE = 20;
 
 interface AgentAccessClientProps {
   agentId: string;
@@ -27,27 +29,38 @@ export function AgentAccessClient({
   organizationName,
 }: AgentAccessClientProps) {
   const [isAddingMember, setIsAddingMember] = useState(false);
+  const [membersPage, setMembersPage] = useState(1);
+  const [orgMembersPage, setOrgMembersPage] = useState(1);
   const client = useMemo(() => new Client(), []);
 
-  const { data: members, mutate: mutateMembers } = useSWR(
-    ["agent-members", agentId],
+  const { data: membersData, mutate: mutateMembers } = useSWR(
+    ["agent-members", agentId, membersPage],
     async () => {
-      const response = await client.agents.members.list({
+      return client.agents.members.list({
         agent_id: agentId,
+        per_page: PER_PAGE,
+        page: membersPage,
+        order_by: "permission",
       });
-      return response.items;
     }
   );
 
-  const { data: orgMembers } = useSWR(
-    ["organization-members", organizationId],
+  const { data: orgMembersData } = useSWR(
+    ["organization-members-access", organizationId, orgMembersPage],
     async () => {
-      const response = await client.organizations.members.list({
+      return client.organizations.members.list({
         organization_id: organizationId,
+        per_page: PER_PAGE,
+        page: orgMembersPage,
+        order_by: "role",
       });
-      return response.items;
     }
   );
+
+  const members = membersData?.items;
+  const membersHasMore = membersData?.has_more ?? false;
+  const orgMembers = orgMembersData?.items;
+  const orgMembersHasMore = orgMembersData?.has_more ?? false;
 
   const handleDelete = async (userId: string | null) => {
     await client.agents.members.revoke({
@@ -79,18 +92,19 @@ export function AgentAccessClient({
 
   // Get regular org members (not admins/owners) - they get read access when visibility is organization
   const regularOrgMembers =
-    orgMembers?.filter((m) => m.role === "member") || [];
+    orgMembers?.filter((m) => m.role === "member" || m.role === "billing_admin") || [];
 
   // Filter out org admins and owners from the member list since they always have access
   const explicitMembers = (members || []).filter(
     (member) => !member.user_id || !orgAdminsAndOwnersIds.has(member.user_id)
   );
 
-  // Total count depends on visibility
-  const totalMembersCount =
-    agentVisibility === "organization"
-      ? (orgMembers?.length || 0) // When team visible, all org members have access
-      : explicitMembers.length + orgAdminsAndOwners.length;
+  // Check if there's more data on any page (indicates pagination is active)
+  const hasPagination =
+    membersPage > 1 ||
+    membersHasMore ||
+    orgMembersPage > 1 ||
+    orgMembersHasMore;
 
   return (
     <PageContainer>
@@ -111,9 +125,7 @@ export function AgentAccessClient({
             <div>
               <h2 className="text-lg font-medium">Members</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {totalMembersCount}{" "}
-                {totalMembersCount === 1 ? "member has" : "members have"} access
-                to this agent
+                Manage who has access to this agent
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -134,6 +146,41 @@ export function AgentAccessClient({
             onDelete={handleDelete}
             onUpdatePermission={handleUpdatePermission}
           />
+
+          {/* Pagination controls */}
+          {hasPagination && (
+            <div className="flex items-center justify-between border-t pt-4">
+              <div className="text-sm text-muted-foreground">
+                Page {Math.max(membersPage, orgMembersPage)}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setMembersPage((p) => Math.max(1, p - 1));
+                    setOrgMembersPage((p) => Math.max(1, p - 1));
+                  }}
+                  disabled={membersPage <= 1 && orgMembersPage <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (membersHasMore) setMembersPage((p) => p + 1);
+                    if (orgMembersHasMore) setOrgMembersPage((p) => p + 1);
+                  }}
+                  disabled={!membersHasMore && !orgMembersHasMore}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         <AddMemberModal

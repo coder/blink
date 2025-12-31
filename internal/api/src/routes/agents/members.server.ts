@@ -26,10 +26,16 @@ export default function mountAgentMembers(server: APIServer) {
     async (c) => {
       const db = await c.env.database();
       const agent = c.get("agent");
+      const orderBy = c.req.query("order_by") as
+        | "permission"
+        | "name"
+        | "created_at"
+        | undefined;
       const members = await db.selectAgentPermissions({
         agentId: agent.id,
         page: c.get("page"),
         per_page: c.get("per_page"),
+        orderBy,
       });
       const resp: ListAgentMembersResponse = {
         has_more: members.has_more,

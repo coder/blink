@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import Client from "@blink.so/api";
+import Client, { type OrganizationMember } from "@blink.so/api";
 import { Check, ChevronsUpDown, Search, Users } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
@@ -42,6 +42,17 @@ export function UserSelector({
   const client = useMemo(() => new Client(), []);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Cache the selected member to preserve display when dropdown closes
+  // (search results change, but we need to keep showing the selected user)
+  const [cachedMember, setCachedMember] = useState<OrganizationMember | null>(
+    null
+  );
+
+  // Clear cache when selectedUserId is externally cleared (e.g., form reset)
+  useEffect(() => {
+    if (!selectedUserId) setCachedMember(null);
+  }, [selectedUserId]);
+
   // Debounce search query - only when dropdown is open
   useEffect(() => {
     if (!open) return;
@@ -68,11 +79,13 @@ export function UserSelector({
   }, [open]);
 
   const { data: orgMembers, isLoading } = useSWR(
-    ["organization-members", organizationId, debouncedQuery],
+    ["organization-members-selector", organizationId, debouncedQuery],
     async () => {
       const response = await client.organizations.members.list({
         organization_id: organizationId,
         query: debouncedQuery || undefined,
+        per_page: 50,
+        order_by: "name",
       });
       return response.items;
     },
@@ -82,10 +95,14 @@ export function UserSelector({
     }
   );
 
+  // Use cached member for display, or find in current results
   const selectedMember = useMemo(() => {
     if (!selectedUserId || selectedUserId === "") return null;
-    return orgMembers?.find((m) => m.user.id === selectedUserId);
-  }, [selectedUserId, orgMembers]);
+    // If cached member matches, use it
+    if (cachedMember?.user.id === selectedUserId) return cachedMember;
+    // Otherwise try to find in current results
+    return orgMembers?.find((m) => m.user.id === selectedUserId) ?? null;
+  }, [selectedUserId, orgMembers, cachedMember]);
 
   const filteredMembers = useMemo(() => {
     if (!orgMembers) return [];
@@ -179,6 +196,7 @@ export function UserSelector({
                 <DropdownMenuItem
                   key={member.user.id}
                   onSelect={() => {
+                    setCachedMember(member);
                     onSelect(member.user.id);
                     setOpen(false);
                   }}

@@ -2107,7 +2107,11 @@ export default class Querier {
   }
 
   public async selectOrganizationMembers(
-    params: Paginated<{ organizationID: string; query?: string }>
+    params: Paginated<{
+      organizationID: string;
+      query?: string;
+      orderBy?: "role" | "name" | "created_at";
+    }>
   ) {
     const conditions = [
       eq(organization_membership.organization_id, params.organizationID),
@@ -2122,6 +2126,27 @@ export default class Querier {
           ilike(user_with_personal_organization.email, searchPattern)
         )!
       );
+    }
+
+    // Determine order by clause
+    let orderByClause;
+    switch (params.orderBy) {
+      case "role":
+        // Role hierarchy: owner=1, admin=2, billing_admin=3, member=4
+        orderByClause = sql`CASE 
+          WHEN ${organization_membership.role} = 'owner' THEN 1 
+          WHEN ${organization_membership.role} = 'admin' THEN 2 
+          WHEN ${organization_membership.role} = 'billing_admin' THEN 3 
+          WHEN ${organization_membership.role} = 'member' THEN 4 
+        END, ${user_with_personal_organization.display_name} ASC NULLS LAST, ${user_with_personal_organization.username} ASC`;
+        break;
+      case "name":
+        orderByClause = sql`${user_with_personal_organization.display_name} ASC NULLS LAST, ${user_with_personal_organization.username} ASC`;
+        break;
+      case "created_at":
+      default:
+        orderByClause = sql`${organization_membership.created_at} DESC`;
+        break;
     }
 
     return withPagination(
@@ -2155,7 +2180,7 @@ export default class Querier {
         )
         .where(and(...conditions))
         .$dynamic(),
-      sql`"organization_membership"."created_at" DESC`,
+      orderByClause,
       params
     );
   }
@@ -3132,7 +3157,32 @@ export default class Querier {
   /**
    * Get all permissions for an agent (both user-specific and org default)
    */
-  public async selectAgentPermissions(params: Paginated<{ agentId: string }>) {
+  public async selectAgentPermissions(
+    params: Paginated<{
+      agentId: string;
+      orderBy?: "permission" | "name" | "created_at";
+    }>
+  ) {
+    // Determine order by clause
+    let orderByClause;
+    switch (params.orderBy) {
+      case "permission":
+        // Permission hierarchy: admin=1, write=2, read=3
+        orderByClause = sql`CASE 
+          WHEN ${agent_permission.permission} = 'admin' THEN 1 
+          WHEN ${agent_permission.permission} = 'write' THEN 2 
+          WHEN ${agent_permission.permission} = 'read' THEN 3 
+        END, ${user_with_personal_organization.display_name} ASC NULLS LAST, ${user_with_personal_organization.username} ASC NULLS LAST`;
+        break;
+      case "name":
+        orderByClause = sql`${user_with_personal_organization.display_name} ASC NULLS LAST, ${user_with_personal_organization.username} ASC NULLS LAST`;
+        break;
+      case "created_at":
+      default:
+        orderByClause = sql`${agent_permission.created_at} DESC`;
+        break;
+    }
+
     return withPagination(
       this.db
         .select({
@@ -3154,7 +3204,7 @@ export default class Querier {
         )
         .where(eq(agent_permission.agent_id, params.agentId))
         .$dynamic(),
-      sql`${agent_permission.created_at} DESC`,
+      orderByClause,
       params
     );
   }
