@@ -41,6 +41,43 @@ export const schemaPaginatedRequest = z.object({
   page: z.number().int().nonnegative().default(0).optional(),
 });
 
+/**
+ * Creates an order_by schema for sortable endpoints.
+ * Supports optional "-" prefix for descending order (e.g., "-created_at").
+ *
+ * @example
+ * ```ts
+ * const schema = schemaPaginatedRequest.extend({
+ *   order_by: schemaOrderBy(["name", "created_at", "permission"]).optional(),
+ * });
+ * // Accepts: "name", "-name", "created_at", "-created_at", etc.
+ * ```
+ */
+export const schemaOrderBy = <T extends readonly [string, ...string[]]>(
+  fields: T
+) => {
+  const patterns = fields.flatMap((f) => [f, `-${f}`] as const);
+  return z.enum(patterns as unknown as [string, ...string[]]);
+};
+
+/**
+ * Parses an order_by value into field and direction.
+ * @example
+ * ```ts
+ * parseOrderBy("name")       // { field: "name", direction: "asc" }
+ * parseOrderBy("-created_at") // { field: "created_at", direction: "desc" }
+ * ```
+ */
+export const parseOrderBy = <T extends string>(
+  orderBy: T | undefined
+): { field: string; direction: "asc" | "desc" } | undefined => {
+  if (!orderBy) return undefined;
+  if (orderBy.startsWith("-")) {
+    return { field: orderBy.slice(1), direction: "desc" };
+  }
+  return { field: orderBy, direction: "asc" };
+};
+
 export const schemaPaginatedResponse = <T extends z.ZodType>(schema: T) =>
   z.object({
     has_more: z.boolean(),

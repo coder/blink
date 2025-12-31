@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   assertResponseStatus,
+  schemaOrderBy,
   schemaPaginatedRequest,
   schemaPaginatedResponse,
 } from "../../client-helper";
@@ -42,10 +43,12 @@ const schemaOrganizationMember = schemaOrganizationMembership.extend({
 
 export type OrganizationMember = z.infer<typeof schemaOrganizationMember>;
 
+const orgMemberOrderFields = ["role", "name", "created_at"] as const;
+
 const schemaListOrganizationMembersRequest = schemaPaginatedRequest.extend({
   organization_id: z.uuid(),
   query: z.string().optional(),
-  order_by: z.enum(["role", "name", "created_at"]).optional(),
+  order_by: schemaOrderBy(orgMemberOrderFields).optional(),
 });
 
 export type ListOrganizationMembersRequest = z.infer<

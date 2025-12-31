@@ -17,10 +17,10 @@ import {
 } from "@/components/ui/tooltip";
 import type { AgentMember, OrganizationMember } from "@blink.so/api";
 import { ArrowUpDown, Check, MoreVertical, Shield, User, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
-type SortField = "member" | "permission" | "source";
-type SortDirection = "asc" | "desc";
+export type SortField = "member" | "permission" | "source";
+export type SortDirection = "asc" | "desc";
 
 interface MembersTableProps {
   explicitMembers: AgentMember[];
@@ -33,6 +33,9 @@ interface MembersTableProps {
     userId: string | null,
     permission: "read" | "write" | "admin"
   ) => void;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
 }
 
 // Unified member type for sorting
@@ -64,9 +67,10 @@ export function MembersTable({
   currentUserId,
   onDelete,
   onUpdatePermission,
+  sortField,
+  sortDirection,
+  onSort,
 }: MembersTableProps) {
-  const [sortField, setSortField] = useState<SortField>("source");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   // Build a set of user IDs that have explicit grants (to exclude from inherited members)
   const explicitUserIds = new Set(
@@ -138,35 +142,21 @@ export function MembersTable({
     return members;
   }, [explicitMembers, implicitMembers, inheritedTeamMembers]);
 
-  // Sort members
+  // Sort members - only needed for "source" field since the API handles member/permission sorting
   const sortedMembers = useMemo(() => {
-    return [...unifiedMembers].sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortField) {
-        case "member":
-          comparison = a.displayName.localeCompare(b.displayName);
-          break;
-        case "permission":
-          comparison = a.permissionOrder - b.permissionOrder;
-          break;
-        case "source":
-          comparison = a.sourceOrder - b.sourceOrder;
-          break;
-      }
-
-      return sortDirection === "asc" ? comparison : -comparison;
-    });
-  }, [unifiedMembers, sortField, sortDirection]);
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
+    // For member and permission sorting, the API returns data in the right order
+    // We just need to combine explicit members with implicit/inherited members
+    // For source sorting, we do it client-side
+    if (sortField === "source") {
+      return [...unifiedMembers].sort((a, b) => {
+        const comparison = a.sourceOrder - b.sourceOrder;
+        return sortDirection === "asc" ? comparison : -comparison;
+      });
     }
-  };
+    // For other fields, API handles sorting - just return unified members in API order
+    // (explicit members come from API sorted, then we append implicit/inherited)
+    return unifiedMembers;
+  }, [unifiedMembers, sortField, sortDirection]);
 
   const SortableHeader = ({
     field,
@@ -182,7 +172,7 @@ export function MembersTable({
       className={`px-4 py-3 text-left text-xs text-neutral-500 dark:text-neutral-400 ${className}`}
     >
       <button
-        onClick={() => handleSort(field)}
+        onClick={() => onSort(field)}
         className="flex items-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
       >
         {children}

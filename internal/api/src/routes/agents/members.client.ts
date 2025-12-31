@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   assertResponseStatus,
+  schemaOrderBy,
   schemaPaginatedRequest,
   schemaPaginatedResponse,
 } from "../../client-helper";
@@ -35,9 +36,11 @@ export const schemaAgentMember = schemaAgentPermission.extend({
 
 export type AgentMember = z.infer<typeof schemaAgentMember>;
 
+const agentMemberOrderFields = ["permission", "name", "created_at"] as const;
+
 export const schemaListAgentMembersRequest = schemaPaginatedRequest.extend({
   agent_id: z.uuid(),
-  order_by: z.enum(["permission", "name", "created_at"]).optional(),
+  order_by: schemaOrderBy(agentMemberOrderFields).optional(),
 });
 
 export type ListAgentMembersRequest = z.infer<

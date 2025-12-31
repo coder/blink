@@ -3,6 +3,7 @@ import type {
   UserWithPersonalOrganization,
 } from "@blink.so/database/schema";
 import { validator } from "hono/validator";
+import { parseOrderBy } from "../../client-helper";
 import {
   withAuth,
   withOrganizationURLParam,
@@ -25,17 +26,15 @@ export default function mountMembers(server: APIServer) {
     async (c) => {
       const db = await c.env.database();
       const query = c.req.query("query");
-      const orderBy = c.req.query("order_by") as
-        | "role"
-        | "name"
-        | "created_at"
-        | undefined;
+      const orderByParam = c.req.query("order_by");
+      const orderBy = parseOrderBy(orderByParam);
       const members = await db.selectOrganizationMembers({
         organizationID: c.get("organization").id,
         page: c.get("page"),
         per_page: c.get("per_page"),
         query: query || undefined,
-        orderBy,
+        orderBy: orderBy?.field as "role" | "name" | "created_at" | undefined,
+        orderDirection: orderBy?.direction,
       });
       const resp: ListOrganizationMembersResponse = {
         has_more: members.has_more,

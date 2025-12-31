@@ -7,11 +7,28 @@ import { ChevronLeft, ChevronRight, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { AddMemberModal } from "./add-member-modal";
-import { MembersTable } from "./members-table";
+import { MembersTable, type SortField, type SortDirection } from "./members-table";
 import { PermissionsReferenceModal } from "./permissions-reference";
 import { VisibilitySection } from "./visibility-section";
 
 const PER_PAGE = 20;
+
+// Map frontend sort fields to API order_by values
+function getApiOrderBy(
+  sortField: SortField,
+  sortDirection: SortDirection
+): string | undefined {
+  const prefix = sortDirection === "desc" ? "-" : "";
+  switch (sortField) {
+    case "member":
+      return `${prefix}name`;
+    case "permission":
+      return `${prefix}permission`;
+    case "source":
+      // Source sorting is frontend-only (combines explicit + implicit members)
+      return undefined;
+  }
+}
 
 interface AgentAccessClientProps {
   agentId: string;
@@ -31,16 +48,20 @@ export function AgentAccessClient({
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [membersPage, setMembersPage] = useState(1);
   const [orgMembersPage, setOrgMembersPage] = useState(1);
+  const [sortField, setSortField] = useState<SortField>("source");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const client = useMemo(() => new Client(), []);
 
+  const apiOrderBy = getApiOrderBy(sortField, sortDirection);
+
   const { data: membersData, mutate: mutateMembers } = useSWR(
-    ["agent-members", agentId, membersPage],
+    ["agent-members", agentId, membersPage, apiOrderBy],
     async () => {
       return client.agents.members.list({
         agent_id: agentId,
         per_page: PER_PAGE,
         page: membersPage,
-        order_by: "permission",
+        order_by: (apiOrderBy as "permission" | "-permission" | "name" | "-name" | "created_at" | "-created_at") ?? "permission",
       });
     }
   );
@@ -56,6 +77,17 @@ export function AgentAccessClient({
       });
     }
   );
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+    // Reset to first page when sorting changes
+    setMembersPage(1);
+  };
 
   const members = membersData?.items;
   const membersHasMore = membersData?.has_more ?? false;
@@ -145,6 +177,9 @@ export function AgentAccessClient({
             currentUserId={currentUserId}
             onDelete={handleDelete}
             onUpdatePermission={handleUpdatePermission}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={handleSort}
           />
 
           {/* Pagination controls */}

@@ -1,5 +1,6 @@
 import type { AgentPermission as DBAgentPermission } from "@blink.so/database/schema";
 import { validator } from "hono/validator";
+import { parseOrderBy } from "../../client-helper";
 import {
   withAgent,
   withAgentPermission,
@@ -26,16 +27,14 @@ export default function mountAgentMembers(server: APIServer) {
     async (c) => {
       const db = await c.env.database();
       const agent = c.get("agent");
-      const orderBy = c.req.query("order_by") as
-        | "permission"
-        | "name"
-        | "created_at"
-        | undefined;
+      const orderByParam = c.req.query("order_by");
+      const orderBy = parseOrderBy(orderByParam);
       const members = await db.selectAgentPermissions({
         agentId: agent.id,
         page: c.get("page"),
         per_page: c.get("per_page"),
-        orderBy,
+        orderBy: orderBy?.field as "permission" | "name" | "created_at" | undefined,
+        orderDirection: orderBy?.direction,
       });
       const resp: ListAgentMembersResponse = {
         has_more: members.has_more,
