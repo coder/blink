@@ -1,9 +1,26 @@
 "use client";
 
 import Avatar from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { AgentMember, OrganizationMember } from "@blink.so/api";
-import { Shield, Users } from "lucide-react";
-import { useState } from "react";
+import { ArrowUpDown, Check, MoreVertical, Shield, User, Users } from "lucide-react";
+import { useMemo, useState } from "react";
+
+type SortField = "member" | "permission" | "source";
+type SortDirection = "asc" | "desc";
 
 interface MembersTableProps {
   explicitMembers: AgentMember[];
@@ -18,6 +35,27 @@ interface MembersTableProps {
   ) => void;
 }
 
+// Unified member type for sorting
+type UnifiedMember = {
+  type: "explicit" | "implicit" | "inherited";
+  displayName: string;
+  username?: string;
+  permission: "read" | "write" | "admin";
+  source: string;
+  sourceOrder: number; // Lower = higher priority (Direct first)
+  permissionOrder: number; // For sorting by permission level
+  userId?: string | null;
+  avatarUrl?: string | null;
+  orgRole?: string;
+  originalMember: AgentMember | OrganizationMember;
+};
+
+const PERMISSION_DESCRIPTIONS = {
+  read: "Can create chats, view own history, and view source code",
+  write: "Read permissions plus: view all chats, create deployments, view logs & traces, manage env vars",
+  admin: "Full control: change settings, manage member access, delete agent",
+};
+
 export function MembersTable({
   explicitMembers,
   implicitMembers,
@@ -27,6 +65,9 @@ export function MembersTable({
   onDelete,
   onUpdatePermission,
 }: MembersTableProps) {
+  const [sortField, setSortField] = useState<SortField>("source");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
   // Build a set of user IDs that have explicit grants (to exclude from inherited members)
   const explicitUserIds = new Set(
     explicitMembers.map((m) => m.user_id).filter(Boolean)
@@ -38,8 +79,119 @@ export function MembersTable({
       ? regularOrgMembers.filter((m) => !explicitUserIds.has(m.user.id))
       : [];
 
-  const totalCount =
-    explicitMembers.length + implicitMembers.length + inheritedTeamMembers.length;
+  // Create unified member list for sorting
+  const unifiedMembers: UnifiedMember[] = useMemo(() => {
+    const members: UnifiedMember[] = [];
+
+    // Add explicit members (Direct)
+    for (const member of explicitMembers) {
+      members.push({
+        type: "explicit",
+        displayName: member.user
+          ? member.user.display_name || member.user.username || "Unknown"
+          : "Organization Default",
+        username: member.user?.username,
+        permission: member.permission,
+        source: "Direct",
+        sourceOrder: 0, // Direct first
+        permissionOrder: member.permission === "admin" ? 0 : member.permission === "write" ? 1 : 2,
+        userId: member.user_id,
+        avatarUrl: member.user?.avatar_url,
+        originalMember: member,
+      });
+    }
+
+    // Add implicit members (org owners/admins)
+    for (const member of implicitMembers) {
+      members.push({
+        type: "implicit",
+        displayName: member.user.display_name || member.user.username || "Unknown",
+        username: member.user.username,
+        permission: "admin",
+        source: `Team ${member.role}`,
+        sourceOrder: 1, // Team admins/owners second
+        permissionOrder: 0,
+        userId: member.user.id,
+        avatarUrl: member.user.avatar_url,
+        orgRole: member.role,
+        originalMember: member,
+      });
+    }
+
+    // Add inherited team members
+    for (const member of inheritedTeamMembers) {
+      members.push({
+        type: "inherited",
+        displayName: member.user.display_name || member.user.username || "Unknown",
+        username: member.user.username,
+        permission: "read",
+        source: "Team member",
+        sourceOrder: 2, // Team members last
+        permissionOrder: 2,
+        userId: member.user.id,
+        avatarUrl: member.user.avatar_url,
+        orgRole: member.role,
+        originalMember: member,
+      });
+    }
+
+    return members;
+  }, [explicitMembers, implicitMembers, inheritedTeamMembers]);
+
+  // Sort members
+  const sortedMembers = useMemo(() => {
+    return [...unifiedMembers].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case "member":
+          comparison = a.displayName.localeCompare(b.displayName);
+          break;
+        case "permission":
+          comparison = a.permissionOrder - b.permissionOrder;
+          break;
+        case "source":
+          comparison = a.sourceOrder - b.sourceOrder;
+          break;
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [unifiedMembers, sortField, sortDirection]);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const SortableHeader = ({
+    field,
+    children,
+    className = "",
+  }: {
+    field: SortField;
+    children: React.ReactNode;
+    className?: string;
+  }) => (
+    <th
+      scope="col"
+      className={`px-4 py-3 text-left text-xs text-neutral-500 dark:text-neutral-400 ${className}`}
+    >
+      <button
+        onClick={() => handleSort(field)}
+        className="flex items-center gap-1 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+      >
+        {children}
+        <ArrowUpDown
+          className={`h-3 w-3 ${sortField === field ? "text-neutral-700 dark:text-neutral-200" : "opacity-50"}`}
+        />
+      </button>
+    </th>
+  );
 
   return (
     <section aria-labelledby="members-heading">
@@ -51,24 +203,15 @@ export function MembersTable({
         >
           <thead className="bg-neutral-50 dark:bg-neutral-900/50">
             <tr>
-              <th
-                scope="col"
-                className="px-4 py-3 text-left text-xs text-neutral-500 dark:text-neutral-400 w-2/5"
-              >
+              <SortableHeader field="member" className="w-2/5">
                 Member
-              </th>
-              <th
-                scope="col"
-                className="px-4 py-3 text-left text-xs text-neutral-500 dark:text-neutral-400 w-1/5"
-              >
+              </SortableHeader>
+              <SortableHeader field="permission" className="w-1/5">
                 Permission
-              </th>
-              <th
-                scope="col"
-                className="px-4 py-3 text-left text-xs text-neutral-500 dark:text-neutral-400 w-1/5"
-              >
+              </SortableHeader>
+              <SortableHeader field="source" className="w-1/5">
                 Source
-              </th>
+              </SortableHeader>
               <th
                 scope="col"
                 className="px-4 py-3 text-right text-xs text-neutral-500 dark:text-neutral-400 w-1/5"
@@ -78,24 +221,9 @@ export function MembersTable({
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-neutral-950 divide-y divide-neutral-200 dark:divide-neutral-800">
-            {/* Implicit members (org owners and admins) */}
-            {implicitMembers.map((orgMember) => (
-              <ImplicitMemberRow
-                key={`implicit-${orgMember.user.id}`}
-                orgMember={orgMember}
-              />
-            ))}
-            {/* Inherited team members (when visibility is organization) */}
-            {inheritedTeamMembers.map((orgMember) => (
-              <InheritedTeamMemberRow
-                key={`team-${orgMember.user.id}`}
-                orgMember={orgMember}
-              />
-            ))}
-            {/* Explicit members */}
-            {explicitMembers.map((member) => (
-              <ExplicitMemberRow
-                key={member.user_id || "org-default"}
+            {sortedMembers.map((member) => (
+              <MemberRow
+                key={`${member.type}-${member.userId || "org-default"}`}
                 member={member}
                 currentUserId={currentUserId}
                 onDelete={onDelete}
@@ -104,7 +232,7 @@ export function MembersTable({
             ))}
           </tbody>
         </table>
-        {totalCount === 0 && (
+        {sortedMembers.length === 0 && (
           <div className="px-4 py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
             No members have been granted explicit access to this agent.
           </div>
@@ -114,106 +242,14 @@ export function MembersTable({
   );
 }
 
-// Implicit member row for org owners/admins
-function ImplicitMemberRow({ orgMember }: { orgMember: OrganizationMember }) {
-  const displayName =
-    orgMember.user.display_name || orgMember.user.username || "Unknown";
-
-  return (
-    <tr className="bg-neutral-50/50 dark:bg-neutral-900/30">
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Avatar
-            src={orgMember.user.avatar_url}
-            seed={orgMember.user.id}
-            size={32}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm text-neutral-900 dark:text-white truncate">
-              {displayName}
-            </div>
-            <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
-              @{orgMember.user.username}
-            </div>
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <span className="text-sm text-neutral-700 dark:text-neutral-300">
-          Admin
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
-          <Shield className="h-3.5 w-3.5" />
-          <span className="capitalize">Team {orgMember.role}</span>
-        </div>
-      </td>
-      <td className="px-4 py-3 text-right">
-        <span className="text-xs text-neutral-400 dark:text-neutral-500">
-          —
-        </span>
-      </td>
-    </tr>
-  );
-}
-
-// Inherited team member row for regular org members when visibility is "organization"
-function InheritedTeamMemberRow({
-  orgMember,
-}: {
-  orgMember: OrganizationMember;
-}) {
-  const displayName =
-    orgMember.user.display_name || orgMember.user.username || "Unknown";
-
-  return (
-    <tr className="bg-neutral-50/50 dark:bg-neutral-900/30">
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Avatar
-            src={orgMember.user.avatar_url}
-            seed={orgMember.user.id}
-            size={32}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm text-neutral-900 dark:text-white truncate">
-              {displayName}
-            </div>
-            <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
-              @{orgMember.user.username}
-            </div>
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <span className="text-sm text-neutral-700 dark:text-neutral-300">
-          Read
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
-          <Users className="h-3.5 w-3.5" />
-          <span>Team member</span>
-        </div>
-      </td>
-      <td className="px-4 py-3 text-right">
-        <span className="text-xs text-neutral-400 dark:text-neutral-500">
-          —
-        </span>
-      </td>
-    </tr>
-  );
-}
-
-// Explicit member row for directly granted permissions
-function ExplicitMemberRow({
+// Unified member row component
+function MemberRow({
   member,
   currentUserId,
   onDelete,
   onUpdatePermission,
 }: {
-  member: AgentMember;
+  member: UnifiedMember;
   currentUserId: string;
   onDelete: (userId: string | null) => void;
   onUpdatePermission: (
@@ -221,20 +257,36 @@ function ExplicitMemberRow({
     permission: "read" | "write" | "admin"
   ) => void;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
+  const isExplicit = member.type === "explicit";
+  const isInherited = member.type === "inherited" || member.type === "implicit";
+  const canEdit = isExplicit;
 
-  const displayName = member.user
-    ? member.user.display_name || member.user.username
-    : "Organization Default";
+  const SourceIcon = member.type === "explicit" 
+    ? User 
+    : member.type === "implicit" 
+      ? Shield 
+      : Users;
+
+  const getRemoveDisabledReason = (): string | null => {
+    if (member.type === "implicit") {
+      return `Cannot remove: ${member.displayName} has admin access as a team ${member.orgRole}. Change their team role to remove access.`;
+    }
+    if (member.type === "inherited") {
+      return `Cannot remove: ${member.displayName} has read access as a team member. Change the agent's visibility to "Restricted" or remove them from the team.`;
+    }
+    return null;
+  };
+
+  const removeDisabledReason = getRemoveDisabledReason();
 
   return (
-    <tr>
+    <tr className={isInherited ? "bg-neutral-50/50 dark:bg-neutral-900/30" : ""}>
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          {member.user ? (
+          {member.userId ? (
             <Avatar
-              src={member.user.avatar_url}
-              seed={member.user.id}
+              src={member.avatarUrl}
+              seed={member.userId}
               size={32}
             />
           ) : (
@@ -246,61 +298,108 @@ function ExplicitMemberRow({
           )}
           <div className="min-w-0 flex-1">
             <div className="text-sm text-neutral-900 dark:text-white truncate">
-              {displayName}
+              {member.displayName}
             </div>
-            {member.user && (
+            {member.username && (
               <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
-                @{member.user.username}
+                @{member.username}
               </div>
             )}
           </div>
         </div>
       </td>
       <td className="px-4 py-3">
-        {isEditing ? (
-          <select
-            value={member.permission}
-            onChange={(e) => {
-              const newPermission = e.target.value as
-                | "read"
-                | "write"
-                | "admin";
-              onUpdatePermission(member.user_id, newPermission);
-              setIsEditing(false);
-            }}
-            onBlur={() => setIsEditing(false)}
-            autoFocus
-            className="text-sm border border-neutral-200 dark:border-neutral-700 rounded px-2 py-1 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white"
-          >
-            <option value="read">Read</option>
-            <option value="write">Write</option>
-            <option value="admin">Admin</option>
-          </select>
-        ) : (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="text-sm text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white"
-          >
-            {formatPermission(member.permission)}
-          </button>
-        )}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-sm text-neutral-700 dark:text-neutral-300 cursor-help">
+                {formatPermission(member.permission)}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs">
+              <p className="text-sm">{PERMISSION_DESCRIPTIONS[member.permission]}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </td>
       <td className="px-4 py-3">
-        <span className="text-xs text-neutral-500 dark:text-neutral-400">
-          Direct
-        </span>
+        <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+          <SourceIcon className="h-3.5 w-3.5" />
+          <span className="capitalize">{member.source}</span>
+        </div>
       </td>
       <td className="px-4 py-3 text-right">
-        <button
-          onClick={() => {
-            if (confirm(`Remove ${displayName} from this agent?`)) {
-              onDelete(member.user_id);
-            }
-          }}
-          className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-        >
-          Remove
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 p-1 rounded"
+              aria-label="Open actions menu"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            {canEdit && (
+              <>
+                <DropdownMenuLabel>Change Permission</DropdownMenuLabel>
+                {(["read", "write", "admin"] as const).map((perm) => (
+                  <DropdownMenuItem
+                    key={perm}
+                    onClick={() => {
+                      if (perm !== member.permission) {
+                        onUpdatePermission(member.userId ?? null, perm);
+                      }
+                    }}
+                    className="flex items-center justify-between"
+                  >
+                    <div>
+                      <div className="font-medium">{formatPermission(perm)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {perm === "read" && "Use agent, view source"}
+                        {perm === "write" && "Deploy, view logs"}
+                        {perm === "admin" && "Full control"}
+                      </div>
+                    </div>
+                    {member.permission === perm && (
+                      <Check className="h-4 w-4 text-green-600" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {removeDisabledReason ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <DropdownMenuItem
+                        disabled
+                        className="text-red-600 dark:text-red-400 opacity-50 cursor-not-allowed"
+                      >
+                        Remove
+                      </DropdownMenuItem>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="max-w-xs">
+                    <p className="text-sm">{removeDisabledReason}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <DropdownMenuItem
+                onClick={() => {
+                  if (confirm(`Remove ${member.displayName} from this agent?`)) {
+                    onDelete(member.userId ?? null);
+                  }
+                }}
+                className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+              >
+                Remove
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </td>
     </tr>
   );

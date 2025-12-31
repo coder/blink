@@ -1,6 +1,13 @@
 "use client";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import Client from "@blink.so/api";
+import { Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
@@ -89,13 +96,36 @@ export function VisibilitySection({
                 </svg>
               )}
               <div>
-                <p className="text-sm font-medium text-neutral-900 dark:text-white">
-                  {localVisibility === "private"
-                    ? "Restricted"
-                    : localVisibility === "organization"
-                      ? "Team"
-                      : "Public"}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-medium text-neutral-900 dark:text-white">
+                    {localVisibility === "private"
+                      ? "Restricted"
+                      : localVisibility === "organization"
+                        ? "Team"
+                        : "Public"}
+                  </p>
+                  {localVisibility === "private" && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="text-neutral-400 hover:text-neutral-500"
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          <p className="text-sm">
+                            This only restricts access via the Blink UI.
+                            External integrations (like Slack) may still have
+                            access if configured.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
                   {localVisibility === "private"
                     ? `Only members with explicit permissions can access`
@@ -125,9 +155,31 @@ export function VisibilitySection({
               className="mt-0.5 h-4 w-4 shrink-0 border-neutral-300 text-blue-600 focus:ring-blue-600"
             />
             <div className="ml-3">
-              <p className="text-sm font-medium text-neutral-900 dark:text-white">
-                Restricted
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium text-neutral-900 dark:text-white">
+                  Restricted
+                </p>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.preventDefault()}
+                        className="text-neutral-400 hover:text-neutral-500"
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p className="text-sm">
+                        This only restricts access via the Blink UI. External
+                        integrations (like Slack) may still have access if
+                        configured.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
                 Only members with explicit permissions can access
               </p>

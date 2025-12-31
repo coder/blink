@@ -84,8 +84,6 @@ export function AgentNavigation({
             label: "Access",
             href: `${base}/access`,
             icon: Users,
-            disabled: true,
-            tooltip: "Coming Soon",
           },
         ]
       : []),
