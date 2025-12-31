@@ -151,26 +151,6 @@ export function VisibilitySection({
               </p>
             </div>
           </label>
-          <label className="relative flex cursor-not-allowed rounded-lg border border-neutral-300 dark:border-neutral-700 p-4 opacity-60">
-            <input
-              type="radio"
-              name="visibility"
-              value="public"
-              disabled
-              className="mt-0.5 h-4 w-4 shrink-0 border-neutral-300 text-blue-600 focus:ring-blue-600"
-            />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-neutral-900 dark:text-white">
-                Public
-                <span className="ml-2 text-xs font-normal text-neutral-500 dark:text-neutral-400">
-                  (Coming Soon)
-                </span>
-              </p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Anyone with the link can access
-              </p>
-            </div>
-          </label>
           <button
             onClick={() => setIsEditing(false)}
             className="text-sm text-neutral-600 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-300"

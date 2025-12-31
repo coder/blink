@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { AddMemberModal } from "./add-member-modal";
 import { MembersTable } from "./members-table";
-import { PermissionsReference } from "./permissions-reference";
+import { PermissionsReferenceModal } from "./permissions-reference";
 import { VisibilitySection } from "./visibility-section";
 
 interface AgentAccessClientProps {
@@ -77,13 +77,20 @@ export function AgentAccessClient({
     orgAdminsAndOwners.map((m) => m.user.id)
   );
 
+  // Get regular org members (not admins/owners) - they get read access when visibility is organization
+  const regularOrgMembers =
+    orgMembers?.filter((m) => m.role === "member") || [];
+
   // Filter out org admins and owners from the member list since they always have access
   const explicitMembers = (members || []).filter(
     (member) => !member.user_id || !orgAdminsAndOwnersIds.has(member.user_id)
   );
 
-  // Total count includes both explicit and implicit members
-  const totalMembersCount = explicitMembers.length + orgAdminsAndOwners.length;
+  // Total count depends on visibility
+  const totalMembersCount =
+    agentVisibility === "organization"
+      ? (orgMembers?.length || 0) // When team visible, all org members have access
+      : explicitMembers.length + orgAdminsAndOwners.length;
 
   return (
     <PageContainer>
@@ -99,8 +106,6 @@ export function AgentAccessClient({
           organizationName={organizationName}
         />
 
-        <PermissionsReference />
-
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -111,15 +116,20 @@ export function AgentAccessClient({
                 to this agent
               </p>
             </div>
-            <Button onClick={() => setIsAddingMember(true)}>
-              <UserPlus className="h-4 w-4" />
-              Add Member
-            </Button>
+            <div className="flex items-center gap-4">
+              <PermissionsReferenceModal />
+              <Button onClick={() => setIsAddingMember(true)}>
+                <UserPlus className="h-4 w-4" />
+                Add Member
+              </Button>
+            </div>
           </div>
 
           <MembersTable
             explicitMembers={explicitMembers}
             implicitMembers={orgAdminsAndOwners}
+            regularOrgMembers={regularOrgMembers}
+            agentVisibility={agentVisibility}
             currentUserId={currentUserId}
             onDelete={handleDelete}
             onUpdatePermission={handleUpdatePermission}

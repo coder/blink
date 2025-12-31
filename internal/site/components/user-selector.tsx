@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import Client from "@blink.so/api";
 import { Check, ChevronsUpDown, Search, Users } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 interface UserSelectorProps {
@@ -40,6 +40,7 @@ export function UserSelector({
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const client = useMemo(() => new Client(), []);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Debounce search query - only when dropdown is open
   useEffect(() => {
@@ -52,11 +53,17 @@ export function UserSelector({
     return () => clearTimeout(timer);
   }, [searchQuery, open]);
 
-  // Reset search when dropdown closes
+  // Reset search when dropdown closes, focus input when it opens
   useEffect(() => {
     if (!open) {
       setSearchQuery("");
       setDebouncedQuery("");
+    } else {
+      // Focus input when dropdown opens (small delay to let it render)
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [open]);
 
@@ -127,9 +134,12 @@ export function UserSelector({
         <div className="flex items-center border-b px-3 py-2">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input
+            ref={inputRef}
             placeholder="Search users..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
             className="h-8 border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
           />
         </div>

@@ -2,12 +2,14 @@
 
 import Avatar from "@/components/ui/avatar";
 import type { AgentMember, OrganizationMember } from "@blink.so/api";
-import { Shield } from "lucide-react";
+import { Shield, Users } from "lucide-react";
 import { useState } from "react";
 
 interface MembersTableProps {
   explicitMembers: AgentMember[];
   implicitMembers: OrganizationMember[];
+  regularOrgMembers: OrganizationMember[];
+  agentVisibility: "private" | "public" | "organization";
   currentUserId: string;
   onDelete: (userId: string | null) => void;
   onUpdatePermission: (
@@ -19,11 +21,25 @@ interface MembersTableProps {
 export function MembersTable({
   explicitMembers,
   implicitMembers,
+  regularOrgMembers,
+  agentVisibility,
   currentUserId,
   onDelete,
   onUpdatePermission,
 }: MembersTableProps) {
-  const totalCount = explicitMembers.length + implicitMembers.length;
+  // Build a set of user IDs that have explicit grants (to exclude from inherited members)
+  const explicitUserIds = new Set(
+    explicitMembers.map((m) => m.user_id).filter(Boolean)
+  );
+
+  // Filter regular org members to exclude those with explicit grants
+  const inheritedTeamMembers =
+    agentVisibility === "organization"
+      ? regularOrgMembers.filter((m) => !explicitUserIds.has(m.user.id))
+      : [];
+
+  const totalCount =
+    explicitMembers.length + implicitMembers.length + inheritedTeamMembers.length;
 
   return (
     <section aria-labelledby="members-heading">
@@ -66,6 +82,13 @@ export function MembersTable({
             {implicitMembers.map((orgMember) => (
               <ImplicitMemberRow
                 key={`implicit-${orgMember.user.id}`}
+                orgMember={orgMember}
+              />
+            ))}
+            {/* Inherited team members (when visibility is organization) */}
+            {inheritedTeamMembers.map((orgMember) => (
+              <InheritedTeamMemberRow
+                key={`team-${orgMember.user.id}`}
                 orgMember={orgMember}
               />
             ))}
@@ -123,7 +146,55 @@ function ImplicitMemberRow({ orgMember }: { orgMember: OrganizationMember }) {
       <td className="px-4 py-3">
         <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
           <Shield className="h-3.5 w-3.5" />
-          <span className="capitalize">{orgMember.role}</span>
+          <span className="capitalize">Team {orgMember.role}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-right">
+        <span className="text-xs text-neutral-400 dark:text-neutral-500">
+          —
+        </span>
+      </td>
+    </tr>
+  );
+}
+
+// Inherited team member row for regular org members when visibility is "organization"
+function InheritedTeamMemberRow({
+  orgMember,
+}: {
+  orgMember: OrganizationMember;
+}) {
+  const displayName =
+    orgMember.user.display_name || orgMember.user.username || "Unknown";
+
+  return (
+    <tr className="bg-neutral-50/50 dark:bg-neutral-900/30">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Avatar
+            src={orgMember.user.avatar_url}
+            seed={orgMember.user.id}
+            size={32}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm text-neutral-900 dark:text-white truncate">
+              {displayName}
+            </div>
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+              @{orgMember.user.username}
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <span className="text-sm text-neutral-700 dark:text-neutral-300">
+          Read
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+          <Users className="h-3.5 w-3.5" />
+          <span>Team member</span>
         </div>
       </td>
       <td className="px-4 py-3 text-right">
