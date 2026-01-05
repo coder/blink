@@ -28,6 +28,8 @@ import mountLogs from "./logs.server";
 import mountAgentsMe from "./me/me.server";
 import mountAgentMembers from "./members.server";
 import mountRuns from "./runs.server";
+import mountSetupGitHub from "./setup-github.server";
+import mountSetupSlack from "./setup-slack.server";
 import mountSteps from "./steps.server";
 import mountTraces from "./traces.server";
 
@@ -52,6 +54,7 @@ export default function mountAgents(app: Hono<{ Bindings: Bindings }>) {
             description: req.description,
             visibility: req.visibility ?? "organization",
             chat_expire_ttl: req.chat_expire_ttl,
+            onboarding_state: req.onboarding_state,
           });
 
           // Grant admin permission to the creator
@@ -258,6 +261,87 @@ export default function mountAgents(app: Hono<{ Bindings: Bindings }>) {
     return c.body(null, 204);
   });
 
+  // Update onboarding state for an agent.
+  app.patch(
+    "/:agent_id/onboarding",
+    withAuth,
+    withAgentURLParam,
+    withAgentPermission("write"),
+    async (c) => {
+      const agent = c.get("agent");
+      const db = await c.env.database();
+      const body = await c.req.json();
+
+      // Merge the new state with existing state
+      const currentState = agent.onboarding_state ?? { currentStep: "welcome" };
+      const newState = { ...currentState, ...body };
+
+      const updated = await db.updateAgent({
+        id: agent.id,
+        onboarding_state: newState,
+      });
+      return c.json(
+        convert.agent(
+          updated,
+          await createAgentRequestURL(c, updated),
+          await getAgentUserPermission(c, updated)
+        )
+      );
+    }
+  );
+
+  // Clear onboarding state for an agent (mark onboarding complete).
+  app.delete(
+    "/:agent_id/onboarding",
+    withAuth,
+    withAgentURLParam,
+    withAgentPermission("write"),
+    async (c) => {
+      const agent = c.get("agent");
+      const db = await c.env.database();
+
+      if (agent.onboarding_state) {
+        await db.updateAgent({
+          id: agent.id,
+          onboarding_state: {
+            finished: true,
+            currentStep: agent.onboarding_state.currentStep,
+          },
+        });
+      }
+      return c.body(null, 204);
+    }
+  );
+
+  // Update integrations state for an agent.
+  app.patch(
+    "/:agent_id/integrations",
+    withAuth,
+    withAgentURLParam,
+    withAgentPermission("write"),
+    async (c) => {
+      const agent = c.get("agent");
+      const db = await c.env.database();
+      const body = await c.req.json();
+
+      // Merge the new state with existing state
+      const currentState = agent.integrations_state ?? {};
+      const newState = { ...currentState, ...body };
+
+      const updated = await db.updateAgent({
+        id: agent.id,
+        integrations_state: newState,
+      });
+      return c.json(
+        convert.agent(
+          updated,
+          await createAgentRequestURL(c, updated),
+          await getAgentUserPermission(c, updated)
+        )
+      );
+    }
+  );
+
   // Delete an agent.
   app.delete(
     "/:agent_id",
@@ -417,6 +501,8 @@ export default function mountAgents(app: Hono<{ Bindings: Bindings }>) {
   mountLogs(app.basePath("/:agent_id/logs"));
   mountTraces(app.basePath("/:agent_id/traces"));
   mountAgentMembers(app.basePath("/:agent_id/members"));
+  mountSetupGitHub(app.basePath("/:agent_id/setup/github"));
+  mountSetupSlack(app.basePath("/:agent_id/setup/slack"));
 
   // This is special - just for the agent invocation API.
   // We don't like to do this, but we do because this API

@@ -5,6 +5,7 @@ import ChatRuns from "./routes/chats/runs.client";
 import Files from "./routes/files.client";
 import Invites from "./routes/invites.client";
 import Messages from "./routes/messages.client";
+import Onboarding from "./routes/onboarding/onboarding.client";
 import Organizations from "./routes/organizations/organizations.client";
 import Users from "./routes/users.client";
 
@@ -34,6 +35,7 @@ export default class Client {
   public readonly invites = new Invites(this);
   public readonly users = new Users(this);
   public readonly messages = new Messages(this);
+  public readonly onboarding = new Onboarding(this);
 
   public constructor(options?: ClientOptions) {
     this.baseURL = new URL(
@@ -101,5 +103,6 @@ export * from "./routes/agents/traces.client";
 export * from "./routes/chats/chats.client";
 export * from "./routes/invites.client";
 export * from "./routes/messages.client";
+export * from "./routes/onboarding/onboarding.client";
 export * from "./routes/organizations/organizations.client";
 export * from "./routes/users.client";

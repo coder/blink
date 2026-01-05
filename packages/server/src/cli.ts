@@ -88,6 +88,7 @@ async function runServer(options: { port: string; dev?: boolean | string }) {
     authSecret,
     baseUrl,
     devProxy,
+    accessUrl,
   });
 
   const box = boxen(

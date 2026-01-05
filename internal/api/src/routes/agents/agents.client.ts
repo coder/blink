@@ -19,6 +19,8 @@ import AgentEnv, { schemaCreateAgentEnv } from "./env.client";
 import AgentLogs from "./logs.client";
 import AgentMembers from "./members.client";
 import AgentRuns from "./runs.client";
+import AgentSetupGitHub from "./setup-github.client";
+import AgentSetupSlack from "./setup-slack.client";
 import AgentSteps from "./steps.client";
 import AgentTraces from "./traces.client";
 
@@ -27,6 +29,82 @@ export const schemaAgentVisibility = z.enum([
   "public",
   "organization",
 ]);
+
+export const schemaOnboardingStep = z.enum([
+  "welcome",
+  "llm-api-keys",
+  "github-setup",
+  "slack-setup",
+  "web-search",
+  "deploying",
+  "success",
+]);
+
+export const schemaOnboardingState = z.object({
+  currentStep: schemaOnboardingStep,
+  finished: z.boolean().optional(),
+  github: z
+    .object({
+      appName: z.string(),
+      appUrl: z.string(),
+      installUrl: z.string(),
+      // Credentials (values)
+      appId: z.number().optional(),
+      clientId: z.string().optional(),
+      clientSecret: z.string().optional(),
+      webhookSecret: z.string().optional(),
+      privateKey: z.string().optional(),
+      // Env var names used
+      envVars: z
+        .object({
+          appId: z.string(),
+          clientId: z.string(),
+          clientSecret: z.string(),
+          webhookSecret: z.string(),
+          privateKey: z.string(),
+        })
+        .optional(),
+    })
+    .optional(),
+  slack: z
+    .object({
+      botToken: z.string(),
+      signingSecret: z.string(),
+      envVars: z
+        .object({
+          botToken: z.string(),
+          signingSecret: z.string(),
+        })
+        .optional(),
+    })
+    .optional(),
+  llm: z
+    .object({
+      provider: z.enum(["anthropic", "openai", "vercel"]).optional(),
+      apiKey: z.string().optional(),
+      envVar: z.string().optional(),
+    })
+    .optional(),
+  webSearch: z
+    .object({
+      provider: z.enum(["exa"]).optional(),
+      apiKey: z.string().optional(),
+      envVar: z.string().optional(),
+    })
+    .optional(),
+});
+
+export type OnboardingState = z.infer<typeof schemaOnboardingState>;
+export type OnboardingStep = z.infer<typeof schemaOnboardingStep>;
+
+export const schemaIntegrationsState = z.object({
+  llm: z.boolean().optional(),
+  github: z.boolean().optional(),
+  slack: z.boolean().optional(),
+  webSearch: z.boolean().optional(),
+});
+
+export type IntegrationsState = z.infer<typeof schemaIntegrationsState>;
 
 export const schemaCreateAgentRequest = z.object({
   organization_id: z.uuid(),
@@ -48,6 +126,9 @@ export const schemaCreateAgentRequest = z.object({
   // Optional: Specify the request_id for the production deployment target.
   // This is useful for setting up webhooks before the agent is fully deployed.
   request_id: z.uuid().optional(),
+
+  // Optional: Initialize agent with onboarding state
+  onboarding_state: schemaOnboardingState.optional(),
 });
 
 export type CreateAgentRequest = z.infer<typeof schemaCreateAgentRequest>;
@@ -70,6 +151,8 @@ export const schemaAgent = z.object({
     .describe("The URL for the agent requests. Only visible to owners."),
   chat_expire_ttl: z.number().int().positive().nullable(),
   user_permission: z.enum(["read", "write", "admin"]).optional(),
+  onboarding_state: schemaOnboardingState.nullable(),
+  integrations_state: schemaIntegrationsState.nullable(),
 });
 
 export const schemaUpdateAgentRequest = z.object({
@@ -165,6 +248,8 @@ export default class Agents {
   public readonly logs: AgentLogs;
   public readonly traces: AgentTraces;
   public readonly members: AgentMembers;
+  public readonly setupGitHub: AgentSetupGitHub;
+  public readonly setupSlack: AgentSetupSlack;
 
   public constructor(client: Client) {
     this.client = client;
@@ -175,6 +260,8 @@ export default class Agents {
     this.logs = new AgentLogs(client);
     this.traces = new AgentTraces(client);
     this.members = new AgentMembers(client);
+    this.setupGitHub = new AgentSetupGitHub(client);
+    this.setupSlack = new AgentSetupSlack(client);
   }
 
   /**
@@ -347,6 +434,59 @@ export default class Agents {
     const resp = await this.client.request(
       "GET",
       `/api/agents/${request.agent_id}/usage/runtime?${query.toString()}`
+    );
+    await assertResponseStatus(resp, 200);
+    return resp.json();
+  }
+
+  /**
+   * Update onboarding state for an agent.
+   *
+   * @param id - The id of the agent.
+   * @param state - The partial onboarding state to merge.
+   * @returns The updated agent.
+   */
+  public async updateOnboarding(
+    id: string,
+    state: Partial<OnboardingState>
+  ): Promise<Agent> {
+    const resp = await this.client.request(
+      "PATCH",
+      `/api/agents/${id}/onboarding`,
+      JSON.stringify(state)
+    );
+    await assertResponseStatus(resp, 200);
+    return resp.json();
+  }
+
+  /**
+   * Clear onboarding state for an agent (mark onboarding as complete).
+   *
+   * @param id - The id of the agent.
+   */
+  public async clearOnboarding(id: string): Promise<void> {
+    const resp = await this.client.request(
+      "DELETE",
+      `/api/agents/${id}/onboarding`
+    );
+    await assertResponseStatus(resp, 204);
+  }
+
+  /**
+   * Update integrations state for an agent.
+   *
+   * @param id - The id of the agent.
+   * @param state - The partial integrations state to merge.
+   * @returns The updated agent.
+   */
+  public async updateIntegrationsState(
+    id: string,
+    state: Partial<IntegrationsState>
+  ): Promise<Agent> {
+    const resp = await this.client.request(
+      "PATCH",
+      `/api/agents/${id}/integrations`,
+      JSON.stringify(state)
     );
     await assertResponseStatus(resp, 200);
     return resp.json();

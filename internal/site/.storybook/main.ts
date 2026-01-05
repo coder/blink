@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import Inspect from "vite-plugin-inspect";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
+import { mergeConfig } from "vite";
 
 const config: StorybookConfig = {
   stories: ["../**/*.stories.@(js|jsx|mjs|ts|tsx)"],
@@ -87,7 +88,9 @@ const config: StorybookConfig = {
     config.plugins.push(Inspect());
     config.plugins.push(nodePolyfills());
 
-    return config;
+    return mergeConfig(config, {
+      server: { watch: { usePolling: true, interval: 1000 } },
+    });
   },
 };
 export default config;

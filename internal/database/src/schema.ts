@@ -488,6 +488,100 @@ export const agent = pgTable(
       .notNull()
       .default(0),
     last_run_number: integer("last_run_number").notNull().default(0),
+
+    // Slack setup verification state (null when no verification in progress)
+    slack_verification: jsonb("slack_verification").$type<{
+      signingSecret: string;
+      botToken: string;
+      startedAt: string;
+      expiresAt: string;
+      lastEventAt?: string;
+      dmReceivedAt?: string;
+      dmChannel?: string;
+      signatureFailedAt?: string;
+    }>(),
+
+    // GitHub App setup state (null when no setup in progress)
+    // Status flow: pending -> app_created -> completed
+    // - pending: waiting for user to create app on GitHub
+    // - app_created: app created, waiting for user to install it
+    // - completed: app created and installed
+    // - failed: error occurred
+    github_app_setup: jsonb("github_app_setup").$type<{
+      sessionId: string;
+      startedAt: string;
+      expiresAt: string;
+      status: "pending" | "app_created" | "completed" | "failed";
+      error?: string;
+      installationId?: string;
+      appData?: {
+        id: number;
+        clientId: string;
+        clientSecret: string;
+        webhookSecret: string;
+        pem: string;
+        name: string;
+        htmlUrl: string;
+        slug: string;
+      };
+    }>(),
+
+    // Onboarding wizard state
+    onboarding_state: jsonb("onboarding_state").$type<{
+      currentStep:
+        | "welcome"
+        | "llm-api-keys"
+        | "github-setup"
+        | "slack-setup"
+        | "web-search"
+        | "deploying"
+        | "success";
+      finished?: boolean;
+      github?: {
+        appName: string;
+        appUrl: string;
+        installUrl: string;
+        appId?: number;
+        clientId?: string;
+        clientSecret?: string;
+        webhookSecret?: string;
+        privateKey?: string;
+        envVars?: {
+          appId: string;
+          clientId: string;
+          clientSecret: string;
+          webhookSecret: string;
+          privateKey: string;
+        };
+      };
+      slack?: {
+        botToken: string;
+        signingSecret: string;
+        envVars?: {
+          botToken: string;
+          signingSecret: string;
+        };
+      };
+      llm?: {
+        provider?: "anthropic" | "openai" | "vercel";
+        apiKey?: string;
+        envVar?: string;
+      };
+      webSearch?: {
+        provider?: "exa";
+        apiKey?: string;
+        envVar?: string;
+      };
+    }>(),
+
+    // Integrations configuration state - tracks which integrations are configured
+    // This is separate from onboarding_state to persist after onboarding completes
+    integrations_state: jsonb("integrations_state").$type<{
+      llm?: boolean;
+      github?: boolean;
+      slack?: boolean;
+      webSearch?: boolean;
+    }>(),
   },
   (table) => [
     check(

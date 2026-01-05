@@ -63,6 +63,16 @@ export const getUser = cache(async (userID: string) => {
 
 export const getAgent = cache(
   async (organizationName: string, agentName: string) => {
+    const agent = await getAgentOrNull(organizationName, agentName);
+    if (!agent) {
+      return notFound();
+    }
+    return agent;
+  }
+);
+
+export const getAgentOrNull = cache(
+  async (organizationName: string, agentName: string) => {
     const session = await auth();
     const userID = session?.user?.id;
     const db = await getQuerier();
@@ -72,7 +82,7 @@ export const getAgent = cache(
       userID,
     });
     if (!agent) {
-      return notFound();
+      return null;
     }
     // Get the production deployment target's request_id
     const productionTarget = await db.selectAgentDeploymentTargetByName(
@@ -104,7 +114,7 @@ export const getAgent = cache(
         });
         // If permission is undefined, user doesn't have access
         if (userPermission === undefined) {
-          return notFound();
+          return null;
         }
       }
     }

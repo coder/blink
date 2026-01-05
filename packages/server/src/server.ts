@@ -1,6 +1,7 @@
 import api from "@blink.so/api/server";
 import connectToPostgres from "@blink.so/database/postgres";
 import Querier from "@blink.so/database/querier";
+import pkg from "../package.json" with { type: "json" };
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
@@ -24,12 +25,14 @@ interface ServerOptions {
   authSecret: string;
   baseUrl: string;
   devProxy?: string; // e.g. "localhost:3000"
+  accessUrl: string;
 }
 
 // Files are now stored in the database instead of in-memory
 
 export async function startServer(options: ServerOptions) {
-  const { port, postgresUrl, authSecret, baseUrl, devProxy } = options;
+  const { port, postgresUrl, authSecret, baseUrl, accessUrl, devProxy } =
+    options;
 
   const db = await connectToPostgres(postgresUrl);
   const querier = new Querier(db);
@@ -127,6 +130,9 @@ export async function startServer(options: ServerOptions) {
           {
             AUTH_SECRET: authSecret,
             NODE_ENV: "development",
+            serverVersion: pkg.version,
+            ONBOARDING_AGENT_BUNDLE_URL:
+              "https://artifacts.blink.host/starter-agent/bundle.tar.gz",
             agentStore: (deploymentTargetID) => {
               return {
                 delete: async (key) => {
@@ -181,6 +187,7 @@ export async function startServer(options: ServerOptions) {
               return querier;
             },
             apiBaseURL: url,
+            accessUrl: new URL(accessUrl),
             auth: {
               handleWebSocketTokenRequest: async (id, request) => {
                 // WebSocket upgrades are handled in the 'upgrade' event

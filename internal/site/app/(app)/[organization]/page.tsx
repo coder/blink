@@ -113,6 +113,25 @@ export default async function Page({
 
   const isPersonal = organization.id === user.organization_id;
 
+  const DEFAULT_AGENT_NAME = "blink";
+
+  // Find an agent with onboarding in progress (finished === false)
+  const onboardingAgent = agents.find(
+    (a) => a.onboarding_state?.finished === false
+  );
+
+  // Redirect to onboarding if organization has no agents
+  if (agents.length === 0) {
+    return redirect(`/${organizationName}/~/onboarding/${DEFAULT_AGENT_NAME}`);
+  }
+
+  // Redirect to agent onboarding if there's a one agent being onboarded
+  if (agents.length === 1 && onboardingAgent) {
+    return redirect(
+      `/${organizationName}/~/onboarding/${onboardingAgent.name}`
+    );
+  }
+
   return (
     <div className="w-full relative">
       <Header user={user} organization={organization} />

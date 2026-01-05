@@ -27,12 +27,12 @@
     "dev": "bun src/cli.ts --dev"
   },
   "devDependencies": {
-    "blink": "workspace:*",
-    "@blink.so/api": "workspace:*",
     "@blink-sdk/tunnel": "workspace:*",
+    "@blink.so/api": "workspace:*",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
     "@types/ws": "^8.5.13",
+    "blink": "workspace:*",
     "boxen": "^8.0.1",
     "chalk": "^5.4.1",
     "commander": "^12.1.0",

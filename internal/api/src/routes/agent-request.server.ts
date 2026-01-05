@@ -1,8 +1,10 @@
 import { BlinkInvocationTokenHeader } from "@blink.so/runtime/types";
 import type { Context } from "hono";
+
 import type { Bindings } from "../server";
 import { detectRequestLocation } from "../server-helper";
 import { generateAgentInvocationToken } from "./agents/me/me.server";
+import { handleSlackWebhook, isSlackRequest } from "./agents/slack-webhook";
 
 export type AgentRequestRouting =
   | { mode: "webhook"; subpath?: string }
@@ -23,6 +25,24 @@ export default async function handleAgentRequest(
     }
     return c.json({ message: "No agent exists for this webook" }, 404);
   }
+
+  const incomingUrl = new URL(c.req.raw.url);
+
+  // Handle Slack webhook requests during verification flow
+  let requestBodyText: string | undefined;
+  if (isSlackRequest(routing, incomingUrl.pathname) && query.agent) {
+    const slackResult = await handleSlackWebhook(
+      db,
+      query.agent,
+      c.req.raw,
+      !!query.agent_deployment
+    );
+    if (slackResult.response) {
+      return slackResult.response;
+    }
+    requestBodyText = slackResult.bodyText;
+  }
+
   if (!query.agent_deployment) {
     return c.json(
       {
@@ -38,7 +58,6 @@ export default async function handleAgentRequest(
       404
     );
   }
-  const incomingUrl = new URL(c.req.raw.url);
 
   let url: URL;
   if (routing.mode === "webhook") {
@@ -133,6 +152,17 @@ export default async function handleAgentRequest(
   c.req.raw.headers.forEach((value, key) => {
     headers.set(key, value);
   });
+
+  // If we read the body as text (for Slack verification), we need to recalculate
+  // the Content-Length header. When fetch() sends a string body, it encodes it as
+  // UTF-8, which may have a different byte length than the original Content-Length.
+  // Note: Some runtimes (like Bun) auto-correct this, but Node.js throws an error
+  // if Content-Length doesn't match the actual body length.
+  if (requestBodyText !== undefined) {
+    const encoder = new TextEncoder();
+    const byteLength = encoder.encode(requestBodyText).length;
+    headers.set("content-length", byteLength.toString());
+  }
   // Strip cookies from webhook requests to prevent session leakage
   // Subdomain requests are on a different origin, so cookies won't be sent anyway
   if (routing.mode === "webhook") {
@@ -150,8 +180,11 @@ export default async function handleAgentRequest(
   let response: Response | undefined;
   let error: string | undefined;
   try {
+    // Use the body we already read if it's a Slack request, otherwise use the stream
+    const bodyToSend =
+      requestBodyText !== undefined ? requestBodyText : c.req.raw.body;
     response = await fetch(url, {
-      body: c.req.raw.body,
+      body: bodyToSend,
       method: c.req.raw.method,
       signal,
       headers,

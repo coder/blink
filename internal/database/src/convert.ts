@@ -71,6 +71,14 @@ export const agent = (
     pinned: "pinned" in agent ? agent.pinned : false,
     chat_expire_ttl: agent.chat_expire_ttl,
     user_permission: userPermission,
+    onboarding_state:
+      userPermission === "admin" || userPermission === "write"
+        ? (agent.onboarding_state ?? null)
+        : null,
+    integrations_state:
+      userPermission === "admin" || userPermission === "write"
+        ? (agent.integrations_state ?? null)
+        : null,
   };
 };
 

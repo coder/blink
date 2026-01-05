@@ -87,6 +87,7 @@ export const serve = async (options?: ServeOptions) => {
   const agentStore = new Map<string, AgentStore>();
   const bindings: Bindings = {
     apiBaseURL: srv.url,
+    accessUrl: srv.url,
     matchRequestHost: (hostname) => {
       const regex = new RegExp(`^(.*)\.${srv.url.host}$`);
       const exec = regex.exec(hostname);
@@ -112,6 +113,9 @@ export const serve = async (options?: ServeOptions) => {
     },
     AUTH_SECRET: authSecret,
     NODE_ENV: "development",
+    serverVersion: "test",
+    ONBOARDING_AGENT_BUNDLE_URL:
+      options?.bindings?.ONBOARDING_AGENT_BUNDLE_URL ?? "override-me-in-test",
     ...options?.bindings,
     agentStore: (targetID) => {
       let store = agentStore.get(targetID);

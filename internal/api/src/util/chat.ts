@@ -147,6 +147,13 @@ export async function runChat({
       },
     });
 
+    if (!env.AUTH_SECRET) {
+      // biome-ignore lint/suspicious/noConsole: we want to notify the admin if this happens.
+      console.error(
+        "runChat: AUTH_SECRET environment variable is not set. Unable to generate agent invocation token."
+      );
+      throw new Error("Internal server error");
+    }
     const { generateAgentInvocationToken } = await import(
       "@blink.so/api/agents/me/server"
     );

@@ -7,7 +7,8 @@ export function useAPIClient() {
   return useMemo(
     () =>
       new Client({
-        baseURL: typeof window !== "undefined" ? window.location.origin : "",
+        baseURL:
+          typeof window !== "undefined" ? window.location.origin : undefined,
       }),
     []
   );

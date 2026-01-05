@@ -1,12 +1,19 @@
-import { withFetch } from "@/.storybook/utils";
-import Layout from "@/app/(app)/layout";
-import { getQuerier } from "@/lib/database.mock";
 import type { Meta, StoryObj } from "@storybook/react";
-import { mocked } from "storybook/test";
 import { SessionProvider } from "next-auth/react";
+import { mocked } from "storybook/test";
+import Layout from "@/app/(app)/layout";
+import { type MockedClient, withMockClient } from "@/lib/api-client.mock";
+import { getQuerier } from "@/lib/database.mock";
 import OrganizationLayout from "../layout";
 import AgentLayout from "./layout";
 import AgentPage from "./page";
+
+function configureMockClient(client: MockedClient) {
+  client.agents.steps.list.mockResolvedValue({
+    items: [],
+    next_cursor: null,
+  });
+}
 
 const meta: Meta<typeof AgentPage> = {
   title: "Page/Agent",
@@ -64,24 +71,12 @@ export const Default: Story = {
         chat_expire_ttl: null,
         last_deployment_number: 0,
         last_run_number: 0,
+        slack_verification: null,
+        github_app_setup: null,
+        onboarding_state: null,
+        integrations_state: null,
       }),
     });
   },
-  decorators: [
-    withFetch((url) => {
-      if (!url.pathname.endsWith("/steps")) {
-        return undefined;
-      }
-
-      return new Response(
-        JSON.stringify({
-          items: [],
-          has_more: false,
-        }),
-        {
-          status: 200,
-        }
-      );
-    }),
-  ],
+  decorators: [withMockClient(configureMockClient)],
 };

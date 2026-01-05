@@ -17,11 +17,17 @@ export function AgentSettingsNav() {
       label: "Environment Variables",
       href: `${baseHref}/env`,
     },
+    {
+      value: "integrations",
+      label: "Integrations",
+      href: `${baseHref}/integrations`,
+    },
     { value: "webhooks", label: "Webhooks", href: `${baseHref}/webhooks` },
   ];
 
   const getActiveTab = (pathname: string | null) => {
     if (pathname?.includes("/settings/env")) return "environment";
+    if (pathname?.includes("/settings/integrations")) return "integrations";
     if (pathname?.includes("/settings/webhooks")) return "webhooks";
     return "general";
   };

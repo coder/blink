@@ -1,5 +1,6 @@
 import { DrizzleQueryError } from "drizzle-orm/errors";
 import postgres from "postgres";
+import type { Bindings } from "./server";
 
 export const isUniqueConstraintError = (
   err: unknown,
@@ -50,4 +51,39 @@ export const detectRequestLocation = (request: Request): string | undefined => {
     parts.push(countryName);
   }
   return parts.length ? parts.join(", ") : undefined;
+};
+
+/**
+ * Construct a webhook URL for an agent.
+ * Uses subdomain routing if matchRequestHost is configured, otherwise uses path-based routing.
+ *
+ * @param env - The bindings containing createRequestURL, matchRequestHost, and accessUrl
+ * @param requestId - The deployment target's request ID
+ * @param path - The webhook path (e.g., "github", "slack", or "/github")
+ * @returns The webhook URL
+ */
+export const createWebhookURL = (
+  env: Bindings,
+  requestId: string,
+  path: string
+): string => {
+  // Normalize path to always start with /
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (env.createRequestURL) {
+    const baseUrl = env.createRequestURL(requestId);
+    return new URL(normalizedPath, baseUrl).toString();
+  }
+
+  // Use subdomain routing if configured
+  if (env.matchRequestHost) {
+    // Construct subdomain URL from accessUrl: https://{request_id}.{host}/{path}
+    const baseUrl = new URL(env.accessUrl);
+    baseUrl.host = `${requestId}.${baseUrl.host}`;
+    baseUrl.pathname = normalizedPath;
+    return baseUrl.toString();
+  }
+
+  // Path-based webhook mode: /api/webhook/{request_id}/{path}
+  return `${env.accessUrl.origin}/api/webhook/${requestId}${normalizedPath}`;
 };

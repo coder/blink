@@ -21,6 +21,12 @@ export default async function AgentLayout({
     getOrganization(session.user.id, organizationName),
     getAgent(organizationName, agentName),
   ]);
+
+  // Redirect to onboarding if agent is being onboarded (finished === false)
+  if (agent.onboarding_state?.finished === false) {
+    return redirect(`/${organizationName}/~/onboarding/${agentName}`);
+  }
+
   const user = await getUser(session.user.id);
 
   // Get organization kind from database for navigation

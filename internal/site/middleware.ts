@@ -79,12 +79,17 @@ export async function middleware(request: NextRequest) {
     currentCookie?.value ||
     (response ? response.cookies.get(SESSION_COOKIE_NAME)?.value : undefined);
 
+  const authSecret = process.env.AUTH_SECRET;
+  if (!authSecret) {
+    throw new Error("AUTH_SECRET environment variable is not set");
+  }
+
   let token = null;
   if (tokenValue) {
     try {
       token = await decode({
         token: tokenValue,
-        secret: process.env.AUTH_SECRET!,
+        secret: authSecret,
         salt: SESSION_COOKIE_NAME,
       });
     } catch {

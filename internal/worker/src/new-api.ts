@@ -47,6 +47,7 @@ export default function handleNewAPI(
       GOOGLE_CLIENT_SECRET: env.GOOGLE_CLIENT_SECRET,
 
       apiBaseURL,
+      accessUrl: apiBaseURL,
       matchRequestHost: (host) => {
         // These two are for backwards compatibility.
         let exec = devRequestHostRegex.exec(host);
@@ -425,6 +426,9 @@ export default function handleNewAPI(
       NODE_ENV: env.NODE_ENV,
       AI_GATEWAY_API_KEY: env.AI_GATEWAY_API_KEY,
       TOOLS_EXA_API_KEY: env.EXA_API_KEY,
+      serverVersion: "worker",
+      ONBOARDING_AGENT_BUNDLE_URL:
+        "https://artifacts.blink.host/starter-agent/bundle.tar.gz",
     },
     ctx
   );
