@@ -1262,6 +1262,89 @@ export function runSharedTests(
     );
 
     describe("websocket edge cases", () => {
+      it("should forward text messages as text (not binary)", async () => {
+        using wss = createWsServer();
+
+        wss.server.on("connection", (ws: WebSocketType) => {
+          // Server sends a text message
+          ws.send(JSON.stringify({ action: "test", data: "hello" }));
+        });
+
+        using _disposable = await connectClient({
+          secret: "ws-text-type-test",
+          port: wss.port,
+        });
+
+        const tunnelId = await getTunnelId("ws-text-type-test", serverSecret);
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
+
+        const clientWs = new WebSocket(wsUrl);
+        let receivedAsText = false;
+        let receivedMessage: string | undefined;
+
+        await new Promise<void>((resolve, reject) => {
+          clientWs.on("message", (data: Buffer | ArrayBuffer, isBinary) => {
+            receivedAsText = !isBinary;
+            receivedMessage = data.toString();
+            clientWs.close();
+            resolve();
+          });
+          clientWs.on("error", reject);
+        });
+
+        assert.strictEqual(
+          receivedAsText,
+          true,
+          "Message should be received as text, not binary"
+        );
+        assert.ok(receivedMessage?.includes("action"));
+        assert.ok(receivedMessage?.includes("test"));
+      });
+
+      it("should forward binary messages as binary", async () => {
+        using wss = createWsServer();
+
+        const binaryData = new Uint8Array([0x00, 0x01, 0x02, 0xff]);
+
+        wss.server.on("connection", (ws: WebSocketType) => {
+          // Server sends a binary message
+          ws.send(binaryData);
+        });
+
+        using _disposable = await connectClient({
+          secret: "ws-binary-type-test",
+          port: wss.port,
+        });
+
+        const tunnelId = await getTunnelId("ws-binary-type-test", serverSecret);
+        const wsUrl = getTunnelWsUrl(server, tunnelId, "/ws");
+
+        const clientWs = new WebSocket(wsUrl);
+        let receivedAsBinary = false;
+        let receivedData: Buffer | undefined;
+
+        await new Promise<void>((resolve, reject) => {
+          clientWs.binaryType = "arraybuffer";
+          clientWs.on("message", (data: Buffer | ArrayBuffer, isBinary) => {
+            receivedAsBinary = isBinary;
+            receivedData = Buffer.from(data as ArrayBuffer);
+            clientWs.close();
+            resolve();
+          });
+          clientWs.on("error", reject);
+        });
+
+        assert.strictEqual(
+          receivedAsBinary,
+          true,
+          "Message should be received as binary"
+        );
+        assert.ok(receivedData);
+        assert.strictEqual(receivedData.length, 4);
+        assert.strictEqual(receivedData[0], 0x00);
+        assert.strictEqual(receivedData[3], 0xff);
+      });
+
       it("should handle text messages with UTF-8 multi-byte characters", async () => {
         using wss = createWsServer();
 

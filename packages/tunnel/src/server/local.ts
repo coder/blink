@@ -286,7 +286,9 @@ export function createLocalServer(opts: LocalServerOptions): {
         worker.onWebSocketMessage((event) => {
           const proxyWs = session?.proxiedWebSockets.get(event.stream);
           if (proxyWs && proxyWs.readyState === WebSocket.OPEN) {
-            proxyWs.send(event.message);
+            // Explicitly set binary flag based on message type to preserve text vs binary
+            const isBinary = typeof event.message !== "string";
+            proxyWs.send(event.message, { binary: isBinary });
           }
         });
 

@@ -479,13 +479,15 @@ export class TunnelClient {
         );
       });
 
-      ws.on("message", (data: Buffer | ArrayBuffer | Buffer[]) => {
-        const payload =
+      ws.on("message", (data: Buffer | ArrayBuffer | Buffer[], isBinary) => {
+        const buffer =
           data instanceof ArrayBuffer
-            ? data
+            ? Buffer.from(data)
             : Array.isArray(data)
               ? Buffer.concat(data)
               : data;
+        // Convert text messages to string so they're encoded correctly
+        const payload = isBinary ? buffer : buffer.toString("utf-8");
         stream.writeTyped(
           ClientMessageType.PROXY_WEBSOCKET_MESSAGE,
           createWebSocketMessagePayload(payload, this.encoder)
