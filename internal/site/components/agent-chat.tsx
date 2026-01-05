@@ -649,7 +649,8 @@ export default function AgentChat({
               showTimestamp={false}
               canEditMessage={false}
               isStreaming={
-                status === "streaming" && index === messages.length - 1
+                (status === "streaming" || status === "submitted") &&
+                index === messages.length - 1
               }
               isLatestMessage={index === messages.length - 1}
               chatId={""}

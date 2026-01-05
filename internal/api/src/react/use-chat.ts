@@ -558,16 +558,20 @@ export function useChat<UI_MESSAGE extends UIMessage>(
         responseMessages = resp.messages;
       }
 
-      // Race-free deduplication: remove only pre-inserted messages,
-      // keep messages that came from streaming, and add new responses
+      // Deduplication: only remove pre-inserted messages if we have server-assigned
+      // replacements. For streaming (new chat), responseMessages may be empty since
+      // messages arrive via the stream - in that case, keep the pre-inserted message.
       setMessagesAndSyncRefs((messages) => {
-        // Keep messages that aren't pre-inserted
-        // (this includes messages that came from streaming)
-        const kept = messages.filter((m) => !preInsertedIDs.includes(m.id));
-        // Add responses that don't already exist (from streaming or kept)
         const newResponses = responseMessages
           .filter((rm) => !messagesByIDRef.current.has(rm.id))
           .map((message) => convertMessage(message));
+
+        // Only remove pre-inserted messages if we have replacements
+        if (newResponses.length === 0) {
+          return messages;
+        }
+
+        const kept = messages.filter((m) => !preInsertedIDs.includes(m.id));
         return [...kept, ...newResponses];
       });
     },
