@@ -166,11 +166,14 @@ async function handleProxyRequest(
   const headers = new Headers(request.headers);
   headers.set("x-tunnel-proxy-url", proxyUrl.toString());
 
+  // Use redirect: "manual" to prevent wrangler/workerd from following redirects
+  // The redirect response should be passed through to the client
   return session.fetch(
     new Request("https://tunnel/proxy", {
       method: request.method,
       headers,
       body: request.body,
+      redirect: "manual",
     })
   );
 }

@@ -366,7 +366,10 @@ export class TunnelClient {
         duplex: hasBody ? "half" : undefined,
       });
 
-      const response = await fetch(request);
+      // Don't follow redirects - pass them back to the browser
+      // Following redirects can cause TLS errors when the redirect target
+      // has different host requirements
+      const response = await fetch(request, { redirect: "manual" });
 
       // Send response headers
       const headers: Record<string, string> = {};

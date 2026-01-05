@@ -432,6 +432,46 @@ export function runSharedTests(
         // Should return 502 Bad Gateway for errors
         assert.strictEqual(response.status, 502);
       });
+
+      it("should handle redirect responses with Location header (no body)", async () => {
+        const redirectUrl = "https://example.com/redirected";
+        mockServer.setHandler((_req, res) => {
+          // Simulate a redirect like Hono's c.redirect() - status 302 with Location header
+          res.writeHead(302, { Location: redirectUrl });
+          res.end(); // No body
+        });
+
+        using _disposable = await connectClient({ secret: "redirect-test" });
+
+        const tunnelId = await getTunnelId("redirect-test", serverSecret);
+
+        // Use AbortController to timeout the request if it hangs
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        try {
+          const response = await fetch(
+            getTunnelUrl(server, tunnelId, "/callback"),
+            {
+              redirect: "manual", // Don't follow redirects, we want to inspect the response
+              signal: controller.signal,
+            }
+          );
+
+          clearTimeout(timeout);
+
+          assert.strictEqual(response.status, 302);
+          assert.strictEqual(response.headers.get("Location"), redirectUrl);
+        } catch (err) {
+          clearTimeout(timeout);
+          if ((err as Error).name === "AbortError") {
+            throw new Error(
+              "Redirect response timed out - body stream may not be closing properly"
+            );
+          }
+          throw err;
+        }
+      });
     });
 
     describe("websocket proxying", () => {
