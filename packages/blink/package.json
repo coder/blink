@@ -62,6 +62,11 @@
         "import": "./dist/node/react/index.node.js",
         "require": "./dist/node/react/index.node.cjs"
       }
+    },
+    "./internal": {
+      "types": "./dist/node/internal/index.d.ts",
+      "import": "./dist/node/internal/index.js",
+      "require": "./dist/node/internal/index.cjs"
     }
   },
   "files": [

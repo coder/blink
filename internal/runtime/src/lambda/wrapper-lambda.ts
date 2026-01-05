@@ -6,11 +6,12 @@
 // regenerate this file. The generated file is source-controlled.
 
 import { BlinkInvocationTokenHeader } from "@blink.so/runtime/types";
+import { runWithAuth } from "blink/internal";
 import { resolve } from "node:path";
 import { Writable } from "node:stream";
 import { startAgentServer, startInternalAPIServer } from "../server";
 
-const { setAuthToken, server, port } = startInternalAPIServer();
+const { server, port, setAuthToken } = startInternalAPIServer();
 // It is *extremely* important for Lambda's that we unref the server.
 // Otherwise, the Lambda will not exit when requests are made.
 // It will hang until the timeout.
@@ -29,48 +30,59 @@ const agent = await startAgentServer(
 
 export const handler = awslambda.streamifyResponse(
   async (event, responseStream, context) => {
-    // This prevents Lambda's from staying alive after we respond to a request.
-    // context.callbackWaitsForEmptyEventLoop = false;
-
-    // Lambda's never handle requests concurrently, but they do sequentially.
-    //
-    // We can just reset the waitUntil func at the beginning of requests
-    // to ensure they get a clean context.
-    //
-    // This is an internal symbol we use to expose waitUntil to agent code.
-    // It's not exported from the runtime package, so it's safe to use.
-    // We use a Symbol to avoid collisions with other libraries.
-    const waitUntilSymbol = Symbol.for("@blink/waitUntil");
-    // Storage for promises registered via waitUntil
-    const waitUntilPromises: Promise<any>[] = [];
-    // Expose waitUntil on globalThis
-    (globalThis as any)[waitUntilSymbol] = (promise: Promise<any>) => {
-      waitUntilPromises.push(promise);
-    };
-
-    const isV2 = "rawPath" in event;
-    const path = isV2 ? event.rawPath : event.path;
-    const query = isV2
-      ? event.rawQueryString
-      : new URLSearchParams(event.queryStringParameters || {}).toString();
-    const method = isV2 ? event.requestContext?.http?.method : event.httpMethod;
-
-    const url = new URL(
-      path + (query ? `?${query}` : ""),
-      "https://lambda.internal"
-    );
-
-    // Build canonical Headers
+    // Build canonical Headers first to extract auth token
     const headers = buildHeaders(event);
 
-    // Strip Blink header (case-insensitive)
+    // Extract and strip Blink auth token (case-insensitive)
+    let authToken: string | undefined;
     for (const [k, v] of headers.entries()) {
       if (k.toLowerCase() === BlinkInvocationTokenHeader.toLowerCase()) {
-        setAuthToken(v);
+        authToken = v;
         headers.delete(k);
         break;
       }
     }
+
+    // Set auth token for the internal API server (closure-based for HTTP boundary crossing)
+    if (authToken) {
+      setAuthToken(authToken);
+    }
+
+    // Use AsyncLocalStorage to ensure each request has its own auth context
+    // This is used by model() and other code that runs directly in the request context
+    return runWithAuth(authToken ?? "", async () => {
+      // This prevents Lambda's from staying alive after we respond to a request.
+      // context.callbackWaitsForEmptyEventLoop = false;
+
+      // Lambda's never handle requests concurrently, but they do sequentially.
+      //
+      // We can just reset the waitUntil func at the beginning of requests
+      // to ensure they get a clean context.
+      //
+      // This is an internal symbol we use to expose waitUntil to agent code.
+      // It's not exported from the runtime package, so it's safe to use.
+      // We use a Symbol to avoid collisions with other libraries.
+      const waitUntilSymbol = Symbol.for("@blink/waitUntil");
+      // Storage for promises registered via waitUntil
+      const waitUntilPromises: Promise<any>[] = [];
+      // Expose waitUntil on globalThis
+      (globalThis as any)[waitUntilSymbol] = (promise: Promise<any>) => {
+        waitUntilPromises.push(promise);
+      };
+
+      const isV2 = "rawPath" in event;
+      const path = isV2 ? event.rawPath : event.path;
+      const query = isV2
+        ? event.rawQueryString
+        : new URLSearchParams(event.queryStringParameters || {}).toString();
+      const method = isV2
+        ? event.requestContext?.http?.method
+        : event.httpMethod;
+
+      const url = new URL(
+        path + (query ? `?${query}` : ""),
+        "https://lambda.internal"
+      );
 
     let body: string | Buffer | undefined;
     if (event.body != null && method !== "GET" && method !== "HEAD") {
@@ -169,6 +181,7 @@ export const handler = awslambda.streamifyResponse(
         clearTimeout(flushTimeout);
       }
     }
+    }); // end runWithAuth
   }
 );
 

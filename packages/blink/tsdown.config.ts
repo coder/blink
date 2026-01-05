@@ -56,6 +56,7 @@ export default defineConfig([
       "./src/agent/index.node.ts",
       "./src/build/index.ts",
       "./src/react/index.node.ts",
+      "./src/internal/index.ts",
     ],
     platform: "node",
     format: ["esm", "cjs"],

@@ -7,6 +7,7 @@ import { hc } from "hono/client";
 import { validator } from "hono/validator";
 import * as http from "http";
 import type { api as apiServer } from "../control";
+import { getAuthToken } from "../internal/context";
 import { CustomChatResponseError } from "./internal/errors";
 import type { Promisable } from "./internal/types";
 import { flushOtel, otelMiddleware } from "./otel";
@@ -551,7 +552,7 @@ const model = (model: string, options?: { token?: string }) => {
   const token =
     options?.token ??
     process.env.BLINK_TOKEN ??
-    process.env.BLINK_INVOCATION_AUTH_TOKEN ??
+    getAuthToken() ??
     "fake-key";
   //   if (!token) {
   //     throw new Error(`You must be authenticated with Blink to use the model gateway.

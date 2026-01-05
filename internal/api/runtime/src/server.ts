@@ -7,6 +7,7 @@ import { createServerAdapter } from "@whatwg-node/server";
 import { AgentChat, AgentOtel, AgentStore, ID } from "blink";
 import { APIServerURLEnvironmentVariable } from "blink/client";
 import { api } from "blink/control";
+import { getAuthToken } from "blink/internal";
 import { createServer, Server } from "node:http";
 import {
   InternalAPIServerListenPortEnvironmentVariable,
@@ -17,15 +18,25 @@ import {
  * Starts the internal API server that routes internal Blink APIs to use
  * the Blink Cloud API server.
  *
- * @returns A function to set the authentication token.
+ * @returns The server, port, and a function to set the auth token.
  */
 export function startInternalAPIServer() {
+  // We use a closure variable for the internal API server's auth token.
+  // This is because the internal API server receives HTTP requests from
+  // the agent code, which run in a different async context than the
+  // original request wrapper. ALS doesn't propagate across HTTP boundaries.
+  //
+  // For concurrent request safety in Node.js, we also use ALS (runWithAuth)
+  // in the wrappers, but the internal API server uses this closure.
+  // Lambda handles requests sequentially, so the closure is safe there.
+  // For Node.js with concurrent requests, the internal API uses this closure
+  // while model() uses getAuthToken() from ALS.
   let blinkAuthToken: string | undefined;
 
   const getClient = () => {
     return new AgentInvocationClient({
       baseURL: process.env[InternalAPIServerURLEnvironmentVariable],
-      authToken: blinkAuthToken,
+      authToken: blinkAuthToken ?? getAuthToken(),
     });
   };
 
@@ -123,11 +134,13 @@ export function startInternalAPIServer() {
   return {
     server,
     port,
+    /**
+     * Set the auth token for the internal API server.
+     * This is used by the wrappers to set the token for each request.
+     * The internal API server uses this token when calling the Blink Cloud API.
+     */
     setAuthToken(authToken: string) {
       blinkAuthToken = authToken;
-      // This is an environment variable that is used by SDKs
-      // to send authenticated requests to the API.
-      process.env["BLINK_INVOCATION_AUTH_TOKEN"] = authToken;
     },
   };
 }
