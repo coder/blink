@@ -468,4 +468,71 @@ describe("useChat", () => {
 
     expect(result.current.error).toBeUndefined();
   });
+
+  // Bug reproduction: Pre-inserted message not removed when stream delivers the real message
+  it("does not duplicate user message when stream delivers it after empty response", async () => {
+    const client = createMockClient();
+
+    // Simulate streaming new chat: server returns empty messages array,
+    // and the user's message arrives via stream with a server-assigned ID
+    const serverAssignedUserId = "server-user-msg-1";
+
+    client.chats.create.mockResolvedValueOnce({
+      id: "chat-1",
+      messages: [], // Empty! Messages will come via stream for streaming chats
+      stream: createMockStream([
+        // The server sends back the user's message with its own ID
+        {
+          event: "message.created",
+          data: {
+            id: serverAssignedUserId,
+            role: "user",
+            parts: [{ type: "text", text: "Hello" }],
+          },
+        },
+        // Then the assistant responds
+        {
+          event: "message.created",
+          data: {
+            id: "assistant-1",
+            role: "assistant",
+            parts: [{ type: "text", text: "Hi there!" }],
+          },
+        },
+      ]),
+    });
+
+    const { result } = renderHook(() =>
+      useChat({
+        organization: "org-1",
+        agent: "agent-1",
+        client,
+      })
+    );
+
+    // Send a message - this will pre-insert with a temporary UUID
+    await result.current.sendMessage({ text: "Hello" });
+
+    // Wait for stream to process
+    await waitFor(
+      () => {
+        expect(result.current.messages.length).toBe(2);
+      },
+      { timeout: 2000 }
+    );
+
+    // CRITICAL ASSERTION: There should be exactly 1 user message, not 2
+    // The bug causes 2 user messages: one pre-inserted (temp UUID) + one from stream (server ID)
+    const userMessages = result.current.messages.filter(
+      (m) => m.role === "user"
+    );
+    expect(userMessages.length).toBe(1);
+    expect(userMessages[0].id).toBe(serverAssignedUserId);
+
+    // And exactly 1 assistant message
+    const assistantMessages = result.current.messages.filter(
+      (m) => m.role === "assistant"
+    );
+    expect(assistantMessages.length).toBe(1);
+  });
 });

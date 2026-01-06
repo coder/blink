@@ -122,6 +122,9 @@ export function useChat<UI_MESSAGE extends UIMessage>(
   // Initialize map
   messages.forEach((m) => messagesByIDRef.current.set(m.id, m));
 
+  // Track pre-inserted message IDs for deduplication when stream delivers real messages
+  const preInsertedIDsRef = useRef<Set<string>>(new Set());
+
   const [status, setStatus] =
     useState<UseChatUIHelpers<UI_MESSAGE>["status"]>("ready");
   const statusRef = useRef<UseChatUIHelpers<UI_MESSAGE>["status"]>(status);
@@ -307,12 +310,34 @@ export function useChat<UI_MESSAGE extends UIMessage>(
             case "message.chunk.added":
               await handleMessageChunk(message.data.id, message.data.chunk);
               break;
-            case "message.created":
+            case "message.created": {
               setMessagesAndSyncRefs((messages) => {
                 const index = messages.findIndex(
                   (m) => m.id === message.data.id
                 );
                 if (index === -1) {
+                  // Check if this is a user message that might be replacing a pre-inserted one
+                  if (
+                    message.data.role === "user" &&
+                    preInsertedIDsRef.current.size > 0
+                  ) {
+                    // Find and remove any pre-inserted message with the same role
+                    // The server echoes back user messages with server-assigned IDs
+                    const preInsertedIndex = messages.findIndex(
+                      (m) =>
+                        preInsertedIDsRef.current.has(m.id) && m.role === "user"
+                    );
+                    if (preInsertedIndex !== -1) {
+                      const preInsertedId = messages[preInsertedIndex].id;
+                      preInsertedIDsRef.current.delete(preInsertedId);
+                      // Replace the pre-inserted message with the server version
+                      return [
+                        ...messages.slice(0, preInsertedIndex),
+                        convertMessage(message.data),
+                        ...messages.slice(preInsertedIndex + 1),
+                      ];
+                    }
+                  }
                   return [...messages, convertMessage(message.data)];
                 }
                 return [
@@ -330,6 +355,7 @@ export function useChat<UI_MESSAGE extends UIMessage>(
                 activeMessageChunkStreamsRef.current.delete(message.data.id);
               }
               break;
+            }
             case "message.updated":
               setMessagesAndSyncRefs((messages) => {
                 const index = messages.findIndex(
@@ -522,6 +548,8 @@ export function useChat<UI_MESSAGE extends UIMessage>(
 
         const preInsertedID = crypto.randomUUID();
         preInsertedIDs.push(preInsertedID);
+        // Track pre-inserted ID for stream-based deduplication
+        preInsertedIDsRef.current.add(preInsertedID);
         setMessagesAndSyncRefs((messages) => [
           ...messages,
           {
@@ -569,6 +597,11 @@ export function useChat<UI_MESSAGE extends UIMessage>(
         // Only remove pre-inserted messages if we have replacements
         if (newResponses.length === 0) {
           return messages;
+        }
+
+        // Clean up the pre-inserted IDs from the ref since we're replacing them
+        for (const id of preInsertedIDs) {
+          preInsertedIDsRef.current.delete(id);
         }
 
         const kept = messages.filter((m) => !preInsertedIDs.includes(m.id));
