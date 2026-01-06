@@ -59,7 +59,10 @@ async function dockerRun(
   args: string[],
   script: string
 ): Promise<void> {
-  await execDocker([
+  // Pre-cleanup in case a previous run left this container behind
+  await dockerRm(name);
+
+  const { code, stderr } = await execDocker([
     "run",
     "--rm",
     "-d",
@@ -71,6 +74,10 @@ async function dockerRun(
     "-e",
     script,
   ]);
+
+  if (code !== 0) {
+    throw new Error(`Failed to start container ${name}: ${stderr}`);
+  }
 }
 
 async function dockerRm(name: string): Promise<void> {
@@ -114,22 +121,33 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ source: "container" }));
 });
-server.listen(0, "0.0.0.0", () => {
-  const port = server.address().port;
-  console.log("BLINK_PORT:" + port);
+const port = parseInt(process.env.LISTEN_PORT || "0", 10);
+server.listen(port, "0.0.0.0", () => {
+  const actualPort = server.address().port;
+  console.log("BLINK_PORT:" + actualPort);
 });
 `;
 
-async function testConnection(url: string, timeoutMs = 2000): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-    return response.ok;
-  } catch {
-    return false;
+async function testConnection(
+  url: string,
+  timeoutMs = 2000,
+  maxAttempts = 3
+): Promise<boolean> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (response.ok) return true;
+    } catch {
+      // Continue to next attempt
+    }
+    if (attempt < maxAttempts - 1) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
   }
+  return false;
 }
 
 async function testContainerToHost(
@@ -145,25 +163,31 @@ async function testContainerToHost(
   ];
 
   for (const addr of hostAddresses) {
-    try {
-      const script = `
-        fetch("http://${addr}:${hostPort}", { signal: AbortSignal.timeout(2000) })
-          .then(r => r.text())
-          .then(console.log)
-          .catch(() => process.exit(1))
-      `;
-      const { stdout, code } = await execDocker([
-        "exec",
-        containerName,
-        "node",
-        "-e",
-        script,
-      ]);
-      if (code === 0 && stdout.includes('"source":"host"')) {
-        return { success: true, address: addr };
+    // Retry each address a few times to handle transient failures
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const script = `
+          fetch("http://${addr}:${hostPort}", { signal: AbortSignal.timeout(2000) })
+            .then(r => r.text())
+            .then(console.log)
+            .catch(() => process.exit(1))
+        `;
+        const { stdout, code } = await execDocker([
+          "exec",
+          containerName,
+          "node",
+          "-e",
+          script,
+        ]);
+        if (code === 0 && stdout.includes('"source":"host"')) {
+          return { success: true, address: addr };
+        }
+      } catch {
+        // Continue to next attempt
       }
-    } catch {
-      // Continue to next address
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
     }
   }
   return { success: false, address: null };
@@ -191,17 +215,29 @@ export async function checkDockerNetworking(): Promise<NetworkingTestResult> {
   const BRIDGE_CONTAINER = "blink-net-test-bridge";
 
   try {
-    // Start containers in parallel (both bind to random ports)
+    // Start containers in parallel
+    // Host network: bind to random port (0) since we share the host's network
+    // Bridge network: bind to fixed port 3000 so Docker port mapping works
     await Promise.all([
       dockerRun(HOST_CONTAINER, ["--network", "host"], CONTAINER_SERVER_SCRIPT),
-      dockerRun(BRIDGE_CONTAINER, ["-p", "0:3000"], CONTAINER_SERVER_SCRIPT),
+      dockerRun(
+        BRIDGE_CONTAINER,
+        ["-e", "LISTEN_PORT=3000", "-p", "0:3000"],
+        CONTAINER_SERVER_SCRIPT
+      ),
     ]);
 
-    // Get the actual ports that were assigned
-    const [hostNetPort, bridgePort] = await Promise.all([
+    // Wait for both servers to be ready by checking their logs
+    // This ensures the server is actually listening before we test connections
+    const [hostNetPort, bridgeServerReady] = await Promise.all([
       getPortFromLogs(HOST_CONTAINER),
-      getPortFromDockerPort(BRIDGE_CONTAINER, 3000),
+      getPortFromLogs(BRIDGE_CONTAINER), // Wait for server to log its port (confirms it's listening)
     ]);
+
+    // For bridge container, get the mapped host port (server listens on 3000 inside)
+    const bridgePort = bridgeServerReady
+      ? await getPortFromDockerPort(BRIDGE_CONTAINER, 3000)
+      : null;
 
     const hostNetReady = hostNetPort !== null;
     const bridgeReady = bridgePort !== null;
