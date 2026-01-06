@@ -14,18 +14,39 @@ export interface RequestContext {
   authToken: string;
 }
 
+// Use a Symbol to create a unique global key that won't collide with other properties.
+// This ensures all copies of this module (bundled or external) share the same ALS instance.
+const BLINK_AUTH_CONTEXT_KEY = Symbol.for("@blink/authContext");
+
+/**
+ * Get or create the global AsyncLocalStorage instance.
+ * Using a global singleton ensures that bundled copies of this module
+ * share the same ALS instance as external copies.
+ */
+function getRequestContext(): AsyncLocalStorage<RequestContext> {
+  const g = globalThis as typeof globalThis & {
+    [BLINK_AUTH_CONTEXT_KEY]?: AsyncLocalStorage<RequestContext>;
+  };
+
+  if (!g[BLINK_AUTH_CONTEXT_KEY]) {
+    g[BLINK_AUTH_CONTEXT_KEY] = new AsyncLocalStorage<RequestContext>();
+  }
+
+  return g[BLINK_AUTH_CONTEXT_KEY];
+}
+
 /**
  * AsyncLocalStorage instance for request-scoped context.
  * Each async execution flow gets its own isolated store.
  */
-export const requestContext = new AsyncLocalStorage<RequestContext>();
+export const requestContext = getRequestContext();
 
 /**
  * Get the auth token for the current request context.
  * Returns undefined if called outside of a runWithAuth context.
  */
 export function getAuthToken(): string | undefined {
-  return requestContext.getStore()?.authToken;
+  return getRequestContext().getStore()?.authToken;
 }
 
 /**
@@ -33,5 +54,5 @@ export function getAuthToken(): string | undefined {
  * All async operations within `fn` will have access to this token.
  */
 export function runWithAuth<T>(authToken: string, fn: () => T): T {
-  return requestContext.run({ authToken }, fn);
+  return getRequestContext().run({ authToken }, fn);
 }

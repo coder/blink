@@ -7,7 +7,7 @@ import { hc } from "hono/client";
 import { validator } from "hono/validator";
 import * as http from "http";
 import type { api as apiServer } from "../control";
-import { getAuthToken } from "../internal/context";
+import { getAuthToken, runWithAuth } from "../internal/context";
 import { CustomChatResponseError } from "./internal/errors";
 import type { Promisable } from "./internal/types";
 import { flushOtel, otelMiddleware } from "./otel";
@@ -343,6 +343,14 @@ export class Agent<MESSAGE extends UIMessage> {
    * @returns
    */
   public fetch(request: Request) {
+    // Read auth token from request header (set by the wrapper's proxy).
+    // Set up AsyncLocalStorage context so internal API calls have access to the token.
+    const authToken = request.headers.get("x-blink-internal-auth");
+    if (authToken) {
+      return runWithAuth(authToken, () =>
+        api.fetch(request, { listeners: this.listeners })
+      );
+    }
     return api.fetch(request, {
       listeners: this.listeners,
     });
