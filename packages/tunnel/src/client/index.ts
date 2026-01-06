@@ -86,6 +86,21 @@ export interface TunnelClientOptions {
    * Called when an error occurs.
    */
   onError?: (error: unknown) => void;
+
+  /**
+   * Interval in milliseconds between ping messages sent to detect dead connections.
+   * Set to 0 to disable ping/pong keepalive.
+   * @default 30000 (30 seconds)
+   */
+  pingIntervalMs?: number;
+
+  /**
+   * Timeout in milliseconds to wait for a pong response before considering the connection dead.
+   * If no pong is received within this time after a ping, the connection will be terminated
+   * and reconnection will be attempted.
+   * @default 10000 (10 seconds)
+   */
+  pongTimeoutMs?: number;
 }
 
 /**
@@ -125,6 +140,12 @@ export class TunnelClient {
     let disposed = false;
     let multiplexer: Multiplexer | undefined;
 
+    // Ping/pong keepalive to detect dead connections
+    const pingIntervalMs = this.opts.pingIntervalMs ?? 30_000;
+    const pongTimeoutMs = this.opts.pongTimeoutMs ?? 10_000;
+    let pingInterval: ReturnType<typeof setInterval> | undefined;
+    let pongTimeout: ReturnType<typeof setTimeout> | undefined;
+
     // Exponential backoff with jitter
     const baseDelayMS = 250;
     const maxDelayMS = 10_000;
@@ -135,6 +156,38 @@ export class TunnelClient {
         clearTimeout(reconnectTimeout);
         reconnectTimeout = undefined;
       }
+    };
+
+    const clearPingPong = () => {
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = undefined;
+      }
+      if (pongTimeout) {
+        clearTimeout(pongTimeout);
+        pongTimeout = undefined;
+      }
+    };
+
+    const startPingPong = () => {
+      // Skip if ping/pong is disabled
+      if (pingIntervalMs <= 0) return;
+
+      clearPingPong();
+      pingInterval = setInterval(() => {
+        if (socket?.readyState === WebSocket.OPEN) {
+          socket.ping();
+          // Set timeout for pong response
+          pongTimeout = setTimeout(() => {
+            // No pong received, connection is dead
+            try {
+              socket?.terminate();
+            } catch {
+              // Ignore terminate errors
+            }
+          }, pongTimeoutMs);
+        }
+      }, pingIntervalMs);
     };
 
     const scheduleReconnect = () => {
@@ -182,6 +235,15 @@ export class TunnelClient {
         socket.on("open", () => {
           if (disposed) return;
           resetBackoff();
+          startPingPong();
+        });
+
+        socket.on("pong", () => {
+          // Pong received, connection is alive - clear the timeout
+          if (pongTimeout) {
+            clearTimeout(pongTimeout);
+            pongTimeout = undefined;
+          }
         });
 
         socket.on("message", (data: ArrayBuffer | Buffer) => {
@@ -212,6 +274,7 @@ export class TunnelClient {
         });
 
         socket.on("close", () => {
+          clearPingPong();
           this.opts.onDisconnect?.();
           if (disposed) return;
           multiplexer = undefined;
@@ -219,6 +282,7 @@ export class TunnelClient {
         });
 
         socket.on("error", (err) => {
+          clearPingPong();
           try {
             this.opts.onError?.(err);
           } catch {
@@ -247,6 +311,7 @@ export class TunnelClient {
         if (disposed) return;
         disposed = true;
         clearReconnectTimer();
+        clearPingPong();
         const ws = socket;
         socket = undefined;
         multiplexer = undefined;

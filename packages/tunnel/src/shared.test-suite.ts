@@ -2040,6 +2040,190 @@ export function runSharedTests(
       });
     });
 
+    describe("connection keepalive", () => {
+      it("should keep connection alive when pong is received", async () => {
+        // Use short intervals for testing
+        const pingIntervalMs = 50;
+        const pongTimeoutMs = 100;
+
+        let connectCount = 0;
+        let disconnectCount = 0;
+
+        mockServer.setHandler((_req, res) => {
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        const client = new TunnelClient({
+          serverUrl: server.url,
+          secret: "ping-pong-alive-test",
+          transformRequest: ({ method, url, headers }) => {
+            url.host = `127.0.0.1:${mockServer.port}`;
+            return { method, url, headers };
+          },
+          pingIntervalMs,
+          pongTimeoutMs,
+          onConnect: () => {
+            connectCount++;
+          },
+          onDisconnect: () => {
+            disconnectCount++;
+          },
+        });
+
+        const disposable = client.connect();
+
+        // Wait for connection
+        await new Promise<void>((resolve) => {
+          const checkConnect = setInterval(() => {
+            if (connectCount > 0) {
+              clearInterval(checkConnect);
+              resolve();
+            }
+          }, 10);
+        });
+
+        // Wait for several ping cycles (server automatically responds to pings)
+        await new Promise((resolve) => setTimeout(resolve, pingIntervalMs * 5));
+
+        disposable.dispose();
+
+        // Should have connected exactly once (no reconnections needed)
+        assert.strictEqual(
+          connectCount,
+          1,
+          "Connection should remain stable with working pong"
+        );
+        // Disconnect count should be 0 or 1 (1 from our dispose call)
+        assert.ok(
+          disconnectCount <= 1,
+          `Expected at most 1 disconnection (from dispose), got ${disconnectCount}`
+        );
+      });
+
+      it("should not send pings when pingIntervalMs is 0", async () => {
+        let connectCount = 0;
+        let disconnectCount = 0;
+
+        mockServer.setHandler((_req, res) => {
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        const client = new TunnelClient({
+          serverUrl: server.url,
+          secret: "ping-disabled-test",
+          transformRequest: ({ method, url, headers }) => {
+            url.host = `127.0.0.1:${mockServer.port}`;
+            return { method, url, headers };
+          },
+          pingIntervalMs: 0, // Disable ping/pong
+          pongTimeoutMs: 50,
+          onConnect: () => {
+            connectCount++;
+          },
+          onDisconnect: () => {
+            disconnectCount++;
+          },
+        });
+
+        const disposable = client.connect();
+
+        // Wait for connection
+        await new Promise<void>((resolve) => {
+          const checkConnect = setInterval(() => {
+            if (connectCount > 0) {
+              clearInterval(checkConnect);
+              resolve();
+            }
+          }, 10);
+        });
+
+        // Wait for what would be several ping cycles if enabled
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        // Check counts before dispose (dispose triggers onDisconnect)
+        const connectCountBeforeDispose = connectCount;
+        const disconnectCountBeforeDispose = disconnectCount;
+
+        disposable.dispose();
+
+        // Should have connected exactly once (no ping-triggered reconnections)
+        assert.strictEqual(
+          connectCountBeforeDispose,
+          1,
+          "Connection should remain stable with pings disabled"
+        );
+        assert.strictEqual(
+          disconnectCountBeforeDispose,
+          0,
+          "No disconnections should occur before dispose"
+        );
+      });
+
+      it("should use custom ping interval and pong timeout values", async () => {
+        // Test that custom values are respected by verifying behavior
+        // with very short ping interval
+        const pingIntervalMs = 25;
+        const pongTimeoutMs = 50;
+
+        let connectCount = 0;
+
+        mockServer.setHandler((_req, res) => {
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        const client = new TunnelClient({
+          serverUrl: server.url,
+          secret: "custom-ping-values-test",
+          transformRequest: ({ method, url, headers }) => {
+            url.host = `127.0.0.1:${mockServer.port}`;
+            return { method, url, headers };
+          },
+          pingIntervalMs,
+          pongTimeoutMs,
+          onConnect: () => {
+            connectCount++;
+          },
+        });
+
+        const disposable = client.connect();
+
+        // Wait for connection
+        await new Promise<void>((resolve) => {
+          const checkConnect = setInterval(() => {
+            if (connectCount > 0) {
+              clearInterval(checkConnect);
+              resolve();
+            }
+          }, 10);
+        });
+
+        // Wait for many ping cycles - if ping/pong works, connection stays alive
+        await new Promise((resolve) =>
+          setTimeout(resolve, pingIntervalMs * 10)
+        );
+
+        // Make a request to verify connection still works
+        const tunnelId = await getTunnelId(
+          "custom-ping-values-test",
+          serverSecret
+        );
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
+        assert.strictEqual(response.status, 200);
+
+        disposable.dispose();
+
+        // Only one connection - no unnecessary reconnects
+        assert.strictEqual(
+          connectCount,
+          1,
+          "Should maintain single connection with custom ping values"
+        );
+      });
+    });
+
     describe("error handling", () => {
       it("should return 502 for handler errors", async () => {
         mockServer.setHandler((_req, res) => {
