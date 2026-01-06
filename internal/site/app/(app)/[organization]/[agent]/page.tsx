@@ -1,17 +1,16 @@
+import { Clock, Globe, Lock } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth } from "@/app/(auth)/auth";
+import AgentPinned from "@/components/agent-pinned";
 import Avatar from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getQuerier } from "@/lib/database";
-import { Clock, Globe, Lock } from "lucide-react";
-import Link from "next/link";
-import { redirect } from "next/navigation";
 import { getAgent, getOrganization } from "../layout";
 import AgentDailyChats from "./components/agent-daily-chats";
-// import AgentReadme from "./components/agent-readme";
-// import RecentSteps from "./recent-steps";
-import AgentPinned from "@/components/agent-pinned";
-import type { Metadata } from "next";
+import AgentReadme from "./components/agent-readme";
 
 export async function generateMetadata(props: {
   params: Promise<{ organization: string; agent: string }>;
@@ -54,7 +53,7 @@ export default async function Page({
   if (!session || !session?.user?.id) {
     return redirect("/login");
   }
-  const [organization, agent] = await Promise.all([
+  const [_org, agent] = await Promise.all([
     getOrganization(session.user.id, organizationName),
     getAgent(organizationName, agentName),
   ]);
@@ -69,25 +68,17 @@ export default async function Page({
     db.selectUserByID(agent.created_by),
   ]);
 
-  // const readmeFileID = latestDeployment?.source_files?.find(
-  //   (file) => file.path === "README.md"
-  // )?.id;
+  const readmeFileID = latestDeployment?.source_files?.find(
+    (file) => file.path.toLowerCase() === "readme.md"
+  )?.id;
 
-  // const baseURL = process.env.VERCEL_PROJECT_PRODUCTION_URL
-  //   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  //   : "http://localhost:3000";
-
-  // let readmeContent: string | undefined;
-  // if (readmeFileID) {
-  //   const res = await fetch(`${baseURL}/api/files/${readmeFileID}`);
-  //   readmeContent = await res.text();
-  // }
-
-  // const defaultReadmeMessage =
-  //   "This agent does not have a README. Add a README to your agent so that users know how to use your agent.";
-  // if (!readmeContent || readmeContent.trim().length === 0) {
-  //   readmeContent = defaultReadmeMessage;
-  // }
+  let readmeContent: string | undefined;
+  if (readmeFileID) {
+    const readmeFile = await db.selectFileByID(readmeFileID);
+    if (readmeFile?.content) {
+      readmeContent = Buffer.from(readmeFile.content).toString("utf-8");
+    }
+  }
 
   return (
     <div className="flex flex-col flex-1 w-full items-center">
@@ -130,7 +121,7 @@ export default async function Page({
 
         <div className="flex w-full flex-col md:flex-row gap-8">
           <div className="w-full md:basis-[70%]">
-            {/* README section - keeping layout space empty for now */}
+            {readmeContent && <AgentReadme content={readmeContent} />}
           </div>
 
           <div className="w-full md:basis-[30%] gap-8 flex flex-col">
