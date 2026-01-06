@@ -27,7 +27,7 @@ export const InternalAuthHeader = "x-blink-internal-auth";
  */
 export function patchFetchWithAuth(internalAPIOrigin: string): void {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (input, init) => {
+  const patchedFetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
       typeof input === "string"
         ? input
@@ -44,6 +44,9 @@ export function patchFetchWithAuth(internalAPIOrigin: string): void {
     }
     return originalFetch(input, init);
   };
+  // Preserve any static properties (e.g., Bun's fetch.preconnect)
+  Object.assign(patchedFetch, originalFetch);
+  globalThis.fetch = patchedFetch as typeof fetch;
 }
 
 /**

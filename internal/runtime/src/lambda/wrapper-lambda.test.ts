@@ -68,6 +68,38 @@ afterAll(async () => {
 });
 
 test(
+  "concurrent requests have isolated auth contexts",
+  async () => {
+    const fetch = await mockHandler(
+      require.resolve("./fixtures/echo-auth-token")
+    );
+
+    // Send multiple concurrent requests with different tokens
+    const tokens = ["token-A", "token-B", "token-C", "token-D", "token-E"];
+    const requests = tokens.map((token) =>
+      fetch(
+        new Request("http://localhost:3000/", {
+          headers: {
+            [BlinkInvocationTokenHeader]: token,
+          },
+        })
+      ).then(async (resp) => ({
+        sent: token,
+        received: await resp.text(),
+      }))
+    );
+
+    const results = await Promise.all(requests);
+
+    // Each request should receive back the same token it sent
+    for (const { sent, received } of results) {
+      expect(received).toBe(sent);
+    }
+  },
+  { timeout: 10_000 }
+);
+
+test(
   "using the storage api",
   async () => {
     const { url, helpers, bindings, stop } = await serve();
