@@ -43,11 +43,5 @@ export default defineConfig([
     ...commonConfig,
     entry: ["src/client.node.ts"],
     target: "es2020",
-    copy: [
-      {
-        from: "package.public.json",
-        to: "dist/package.json",
-      },
-    ],
   },
 ]);
