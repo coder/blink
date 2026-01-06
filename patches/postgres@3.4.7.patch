@@ -1,0 +1,94 @@
+# based on https://github.com/porsager/postgres/commit/3ffc3c4041b21af217feba5668821775bfc071df
+diff --git a/cf/src/connection.js b/cf/src/connection.js
+index 203af80d072552c32d5f748b8245c0052e2998bc..893d6f185f0e6be8975a9df90655ce8857b7c7ab 100644
+--- a/cf/src/connection.js
++++ b/cf/src/connection.js
+@@ -86,7 +86,7 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+     , statements = {}
+     , statementId = Math.random().toString(36).slice(2)
+     , statementCount = 1
+-    , closedDate = 0
++    , closedTime = 0
+     , remaining = 0
+     , hostIndex = 0
+     , retries = 0
+@@ -352,7 +352,7 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+   }
+ 
+   function reconnect() {
+-    setTimeout(connect, closedDate ? closedDate + delay - performance.now() : 0)
++    setTimeout(connect, closedTime ? Math.max(0, closedTime + delay - performance.now()) : 0)
+   }
+ 
+   function connected() {
+@@ -444,7 +444,7 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+       return reconnect()
+ 
+     !hadError && (query || sent.length) && error(Errors.connection('CONNECTION_CLOSED', options, socket))
+-    closedDate = performance.now()
++    closedTime = performance.now()
+     hadError && options.shared.retries++
+     delay = (typeof backoff === 'function' ? backoff(options.shared.retries) : backoff) * 1000
+     onclose(connection, Errors.connection('CONNECTION_CLOSED', options, socket))
+diff --git a/cjs/src/connection.js b/cjs/src/connection.js
+index 589d36382ca943c90679dbe22aaff06d252f6532..e1e2428577df907def88c9b44c843ddfd8b0fcd6 100644
+--- a/cjs/src/connection.js
++++ b/cjs/src/connection.js
+@@ -84,7 +84,7 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+     , statements = {}
+     , statementId = Math.random().toString(36).slice(2)
+     , statementCount = 1
+-    , closedDate = 0
++    , closedTime = 0
+     , remaining = 0
+     , hostIndex = 0
+     , retries = 0
+@@ -350,7 +350,7 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+   }
+ 
+   function reconnect() {
+-    setTimeout(connect, closedDate ? closedDate + delay - performance.now() : 0)
++    setTimeout(connect, closedTime ? Math.max(0, closedTime + delay - performance.now()) : 0)
+   }
+ 
+   function connected() {
+@@ -442,7 +442,7 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+       return reconnect()
+ 
+     !hadError && (query || sent.length) && error(Errors.connection('CONNECTION_CLOSED', options, socket))
+-    closedDate = performance.now()
++    closedTime = performance.now()
+     hadError && options.shared.retries++
+     delay = (typeof backoff === 'function' ? backoff(options.shared.retries) : backoff) * 1000
+     onclose(connection, Errors.connection('CONNECTION_CLOSED', options, socket))
+diff --git a/src/connection.js b/src/connection.js
+index c3f554aada71a79dc3c3cb489b722e9cf53961f3..547948bb0fc7a42add4ba047d2db486edda3ec40 100644
+--- a/src/connection.js
++++ b/src/connection.js
+@@ -84,7 +84,7 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+     , statements = {}
+     , statementId = Math.random().toString(36).slice(2)
+     , statementCount = 1
+-    , closedDate = 0
++    , closedTime = 0
+     , remaining = 0
+     , hostIndex = 0
+     , retries = 0
+@@ -350,7 +350,7 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+   }
+ 
+   function reconnect() {
+-    setTimeout(connect, closedDate ? closedDate + delay - performance.now() : 0)
++    setTimeout(connect, closedTime ? Math.max(0, closedTime + delay - performance.now()) : 0)
+   }
+ 
+   function connected() {
+@@ -442,7 +442,7 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+       return reconnect()
+ 
+     !hadError && (query || sent.length) && error(Errors.connection('CONNECTION_CLOSED', options, socket))
+-    closedDate = performance.now()
++    closedTime = performance.now()
+     hadError && options.shared.retries++
+     delay = (typeof backoff === 'function' ? backoff(options.shared.retries) : backoff) * 1000
+     onclose(connection, Errors.connection('CONNECTION_CLOSED', options, socket))

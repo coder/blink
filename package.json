@@ -24,5 +24,8 @@
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "patchedDependencies": {
+    "postgres@3.4.7": "patches/postgres@3.4.7.patch"
   }
 }
