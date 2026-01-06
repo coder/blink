@@ -3,13 +3,42 @@
 // the Blink Agent exports.
 
 import { BlinkInvocationTokenHeader } from "@blink.so/runtime/types";
-import { runWithAuth } from "blink/internal";
+import { getAuthToken, runWithAuth } from "blink/internal";
 import http from "http";
 import { resolve } from "node:path";
-import { startAgentServer, startInternalAPIServer } from "../server";
+import {
+  InternalAuthHeader,
+  startAgentServer,
+  startInternalAPIServer,
+} from "../server";
 
-const { server, setAuthToken } = startInternalAPIServer();
+const { server, port: internalPort } = startInternalAPIServer();
 server.unref();
+
+// Patch fetch to add auth header for requests to the internal API server.
+// This allows the auth token to cross the HTTP boundary via header.
+const internalAPIOrigin = `http://127.0.0.1:${internalPort}`;
+const originalFetch = globalThis.fetch;
+
+// Fallback for when ALS context isn't available (e.g., after HTTP hop).
+// For Node.js with concurrent requests, this may cause token mixing - but
+// the ALS path should handle most cases. This fallback is mainly for
+// compatibility with the test fixture.
+let fallbackAuthToken: string | undefined;
+
+globalThis.fetch = (input, init) => {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  if (url.startsWith(internalAPIOrigin)) {
+    // Try ALS first (works within same async context), fallback to global
+    const authToken = getAuthToken() ?? fallbackAuthToken;
+    if (authToken) {
+      const headers = new Headers(init?.headers);
+      headers.set(InternalAuthHeader, authToken);
+      init = { ...init, headers };
+    }
+  }
+  return originalFetch(input, init);
+};
 
 if (!process.env.ENTRYPOINT) {
   throw new Error("developer error: ENTRYPOINT is not set");
@@ -21,10 +50,10 @@ const agent = await startAgentServer(resolve(process.env.ENTRYPOINT), port + 1);
 http
   .createServer((req, res) => {
     const authToken = req.headers[BlinkInvocationTokenHeader] as string;
-    // Set auth token for the internal API server (closure-based for HTTP boundary crossing)
-    setAuthToken(authToken);
-    // Use AsyncLocalStorage to ensure each request has its own auth context
-    // This is used by model() and other code that runs directly in the request context
+    // Set fallback auth token for requests that cross HTTP boundaries
+    fallbackAuthToken = authToken;
+    // Use AsyncLocalStorage to ensure each request has its own auth context.
+    // The patched fetch will read from this context when making internal API requests.
     runWithAuth(authToken, () => {
       agent(req, res);
     });

@@ -15,111 +15,111 @@ import {
 } from "./types";
 
 /**
+ * Header used to pass auth token to the internal API server.
+ * The wrapper patches fetch to add this header for internal API requests.
+ */
+export const InternalAuthHeader = "x-blink-internal-auth";
+
+/**
  * Starts the internal API server that routes internal Blink APIs to use
  * the Blink Cloud API server.
  *
- * @returns The server, port, and a function to set the auth token.
+ * @returns The server and port information.
  */
 export function startInternalAPIServer() {
-  // We use a closure variable for the internal API server's auth token.
-  // This is because the internal API server receives HTTP requests from
-  // the agent code, which run in a different async context than the
-  // original request wrapper. ALS doesn't propagate across HTTP boundaries.
-  //
-  // For concurrent request safety in Node.js, we also use ALS (runWithAuth)
-  // in the wrappers, but the internal API server uses this closure.
-  // Lambda handles requests sequentially, so the closure is safe there.
-  // For Node.js with concurrent requests, the internal API uses this closure
-  // while model() uses getAuthToken() from ALS.
-  let blinkAuthToken: string | undefined;
-
-  const getClient = () => {
-    return new AgentInvocationClient({
-      baseURL: process.env[InternalAPIServerURLEnvironmentVariable],
-      authToken: blinkAuthToken ?? getAuthToken(),
-    });
-  };
-
   // Start the API server that routes internal Blink APIs to use
   // the Blink Cloud API server.
   const port = process.env[InternalAPIServerListenPortEnvironmentVariable]
     ? parseInt(process.env[InternalAPIServerListenPortEnvironmentVariable])
     : 12345;
 
-  const store: AgentStore = {
-    get(key) {
-      return getClient().getStorage(key);
-    },
-    set(key, value) {
-      return getClient().setStorage(key, value);
-    },
-    delete(key) {
-      return getClient().deleteStorage(key);
-    },
-    list(prefix, options) {
-      return getClient().listStorage(prefix, options);
-    },
-  };
-  const otlp: AgentOtel = {
-    traces(request) {
-      return getClient().proxyOtlpTraces(request);
-    },
-  };
-
-  const chat: AgentChat = {
-    upsert: async (key) => {
-      const resp = await getClient().upsertChat(JSON.stringify(key));
-      return {
-        created: resp.created,
-        id: resp.id as ID,
-        createdAt: resp.created_at,
-      };
-    },
-    delete: async (id) => {
-      await getClient().deleteChat(id);
-    },
-    deleteMessages: async (id, messageIds) => {
-      await getClient().deleteMessages(id, messageIds);
-    },
-    get: async (id) => {
-      const resp = await getClient().getChat(id);
-      if (!resp) {
-        return undefined;
-      }
-      return {
-        id: resp.id as ID,
-        createdAt: resp.createdAt,
-      };
-    },
-    getMessages: async (id) => {
-      const messages = await getClient().getMessages(id);
-      return messages.map((message) => ({
-        id: message.id as ID,
-        role: message.role,
-        parts: message.parts,
-        metadata: message.metadata,
-      }));
-    },
-    start: async (id) => {
-      await getClient().startChat(id);
-    },
-    stop: async (id) => {
-      await getClient().stopChat(id);
-    },
-    sendMessages: async (id, messages, options) => {
-      await getClient().sendMessages(id, {
-        messages: messages.map((msg) => ({
-          id: msg.id,
-          role: msg.role,
-          parts: msg.parts,
-          metadata: msg.metadata,
-        })),
-        behavior: options?.behavior ?? "enqueue",
-      });
-    },
-  };
   const server = createServer(
     createServerAdapter((request) => {
+      // Extract auth token from request header.
+      // This is passed by the patched fetch in the wrapper.
+      const authToken = request.headers.get(InternalAuthHeader) ?? undefined;
+
+      // Create a client for this specific request with its auth token
+      const client = new AgentInvocationClient({
+        baseURL: process.env[InternalAPIServerURLEnvironmentVariable],
+        authToken,
+      });
+
+      // Create request-scoped bindings that use this client
+      const store: AgentStore = {
+        get(key) {
+          return client.getStorage(key);
+        },
+        set(key, value) {
+          return client.setStorage(key, value);
+        },
+        delete(key) {
+          return client.deleteStorage(key);
+        },
+        list(prefix, options) {
+          return client.listStorage(prefix, options);
+        },
+      };
+
+      const otlp: AgentOtel = {
+        traces(req) {
+          return client.proxyOtlpTraces(req);
+        },
+      };
+
+      const chat: AgentChat = {
+        upsert: async (key) => {
+          const resp = await client.upsertChat(JSON.stringify(key));
+          return {
+            created: resp.created,
+            id: resp.id as ID,
+            createdAt: resp.created_at,
+          };
+        },
+        delete: async (id) => {
+          await client.deleteChat(id);
+        },
+        deleteMessages: async (id, messageIds) => {
+          await client.deleteMessages(id, messageIds);
+        },
+        get: async (id) => {
+          const resp = await client.getChat(id);
+          if (!resp) {
+            return undefined;
+          }
+          return {
+            id: resp.id as ID,
+            createdAt: resp.createdAt,
+          };
+        },
+        getMessages: async (id) => {
+          const messages = await client.getMessages(id);
+          return messages.map((message) => ({
+            id: message.id as ID,
+            role: message.role,
+            parts: message.parts,
+            metadata: message.metadata,
+          }));
+        },
+        start: async (id) => {
+          await client.startChat(id);
+        },
+        stop: async (id) => {
+          await client.stopChat(id);
+        },
+        sendMessages: async (id, messages, options) => {
+          await client.sendMessages(id, {
+            messages: messages.map((msg) => ({
+              id: msg.id,
+              role: msg.role,
+              parts: msg.parts,
+              metadata: msg.metadata,
+            })),
+            behavior: options?.behavior ?? "enqueue",
+          });
+        },
+      };
+
       return api.fetch(request, {
         chat,
         store,
@@ -127,6 +127,7 @@ export function startInternalAPIServer() {
       });
     })
   );
+
   server.listen(port, "127.0.0.1");
   // This is for the agents to know where to send requests to.
   process.env[APIServerURLEnvironmentVariable] = `http://127.0.0.1:${port}`;
@@ -134,14 +135,6 @@ export function startInternalAPIServer() {
   return {
     server,
     port,
-    /**
-     * Set the auth token for the internal API server.
-     * This is used by the wrappers to set the token for each request.
-     * The internal API server uses this token when calling the Blink Cloud API.
-     */
-    setAuthToken(authToken: string) {
-      blinkAuthToken = authToken;
-    },
   };
 }
 
@@ -180,7 +173,22 @@ export async function startAgentServer(
     const newURL = new URL(agentUrl);
     newURL.pathname = reqURL.pathname;
     newURL.search = reqURL.search;
-    return fetch(newURL.toString(), request);
+
+    // Add auth header to the proxied request so the agent code can access it.
+    // The agent's internal API requests will include this header.
+    const authToken = getAuthToken();
+    const headers = new Headers(request.headers);
+    if (authToken) {
+      headers.set(InternalAuthHeader, authToken);
+    }
+
+    return fetch(newURL.toString(), {
+      method: request.method,
+      headers,
+      body: request.body,
+      // @ts-ignore - duplex is needed for streaming bodies
+      duplex: "half",
+    });
   });
   await listeningPromise;
   return handler;

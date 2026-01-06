@@ -6,16 +6,50 @@
 // regenerate this file. The generated file is source-controlled.
 
 import { BlinkInvocationTokenHeader } from "@blink.so/runtime/types";
-import { runWithAuth } from "blink/internal";
+import { getAuthToken, runWithAuth } from "blink/internal";
 import { resolve } from "node:path";
 import { Writable } from "node:stream";
-import { startAgentServer, startInternalAPIServer } from "../server";
+import {
+  InternalAuthHeader,
+  startAgentServer,
+  startInternalAPIServer,
+} from "../server";
 
-const { server, port, setAuthToken } = startInternalAPIServer();
+const { server, port } = startInternalAPIServer();
 // It is *extremely* important for Lambda's that we unref the server.
 // Otherwise, the Lambda will not exit when requests are made.
 // It will hang until the timeout.
 server.unref();
+
+// Patch fetch to add auth header for requests to the internal API server.
+// This allows the auth token to cross the HTTP boundary via header.
+const internalAPIOrigin = `http://127.0.0.1:${port}`;
+const originalFetch = globalThis.fetch;
+
+// Fallback for when ALS context isn't available (e.g., after HTTP hop).
+// This is safe for Lambda which handles requests sequentially.
+let fallbackAuthToken: string | undefined;
+
+globalThis.fetch = (input, init) => {
+  const url =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+  if (url.startsWith(internalAPIOrigin)) {
+    // Try ALS first (works within same async context), fallback to global
+    const authToken = getAuthToken() ?? fallbackAuthToken;
+    if (authToken) {
+      const headers = new Headers(init?.headers);
+      headers.set(InternalAuthHeader, authToken);
+      init = { ...init, headers };
+    }
+  }
+  return originalFetch(input, init);
+};
+
+
 
 if (!process.env.ENTRYPOINT) {
   throw new Error("developer error: ENTRYPOINT is not set");
@@ -43,13 +77,13 @@ export const handler = awslambda.streamifyResponse(
       }
     }
 
-    // Set auth token for the internal API server (closure-based for HTTP boundary crossing)
-    if (authToken) {
-      setAuthToken(authToken);
-    }
+    // Set fallback auth token for requests that cross HTTP boundaries
+    // (e.g., when agent code makes requests from inside its HTTP handler).
+    // This is safe for Lambda which handles requests sequentially.
+    fallbackAuthToken = authToken;
 
-    // Use AsyncLocalStorage to ensure each request has its own auth context
-    // This is used by model() and other code that runs directly in the request context
+    // Use AsyncLocalStorage to ensure each request has its own auth context.
+    // The patched fetch will read from this context when making internal API requests.
     return runWithAuth(authToken ?? "", async () => {
       // This prevents Lambda's from staying alive after we respond to a request.
       // context.callbackWaitsForEmptyEventLoop = false;

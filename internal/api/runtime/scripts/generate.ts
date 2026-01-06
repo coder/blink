@@ -8,6 +8,7 @@ let result = await Bun.build({
   target: "node",
   format: "esm",
   minify: true,
+  packages: "bundle",
 });
 
 let output = result.outputs[0];
@@ -31,6 +32,7 @@ result = await Bun.build({
   entrypoints: [wrapperLambda],
   target: "node",
   format: "esm",
+  packages: "bundle",
 });
 
 output = result.outputs[0];
