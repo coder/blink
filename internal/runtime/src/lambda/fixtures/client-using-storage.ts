@@ -7,7 +7,7 @@ import http from "http";
 // Here we're going to make it actually attempt to request the Blink API.
 const client = hc<typeof api>(process.env[APIServerURLEnvironmentVariable]!);
 
-// The internal auth header name - same as used by the wrapper
+// Header name for internal auth - must match the value in server.ts
 const InternalAuthHeader = "x-blink-internal-auth";
 
 http

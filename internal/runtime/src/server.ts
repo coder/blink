@@ -21,6 +21,32 @@ import {
 export const InternalAuthHeader = "x-blink-internal-auth";
 
 /**
+ * Patches globalThis.fetch to automatically add the auth token header
+ * for requests to the internal API server. This allows the auth token
+ * to cross the HTTP boundary from agent code to the internal API.
+ */
+export function patchFetchWithAuth(internalAPIOrigin: string): void {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (input, init) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    if (url.startsWith(internalAPIOrigin)) {
+      const authToken = getAuthToken();
+      if (authToken) {
+        const headers = new Headers(init?.headers);
+        headers.set(InternalAuthHeader, authToken);
+        init = { ...init, headers };
+      }
+    }
+    return originalFetch(input, init);
+  };
+}
+
+/**
  * Starts the internal API server that routes internal Blink APIs to use
  * the Blink Cloud API server.
  *

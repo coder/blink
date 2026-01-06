@@ -3,35 +3,18 @@
 // the Blink Agent exports.
 
 import { BlinkInvocationTokenHeader } from "@blink.so/runtime/types";
-import { getAuthToken, runWithAuth } from "blink/internal";
+import { runWithAuth } from "blink/internal";
 import http from "http";
 import { resolve } from "node:path";
 import {
-  InternalAuthHeader,
+  patchFetchWithAuth,
   startAgentServer,
   startInternalAPIServer,
 } from "../server";
 
 const { server, port: internalPort } = startInternalAPIServer();
 server.unref();
-
-// Patch fetch to add auth header for requests to the internal API server.
-// This allows the auth token to cross the HTTP boundary via header.
-const internalAPIOrigin = `http://127.0.0.1:${internalPort}`;
-const originalFetch = globalThis.fetch;
-
-globalThis.fetch = (input, init) => {
-  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  if (url.startsWith(internalAPIOrigin)) {
-    const authToken = getAuthToken();
-    if (authToken) {
-      const headers = new Headers(init?.headers);
-      headers.set(InternalAuthHeader, authToken);
-      init = { ...init, headers };
-    }
-  }
-  return originalFetch(input, init);
-};
+patchFetchWithAuth(`http://127.0.0.1:${internalPort}`);
 
 if (!process.env.ENTRYPOINT) {
   throw new Error("developer error: ENTRYPOINT is not set");
