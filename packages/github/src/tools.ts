@@ -31,6 +31,7 @@ export type AppAuthOptions = {
     set: (key: string, value: string) => Promise<void>;
     get: (key: string) => Promise<string | undefined>;
   };
+  permissions?: Record<string, string>;
 } & (
   | {
       repositoryNames?: string[];
@@ -111,6 +112,9 @@ export async function authenticateApp(
     options.repositoryNames = appAuth.repositoryNames;
   } else if ("repositoryIds" in appAuth) {
     options.repositoryIds = appAuth.repositoryIds;
+  }
+  if ("permissions" in appAuth) {
+    options.permissions = appAuth.permissions;
   }
   const installationToken = await auth(options);
 
