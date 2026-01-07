@@ -33,7 +33,7 @@ export default function handleNewAPI(
   env: Env,
   ctx: ExecutionContext
 ) {
-  let apiBaseURL = new URL("https://blink.so");
+  let apiBaseURL = new URL("https://blink.coder.com");
   if (env.NODE_ENV === "development") {
     apiBaseURL = new URL("http://localhost:3000");
   }
@@ -200,7 +200,7 @@ export default function handleNewAPI(
           });
           return {
             id,
-            url: `https://blink.so/api/files/${id}`,
+            url: `https://blink.coder.com/api/files/${id}`,
           };
         },
         download: async (id) => {

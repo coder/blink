@@ -583,7 +583,7 @@ export const experimental_remote = {
    * to start a compute instance.
    */
   token: async (): Promise<ComputeToken> => {
-    const resp = await fetch("https://blink.so/api/tools/compute", {
+    const resp = await fetch("https://blink.coder.com/api/tools/compute", {
       method: "POST",
     });
     if (resp.status !== 201) {

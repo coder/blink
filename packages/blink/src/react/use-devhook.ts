@@ -115,7 +115,7 @@ export default function useDevhook(options: UseDevhookOptions) {
         const client = new Client({
           // TODO: This shouldn't be hardcoded but our @blink.so/api package
           // currently uses `BLINK_API_URL` which this does too 🤦🤦🤦.
-          baseURL: "https://blink.so",
+          baseURL: "https://blink.coder.com",
         });
         currentListener = client.devhook.listen({
           id: options.id!,

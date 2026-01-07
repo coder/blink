@@ -318,7 +318,7 @@ export class Workspace extends DurableObject<Cloudflare.Env> {
             "The workspace has stopped. Head to the chat to start it again!";
           actions.push({
             label: "View Your Chats",
-            href: "https://blink.so/chat",
+            href: "https://blink.coder.com/chat",
           });
           break;
         case "stopping":
@@ -336,7 +336,7 @@ export class Workspace extends DurableObject<Cloudflare.Env> {
             "The workspace is being deleted. Ask for a new one in your chat!";
           actions.push({
             label: "View Your Chats",
-            href: "https://blink.so/chat",
+            href: "https://blink.coder.com/chat",
           });
           break;
         case "deleted":
@@ -345,7 +345,7 @@ export class Workspace extends DurableObject<Cloudflare.Env> {
             "The workspace has been deleted. Ask for a new one in your chat!";
           actions.push({
             label: "View Your Chats",
-            href: "https://blink.so/chat",
+            href: "https://blink.coder.com/chat",
           });
           break;
         default:
@@ -468,7 +468,7 @@ export class Workspace extends DurableObject<Cloudflare.Env> {
             actions: [
               {
                 label: "View Your Chats",
-                href: "https://blink.so/chat",
+                href: "https://blink.coder.com/chat",
               },
             ],
           }),

@@ -40,7 +40,7 @@ export default class Client {
       options?.baseURL ??
         (typeof globalThis.window !== "undefined"
           ? window.location.origin
-          : "https://blink.so")
+          : "https://blink.coder.com")
     );
     this.fetch = options?.fetch;
     this.authToken = options?.authToken;

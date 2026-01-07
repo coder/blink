@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: "Third Party Provider Terms - Blink",
     description:
       "Third party provider terms and conditions for services integrated with Blink",
-    url: "https://blink.so/terms/third-party-terms",
+    url: "https://blink.coder.com/terms/third-party-terms",
     siteName: "Blink",
     images: [{ url: "/og-image.png", width: 1200, height: 630 }],
     type: "article",

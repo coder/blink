@@ -33,7 +33,11 @@ export default function mountAgentMembers(server: APIServer) {
         agentId: agent.id,
         page: c.get("page"),
         per_page: c.get("per_page"),
-        orderBy: orderBy?.field as "permission" | "name" | "created_at" | undefined,
+        orderBy: orderBy?.field as
+          | "permission"
+          | "name"
+          | "created_at"
+          | undefined,
         orderDirection: orderBy?.direction,
       });
       const resp: ListAgentMembersResponse = {

@@ -43,7 +43,7 @@ export default function AuthPageClient({ id }: AuthPageClientProps) {
   };
 
   const handleCancel = () => {
-    router.push("https://blink.so");
+    router.push("https://blink.coder.com");
   };
 
   return (

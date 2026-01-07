@@ -115,7 +115,7 @@ export async function setupGithubApp(
   // Create manifest with sensible defaults for a typical GitHub App
   const manifest = {
     name: githubAppName.toString(),
-    url: "https://blink.so",
+    url: "https://blink.coder.com",
     description: "A Blink agent for GitHub",
     public: false,
     hook_attributes: {

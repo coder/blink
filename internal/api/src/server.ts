@@ -249,7 +249,7 @@ const api = new Hono<{
     }
     return cors({
       // We're going to test the embedding of chats on coder.com.
-      origin: ["https://blink.so"],
+      origin: ["https://blink.coder.com"],
     })(c, next);
   });
 

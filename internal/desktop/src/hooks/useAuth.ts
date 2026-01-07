@@ -101,7 +101,7 @@ export function useAuth(): UseAuthReturn {
         // Verify token is valid by fetching user info
         try {
           const client = new Client({
-            baseURL: "https://blink.so",
+            baseURL: "https://blink.coder.com",
           });
           client.authToken = token;
           const user = await client.users.me();
@@ -142,7 +142,7 @@ export function useAuth(): UseAuthReturn {
 
     try {
       const client = new Client({
-        baseURL: "https://blink.so",
+        baseURL: "https://blink.coder.com",
       });
 
       // Start the auth process

@@ -25,7 +25,9 @@ function escapeHTML(value: string): string {
 export function createWorkspaceErrorPage(
   options: WorkspaceErrorPageOptions = {}
 ): string {
-  const brandHref = escapeHTML(options.brandHref ?? "https://blink.so/chat");
+  const brandHref = escapeHTML(
+    options.brandHref ?? "https://blink.coder.com/chat"
+  );
   const title = escapeHTML(options.title ?? "Workspace Error");
   const descriptionHtml = options.description
     ? `<p class="p">${escapeHTML(options.description)}</p>`
@@ -34,7 +36,7 @@ export function createWorkspaceErrorPage(
   const actions: WorkspaceErrorPageAction[] = options.actions ?? [
     {
       label: "View Your Chats",
-      href: "https://blink.so/chat",
+      href: "https://blink.coder.com/chat",
       external: true,
       primary: true,
     },

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Home from "./home/page";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://blink.so"),
+  metadataBase: new URL("https://blink.coder.com"),
   title: "Blink | Build and Deploy Slack Agents from Your Terminal",
   description:
     "Blink turns your instructions into fully functional Slack agents, tooled, deployed, and ready to invite to your channels — all built on open source.",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     title: "Blink | Build and Deploy Slack Agents from Your Terminal",
     description:
       "Blink turns your instructions into fully functional Slack agents, tooled, deployed, and ready to invite to your channels — all built on open source.",
-    url: "https://blink.so",
+    url: "https://blink.coder.com",
     siteName: "Blink",
     images: [
       {

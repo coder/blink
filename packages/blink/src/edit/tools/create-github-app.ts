@@ -235,7 +235,7 @@ export const createGithubAppSchema = z.object({
   url: z
     .url()
     .describe(
-      "The homepage URL of the GitHub App. If unknown, set to https://blink.so."
+      "The homepage URL of the GitHub App. If unknown, set to https://blink.coder.com."
     ),
   description: z
     .string()

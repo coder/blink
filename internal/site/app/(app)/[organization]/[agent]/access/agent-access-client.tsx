@@ -7,7 +7,11 @@ import { ChevronLeft, ChevronRight, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { AddMemberModal } from "./add-member-modal";
-import { MembersTable, type SortField, type SortDirection } from "./members-table";
+import {
+  MembersTable,
+  type SortField,
+  type SortDirection,
+} from "./members-table";
 import { PermissionsReferenceModal } from "./permissions-reference";
 import { VisibilitySection } from "./visibility-section";
 
@@ -61,7 +65,14 @@ export function AgentAccessClient({
         agent_id: agentId,
         per_page: PER_PAGE,
         page: membersPage,
-        order_by: (apiOrderBy as "permission" | "-permission" | "name" | "-name" | "created_at" | "-created_at") ?? "permission",
+        order_by:
+          (apiOrderBy as
+            | "permission"
+            | "-permission"
+            | "name"
+            | "-name"
+            | "created_at"
+            | "-created_at") ?? "permission",
       });
     }
   );
@@ -124,7 +135,9 @@ export function AgentAccessClient({
 
   // Get regular org members (not admins/owners) - they get read access when visibility is organization
   const regularOrgMembers =
-    orgMembers?.filter((m) => m.role === "member" || m.role === "billing_admin") || [];
+    orgMembers?.filter(
+      (m) => m.role === "member" || m.role === "billing_admin"
+    ) || [];
 
   // Filter out org admins and owners from the member list since they always have access
   const explicitMembers = (members || []).filter(

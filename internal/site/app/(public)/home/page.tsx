@@ -240,7 +240,7 @@ export default function Home() {
                 "",
                 "[8/8] Uploaded files (8.17MB).",
                 "Updated environment variables! (.env.production)",
-                "Deployed: https://blink.so/devteam/deployments/1",
+                "Deployed: https://blink.coder.com/devteam/deployments/1",
                 "Deployment successful. All chats will use this deployment!",
                 "",
                 "Send this agent webhooks from anywhere:",
@@ -542,7 +542,7 @@ export default function Home() {
       "",
       "[8/8] Uploaded files (8.17MB).",
       "[0/0] Updated environment variables! (.env.production)",
-      "Deployed: https://blink.so/devteam/deployments/1",
+      "Deployed: https://blink.coder.com/devteam/deployments/1",
       "Deployment successful. All chats will use this deployment!",
       "",
       "Send webhooks from anywhere: https://d36547ec-2da5-414a-aaea-4c2d9c8a42cf.agent.blink.host/",
@@ -594,8 +594,8 @@ export default function Home() {
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "Blink",
-          url: "https://blink.so",
-          logo: "https://blink.so/icon-dark.svg",
+          url: "https://blink.coder.com",
+          logo: "https://blink.coder.com/icon-dark.svg",
           sameAs: [
             "https://github.com/coder/blink-private",
             "https://coder.com",
@@ -607,10 +607,10 @@ export default function Home() {
           "@context": "https://schema.org",
           "@type": "WebSite",
           name: "Blink",
-          url: "https://blink.so",
+          url: "https://blink.coder.com",
           potentialAction: {
             "@type": "SearchAction",
-            target: "https://blink.so/?q={search_term_string}",
+            target: "https://blink.coder.com/?q={search_term_string}",
             "query-input": "required name=search_term_string",
           },
         })}
@@ -629,8 +629,8 @@ export default function Home() {
           },
           description:
             "Build and deploy Slack agents from your terminal. Open source, local-first agent framework.",
-          url: "https://blink.so",
-          downloadUrl: "https://blink.so",
+          url: "https://blink.coder.com",
+          downloadUrl: "https://blink.coder.com",
           softwareVersion: "1.0",
           license: "https://opensource.org/licenses/MIT",
           programmingLanguage: "TypeScript",
@@ -1979,7 +1979,7 @@ export default function Home() {
                           strong feedback to help improve the platform. You can
                           join the waitlist at{" "}
                           <a
-                            href="https://blink.so/signup"
+                            href="https://blink.coder.com/signup"
                             target="_blank"
                             rel="noopener noreferrer"
                             className={`underline ${

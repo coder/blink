@@ -20,7 +20,7 @@ export default async function chat() {
       resolve(event.data.toString());
     };
   });
-  const url = `https://blink.so/legacy-auth?id=${id}&type=workspace`;
+  const url = `https://blink.coder.com/legacy-auth?id=${id}&type=workspace`;
   console.log(`Opening the following URL in your browser: ${url}`);
   await openUrl(url);
 

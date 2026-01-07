@@ -14,7 +14,7 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
 
   // If no ID is provided, redirect to home
   if (!id) {
-    redirect("https://blink.so");
+    redirect("https://blink.coder.com");
   }
 
   // If user is not authenticated, redirect to login with callback URL

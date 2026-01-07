@@ -562,7 +562,7 @@ const model = (model: string, options?: { token?: string }) => {
   //   }
 
   const baseURL =
-    process.env.INTERNAL_BLINK_API_SERVER_URL ?? "https://blink.so";
+    process.env.INTERNAL_BLINK_API_SERVER_URL ?? "https://blink.coder.com";
   const gatewayURL = new URL("/api/ai-gateway/v1/ai", baseURL);
 
   return createGatewayProvider({

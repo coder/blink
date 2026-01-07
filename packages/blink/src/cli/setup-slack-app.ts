@@ -214,7 +214,7 @@ export async function setupSlackApp(
   let lastFailedChannel: string | undefined;
 
   const client = new Client({
-    baseURL: "https://blink.so",
+    baseURL: "https://blink.coder.com",
   });
 
   let resolveConnected = () => {};

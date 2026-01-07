@@ -364,7 +364,7 @@ export default async function deploy(
     });
     deployConfig.agentId = agent.id;
     agentName = agent.name;
-    const agentUrl = `https://blink.so/${organizationName}/${agentName}`;
+    const agentUrl = `https://blink.coder.com/${organizationName}/${agentName}`;
     console.log(chalk.gray(`Agent created ${chalk.dim(agentUrl)}`));
   } else if (envEntries.length > 0) {
     // Update environment variables for existing agents
@@ -437,7 +437,7 @@ export default async function deploy(
         message: options?.message,
       });
 
-  const inspectUrl = `https://blink.so/${organizationName}/${agentName}/deployments/${deployment.number}`;
+  const inspectUrl = `https://blink.coder.com/${organizationName}/${agentName}/deployments/${deployment.number}`;
 
   // Show deployment URL immediately
   console.log(chalk.gray(`View Deployment ${chalk.dim(inspectUrl)}`));

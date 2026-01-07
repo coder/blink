@@ -16,7 +16,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { AgentMember, OrganizationMember } from "@blink.so/api";
-import { ArrowUpDown, Check, MoreVertical, Shield, User, Users } from "lucide-react";
+import {
+  ArrowUpDown,
+  Check,
+  MoreVertical,
+  Shield,
+  User,
+  Users,
+} from "lucide-react";
 import { useMemo } from "react";
 
 export type SortField = "member" | "permission" | "source";
@@ -55,7 +62,8 @@ type UnifiedMember = {
 
 const PERMISSION_DESCRIPTIONS = {
   read: "Can create chats, view own history, and view source code",
-  write: "Read permissions plus: view all chats, create deployments, view logs & traces, manage env vars",
+  write:
+    "Read permissions plus: view all chats, create deployments, view logs & traces, manage env vars",
   admin: "Full control: change settings, manage member access, delete agent",
 };
 
@@ -71,7 +79,6 @@ export function MembersTable({
   sortDirection,
   onSort,
 }: MembersTableProps) {
-
   // Build a set of user IDs that have explicit grants (to exclude from inherited members)
   const explicitUserIds = new Set(
     explicitMembers.map((m) => m.user_id).filter(Boolean)
@@ -98,7 +105,12 @@ export function MembersTable({
         permission: member.permission,
         source: "Direct",
         sourceOrder: 0, // Direct first
-        permissionOrder: member.permission === "admin" ? 0 : member.permission === "write" ? 1 : 2,
+        permissionOrder:
+          member.permission === "admin"
+            ? 0
+            : member.permission === "write"
+              ? 1
+              : 2,
         userId: member.user_id,
         avatarUrl: member.user?.avatar_url,
         originalMember: member,
@@ -109,7 +121,8 @@ export function MembersTable({
     for (const member of implicitMembers) {
       members.push({
         type: "implicit",
-        displayName: member.user.display_name || member.user.username || "Unknown",
+        displayName:
+          member.user.display_name || member.user.username || "Unknown",
         username: member.user.username,
         permission: "admin",
         source: `Team ${member.role}`,
@@ -126,7 +139,8 @@ export function MembersTable({
     for (const member of inheritedTeamMembers) {
       members.push({
         type: "inherited",
-        displayName: member.user.display_name || member.user.username || "Unknown",
+        displayName:
+          member.user.display_name || member.user.username || "Unknown",
         username: member.user.username,
         permission: "read",
         source: "Team member",
@@ -251,11 +265,12 @@ function MemberRow({
   const isInherited = member.type === "inherited" || member.type === "implicit";
   const canEdit = isExplicit;
 
-  const SourceIcon = member.type === "explicit" 
-    ? User 
-    : member.type === "implicit" 
-      ? Shield 
-      : Users;
+  const SourceIcon =
+    member.type === "explicit"
+      ? User
+      : member.type === "implicit"
+        ? Shield
+        : Users;
 
   const getRemoveDisabledReason = (): string | null => {
     if (member.type === "implicit") {
@@ -270,15 +285,13 @@ function MemberRow({
   const removeDisabledReason = getRemoveDisabledReason();
 
   return (
-    <tr className={isInherited ? "bg-neutral-50/50 dark:bg-neutral-900/30" : ""}>
+    <tr
+      className={isInherited ? "bg-neutral-50/50 dark:bg-neutral-900/30" : ""}
+    >
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           {member.userId ? (
-            <Avatar
-              src={member.avatarUrl}
-              seed={member.userId}
-              size={32}
-            />
+            <Avatar src={member.avatarUrl} seed={member.userId} size={32} />
           ) : (
             <div className="h-8 w-8 rounded-sm bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
               <span className="text-xs text-neutral-600 dark:text-neutral-300">
@@ -307,7 +320,9 @@ function MemberRow({
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
-              <p className="text-sm">{PERMISSION_DESCRIPTIONS[member.permission]}</p>
+              <p className="text-sm">
+                {PERMISSION_DESCRIPTIONS[member.permission]}
+              </p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -343,7 +358,9 @@ function MemberRow({
                     className="flex items-center justify-between"
                   >
                     <div>
-                      <div className="font-medium">{formatPermission(perm)}</div>
+                      <div className="font-medium">
+                        {formatPermission(perm)}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {perm === "read" && "Use agent, view source"}
                         {perm === "write" && "Deploy, view logs"}
@@ -379,7 +396,9 @@ function MemberRow({
             ) : (
               <DropdownMenuItem
                 onClick={() => {
-                  if (confirm(`Remove ${member.displayName} from this agent?`)) {
+                  if (
+                    confirm(`Remove ${member.displayName} from this agent?`)
+                  ) {
                     onDelete(member.userId ?? null);
                   }
                 }}

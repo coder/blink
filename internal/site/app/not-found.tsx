@@ -29,7 +29,7 @@ export default function NotFound() {
         {/* Action Button */}
         <div className="flex flex-col items-center gap-4">
           <Button asChild className="bg-white text-black hover:bg-white/90">
-            <Link href="https://blink.so/">Go to dashboard</Link>
+            <Link href="https://blink.coder.com/">Go to dashboard</Link>
           </Button>
         </div>
       </div>

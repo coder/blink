@@ -18,7 +18,7 @@ beforeAll(() => {
   // Mock window.location.origin for link generation tests
   Object.defineProperty(window, "location", {
     value: {
-      origin: "https://blink.so",
+      origin: "https://blink.coder.com",
     },
     writable: true,
   });
@@ -197,7 +197,7 @@ describe("MessageActions", () => {
     await waitFor(() => {
       expect(mockUuidToSlug).toHaveBeenCalledWith(mockChatId);
       expect(mockCopyToClipboard).toHaveBeenCalledWith(
-        `https://blink.so/chat/slug-${mockChatId}#message-${mockMessage.id}`
+        `https://blink.coder.com/chat/slug-${mockChatId}#message-${mockMessage.id}`
       );
     });
   });

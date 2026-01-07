@@ -3,7 +3,7 @@ declare namespace Cloudflare {
   interface Env {
     // The base URL for the Blink API.
     // On localhost, this is http://localhost:3000.
-    // On production, this is https://blink.so.
+    // On production, this is https://blink.coder.com.
     BLINK_BASE_URL?: string;
 
     // Used for tests.

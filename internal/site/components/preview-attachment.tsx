@@ -27,7 +27,7 @@ export const PreviewAttachment = ({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={id}
-                src={`https://blink.so/api/files/${id}`}
+                src={`https://blink.coder.com/api/files/${id}`}
                 alt={fileName ?? "An image attachment"}
                 className="rounded-md size-full object-cover"
               />

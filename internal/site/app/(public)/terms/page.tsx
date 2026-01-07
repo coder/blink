@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: "Terms of Service - Blink",
     description:
       "Blink Terms of Service - Legal terms and conditions for using our services",
-    url: "https://blink.so/terms",
+    url: "https://blink.coder.com/terms",
     siteName: "Blink",
     images: [{ url: "/og-image.png", width: 1200, height: 630 }],
     type: "article",
@@ -381,10 +381,10 @@ export default function TermsPage() {
             Services hereunder shall be subject to (and Customer agrees it is
             bound by) the third party terms and conditions referenced at{" "}
             <a
-              href="https://blink.so/terms/third-party-terms"
+              href="https://blink.coder.com/terms/third-party-terms"
               className="underline text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
             >
-              https://blink.so/terms/third-party-terms
+              https://blink.coder.com/terms/third-party-terms
             </a>{" "}
             (the "Third Party Terms Site"), as they may be modified from time to
             time by Coder and/or its third party licensors or suppliers at any

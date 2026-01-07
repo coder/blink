@@ -93,7 +93,7 @@ export default function useAuth(options: UseAuthOptions = {}): UseAuth {
       }
 
       const client = new Client({
-        baseURL: "https://blink.so",
+        baseURL: "https://blink.coder.com",
       });
       client.authToken = currentToken;
 

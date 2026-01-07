@@ -60,7 +60,7 @@ export default async function connect() {
     createDeploymentFromTar: async (tar) => {
       const uploadURL = new URL(
         "/api/static-deployment",
-        url ?? "https://blink.so"
+        url ?? "https://blink.coder.com"
       );
       const response = await fetch(uploadURL, {
         method: "POST",
@@ -87,7 +87,7 @@ export default async function connect() {
 }
 
 const reportException = async (token: string, err: unknown) => {
-  const url = new URL("https://blink.so/api/connect-error");
+  const url = new URL("https://blink.coder.com/api/connect-error");
   await fetch(url.toString(), {
     method: "POST",
     headers: {

@@ -1,7 +1,9 @@
 import type { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://blink.so");
+  const base = new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://blink.coder.com"
+  );
   const now = new Date();
 
   const urls: MetadataRoute.Sitemap = [

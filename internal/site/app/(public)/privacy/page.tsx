@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: "Privacy Policy - Blink",
     description:
       "Blink Privacy Policy - How we collect, use, and protect your personal information",
-    url: "https://blink.so/privacy",
+    url: "https://blink.coder.com/privacy",
     siteName: "Blink",
     images: [{ url: "/og-image.png", width: 1200, height: 630 }],
     type: "article",

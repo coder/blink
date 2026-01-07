@@ -1,7 +1,7 @@
-<a href="https://blink.so#gh-dark-mode-only">
+<a href="https://blink.coder.com#gh-dark-mode-only">
 <img src="./scripts/logo-white.svg" style="height: 40px;">
 </a>
-<a href="https://blink.so#gh-light-mode-only">
+<a href="https://blink.coder.com#gh-light-mode-only">
 <img src="./scripts/logo-black.svg" style="height: 40px;">
 </a>
 
@@ -60,14 +60,14 @@ https://github.com/user-attachments/assets/6bb73e58-b4ae-4543-b2c0-0e1195113ba6
 
 ## Deploy
 
-If you wish to deploy your agent to the [cloud](https://blink.so), run:
+If you wish to deploy your agent to the [cloud](https://blink.coder.com), run:
 
 ```sh
 blink deploy
 ```
 
 > [!IMPORTANT]
-> [Cloud](https://blink.so) is not required to build Blink agents.
+> [Cloud](https://blink.coder.com) is not required to build Blink agents.
 > We guarantee that Blink agents will always be local-first.
 
 ## User Guide
@@ -366,4 +366,4 @@ The `build` function can be customized to use a different bundler if you wish.
 
 ## Blink Documentation
 
-For a closer look at Blink, visit [docs.blink.so](https://docs.blink.so/).
+For a closer look at Blink, visit [docs.blink.coder.com](https://docs.blink.coder.com/).

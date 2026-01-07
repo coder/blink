@@ -1,7 +1,9 @@
 import type { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
-  const base = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://blink.so");
+  const base = new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://blink.coder.com"
+  );
   const host = base.hostname;
 
   return {
