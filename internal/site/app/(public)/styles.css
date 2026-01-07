@@ -1,3 +1,8 @@
+/* Self-contained CSS for the public site */
+/* Extracted from globals.css to decouple public site styles */
+
+@import "tailwindcss" source("../..");
+
 @font-face {
   font-family: "LayGrotesk";
   src: url("/fonts/LayGrotesk-Regular.woff2") format("woff2");
@@ -13,10 +18,6 @@
   font-style: normal;
   font-display: swap;
 }
-/* Self-contained CSS for the public site */
-/* Extracted from globals.css to decouple public site styles */
-
-@import "tailwindcss" source("../..");
 
 /* Enable smooth scrolling for anchor links */
 html {
