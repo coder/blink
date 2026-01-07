@@ -317,7 +317,7 @@
     },
     "packages/github": {
       "name": "@blink-sdk/github",
-      "version": "0.0.22",
+      "version": "0.0.23",
       "devDependencies": {
         "@octokit/auth-app": "^8.1.0",
         "@octokit/types": "^15.0.0",
@@ -355,7 +355,7 @@
       "version": "0.0.14",
       "dependencies": {
         "@blink-sdk/compute": "^0.0.15",
-        "@blink-sdk/github": "^0.0.22",
+        "@blink-sdk/github": "^0.0.23",
         "@blink-sdk/model-intent": "^0.0.5",
         "@blink-sdk/multiplexer": "^0.0.1",
         "@blink-sdk/slack": "^1.1.2",
@@ -389,6 +389,8 @@
         "blink-server": "dist/cli.js",
       },
       "devDependencies": {
+        "@blink-sdk/tunnel": "workspace:*",
+        "@blink.so/api": "workspace:*",
         "@types/node": "^22.10.2",
         "@types/pg": "^8.11.10",
         "@types/ws": "^8.5.13",
@@ -400,6 +402,7 @@
         "fetch-to-node": "^2.1.0",
         "pg": "^8.16.0",
         "ws": "^8.18.0",
+        "xdg-portable": "^10.6.0",
       },
     },
     "packages/slack": {
@@ -4115,7 +4118,7 @@
 
     "youch-core": ["youch-core@0.3.3", "", { "dependencies": { "@poppinss/exception": "^1.2.2", "error-stack-parser-es": "^1.0.5" } }, "sha512-ho7XuGjLaJ2hWHoK8yFnsUGy2Y5uDpqSTq1FkHLK4/oqKtyUU1AFbOOxY4IpC9f0fTLjwYbslUz0Po5BpD1wrA=="],
 
-    "zod": ["zod@4.3.2", "", {}, "sha512-b8L8yn4rIVfiXyHAmnr52/ZEpDumlT0bmxiq3Ws1ybrinhflGpt12Hvv54kYnEsGPRs6o/Ka3/ppA2OWY21IVg=="],
+    "zod": ["zod@4.3.5", "", {}, "sha512-k7Nwx6vuWx1IJ9Bjuf4Zt1PEllcwe7cls3VNzm4CQ1/hgtFUK2bRNG3rvnpPUhFjmqJKAKtjV576KnUkHocg/g=="],
 
     "zod-to-json-schema": ["zod-to-json-schema@3.24.6", "", { "peerDependencies": { "zod": "^3.24.1" } }, "sha512-h/z3PKvcTcTetyjl1fkj79MHNEjm+HpD6NXheWjzOekY7kV+lwDYnHw+ivHkijnCSMz1yJaWBD9vu/Fcmk+vEg=="],
 
@@ -4180,8 +4183,6 @@
     "@blink-sdk/scout-agent/tsdown": ["tsdown@0.3.1", "", { "dependencies": { "cac": "^6.7.14", "chokidar": "^4.0.1", "consola": "^3.2.3", "debug": "^4.3.7", "picocolors": "^1.1.1", "pkg-types": "^1.2.1", "rolldown": "nightly", "tinyglobby": "^0.2.10", "unconfig": "^0.6.0", "unplugin-isolated-decl": "^0.7.2", "unplugin-unused": "^0.2.3" }, "bin": { "tsdown": "bin/tsdown.js" } }, "sha512-5WLFU7f2NRnsez0jxi7m2lEQNPvBOdos0W8vHvKDnS6tYTfOfmZ5D2z/G9pFTQSjeBhoi6BFRMybc4LzCOKR8A=="],
 
     "@blink-sdk/tunnel/tsdown": ["tsdown@0.11.13", "", { "dependencies": { "ansis": "^4.0.0", "cac": "^6.7.14", "chokidar": "^4.0.3", "debug": "^4.4.1", "diff": "^8.0.1", "empathic": "^1.1.0", "hookable": "^5.5.3", "rolldown": "1.0.0-beta.9", "rolldown-plugin-dts": "^0.13.3", "semver": "^7.7.2", "tinyexec": "^1.0.1", "tinyglobby": "^0.2.13", "unconfig": "^7.3.2" }, "peerDependencies": { "publint": "^0.3.0", "typescript": "^5.0.0", "unplugin-lightningcss": "^0.4.0", "unplugin-unused": "^0.5.0" }, "optionalPeers": ["publint", "typescript", "unplugin-lightningcss", "unplugin-unused"], "bin": { "tsdown": "dist/run.js" } }, "sha512-VSfoNm8MJXFdg7PJ4p2javgjMRiQQHpkP9N3iBBTrmCixcT6YZ9ZtqYMW3NDHczqR0C0Qnur1HMQr1ZfZcmrng=="],
-
-    "@blink.so/api/zod": ["zod@4.2.1", "", {}, "sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw=="],
 
     "@blink.so/compute-protocol-worker/@blink-sdk/compute-protocol": ["@blink-sdk/compute-protocol@0.0.2", "", { "peerDependencies": { "ws": ">= 8", "zod": ">= 4" } }, "sha512-QD89Y4b3EbZjncROb6kwUr1uQV4N3UD9q7Hp2PzL4A2BAzsqk50w7KfN9RxfDiZ3fU7Pectg71T4M8ZCwdJcdQ=="],
 
