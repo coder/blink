@@ -1,7 +1,5 @@
-/* Self-contained CSS for the public site */
-/* Extracted from globals.css to decouple public site styles */
-
-@import "tailwindcss" source("../..");
+/* Public site specific styles */
+/* Supplements globals.css with public-site fonts, animations, and theme overrides */
 
 @font-face {
   font-family: "LayGrotesk";
