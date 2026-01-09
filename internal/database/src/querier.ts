@@ -52,6 +52,7 @@ import {
   type AgentDeployment,
   type AgentEnvDeploymentTarget,
   type AgentEnvironmentVariable,
+  type AgentDeploymentTarget,
   type AgentPermission,
   type AgentPermissionLevel,
   type AgentWithPinned,
@@ -2354,7 +2355,9 @@ export default class Querier {
     );
   }
 
-  public async selectAgentDeploymentTargetByID(id: string) {
+  public async selectAgentDeploymentTargetByID(
+    id: string
+  ): Promise<AgentDeploymentTarget | undefined> {
     return this.db
       .select()
       .from(agent_deployment_target)

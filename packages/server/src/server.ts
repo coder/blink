@@ -236,9 +236,13 @@ export async function startServer(options: ServerOptions) {
             },
             deployAgent: async (deployment) => {
               await deployAgentWithDocker({
+                image:
+                  process.env.BLINK_AGENT_IMAGE ??
+                  "ghcr.io/coder/blink-agent:latest",
                 deployment,
                 querier,
                 baseUrl,
+                authSecret,
                 downloadFile: async (id: string) => {
                   const file = await querier.selectFileByID(id);
                   if (!file || !file.content) {

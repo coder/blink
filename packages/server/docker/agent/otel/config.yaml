@@ -1,0 +1,31 @@
+receivers:
+  tcplog:
+    listen_address: "127.0.0.1:54525"
+
+processors:
+  transform:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(body, ParseJSON(body))
+  batch:
+    timeout: 500ms
+
+exporters:
+  otlphttp:
+    # Environment variables must be kept in sync with internal/runtime/src/types.ts
+    endpoint: ${env:INTERNAL_BLINK_API_SERVER_URL}/api/otlp
+    headers:
+      Authorization: Bearer ${env:BLINK_DEPLOYMENT_TOKEN}
+
+service:
+  telemetry:
+    logs:
+      level: info
+      encoding: console
+  pipelines:
+    logs:
+      receivers: [tcplog]
+      processors: [transform, batch]
+      exporters: [otlphttp]

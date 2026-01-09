@@ -1,6 +1,8 @@
+import { generateAgentDeploymentToken } from "@blink.so/api/agents/me/server";
 import type Querier from "@blink.so/database/querier";
 import type { AgentDeployment } from "@blink.so/database/schema";
 import {
+  BlinkDeploymentTokenEnvironmentVariable,
   InternalAPIServerListenPortEnvironmentVariable,
   InternalAPIServerURLEnvironmentVariable,
 } from "@blink.so/runtime/types";
@@ -15,6 +17,8 @@ interface DockerDeployOptions {
   deployment: AgentDeployment;
   querier: Querier;
   baseUrl: string;
+  authSecret: string;
+  image: string;
   downloadFile: (id: string) => Promise<{
     stream: ReadableStream;
     type: string;
@@ -29,7 +33,8 @@ interface DockerDeployOptions {
  * and run them in a Docker container.
  */
 export async function deployAgentWithDocker(opts: DockerDeployOptions) {
-  const { deployment, querier, baseUrl, downloadFile } = opts;
+  const { deployment, querier, baseUrl, authSecret, image, downloadFile } =
+    opts;
   console.log(`Deploying agent ${deployment.agent_id} (${deployment.id})`);
 
   try {
@@ -133,12 +138,24 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
     dockerEnvArgs.push("-e", `BLINK_REQUEST_URL=${containerBaseUrl}`);
     dockerEnvArgs.push("-e", `BLINK_REQUEST_ID=${target?.request_id}`);
     dockerEnvArgs.push("-e", `PORT=${externalPort}`);
+    dockerEnvArgs.push("-e", `BLINK_USE_STRUCTURED_LOGGING=1`);
     // User-defined environment variables
     for (const envVar of envs) {
       if (envVar.value !== null) {
         dockerEnvArgs.push("-e", `${envVar.key}=${envVar.value}`);
       }
     }
+
+    // Generate deployment token for OTLP authentication
+    const deploymentToken = await generateAgentDeploymentToken(authSecret, {
+      agent_id: deployment.agent_id,
+      agent_deployment_id: deployment.id,
+      agent_deployment_target_id: deployment.target_id,
+    });
+    dockerEnvArgs.push(
+      "-e",
+      `${BlinkDeploymentTokenEnvironmentVariable}=${deploymentToken}`
+    );
 
     // Run docker container
     // Mount the deployment directory as /app
@@ -174,9 +191,11 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
       "-w",
       "/app",
       ...dockerEnvArgs,
-      "node:22",
-      "node",
-      wrapperEntrypoint,
+      image,
+      "bash",
+      "-c",
+      // Start the collector and pipe the agent's output to it
+      `/opt/otel/start-collector.sh && node ${wrapperEntrypoint} 2>&1 | tee >(nc 127.0.0.1 54525)`,
     ];
 
     console.log(`Running: docker ${dockerArgs.join(" ")}`);

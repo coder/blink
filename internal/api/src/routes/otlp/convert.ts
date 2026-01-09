@@ -1,6 +1,11 @@
 import { fromBinary, fromJsonString } from "@bufbuild/protobuf";
 import { HTTPException } from "hono/http-exception";
 import { Buffer } from "node:buffer";
+import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
+import {
+  type ExportLogsServiceRequest,
+  ExportLogsServiceRequestSchema,
+} from "./gen/opentelemetry/proto/collector/logs/v1/logs_service_pb";
 import {
   type ExportTraceServiceRequest,
   ExportTraceServiceRequestSchema,
@@ -9,6 +14,11 @@ import type {
   AnyValue,
   KeyValue,
 } from "./gen/opentelemetry/proto/common/v1/common_pb";
+import type {
+  LogRecord,
+  ResourceLogs,
+  ScopeLogs,
+} from "./gen/opentelemetry/proto/logs/v1/logs_pb";
 import type {
   ResourceSpans,
   ScopeSpans,
@@ -347,6 +357,40 @@ function anyValueToJson(value: AnyValue | undefined): unknown {
   }
 }
 
+function isPlainRecord(val: unknown): val is Record<string | number, unknown> {
+  if (typeof val !== "object" || val === null || Array.isArray(val)) {
+    return false;
+  }
+  if (Object.prototype.toString.call(val) !== "[object Object]") {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(val);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
+ * - If body is parsed JSON object -> use it directly as payload
+ * - If body has a `message` field that is a plain object -> spread it into root
+ * - If body is a string or array -> wrap as { message: value }
+ */
+function buildLogPayload(body: AnyValue | undefined): Record<string, unknown> {
+  const bodyContent = anyValueToJson(body);
+
+  // If body is not a plain object, wrap it in { message: value }
+  if (!isPlainRecord(bodyContent)) {
+    return { message: bodyContent };
+  }
+
+  // If body has a `message` field that is a plain object, spread it into root
+  // and overlay other fields on top (allows user to override payload fields)
+  if ("message" in bodyContent && isPlainRecord(bodyContent.message)) {
+    const { message, ...rest } = bodyContent;
+    return { ...message, ...rest };
+  }
+
+  return bodyContent;
+}
+
 function normalizeSchemaUrl(schemaUrl: string | undefined): string | undefined {
   return normalizeEmpty(schemaUrl);
 }
@@ -438,9 +482,13 @@ export async function parseOtlpHttpTraces(
   }
 
   const ctype = (req.headers.get("content-type") ?? "").toLowerCase();
+  const contentEncoding = (
+    req.headers.get("content-encoding") ?? ""
+  ).toLowerCase();
 
   if (ctype.includes("application/x-protobuf")) {
-    const body = new Uint8Array(await req.arrayBuffer());
+    const rawBody = new Uint8Array(await req.arrayBuffer());
+    const body = decompressBody(rawBody, contentEncoding);
     return fromBinary(ExportTraceServiceRequestSchema, body);
   }
 
@@ -494,4 +542,119 @@ function convertOtelHexIds(input: unknown): unknown {
     }
   }
   return input;
+}
+
+// ==================== LOGS ====================
+
+export interface OtelLogEvent {
+  agent_id: string;
+  event: Record<string, unknown>;
+}
+
+export interface LogOptions {
+  agent_id: string;
+  deployment_id: string;
+  deployment_target_id: string;
+}
+
+function decompressBody(body: Uint8Array, contentEncoding: string): Uint8Array {
+  if (!contentEncoding) {
+    return body;
+  }
+
+  if (contentEncoding.includes("gzip")) {
+    return new Uint8Array(gunzipSync(body));
+  }
+
+  if (contentEncoding.includes("deflate")) {
+    return new Uint8Array(inflateSync(body));
+  }
+
+  if (contentEncoding.includes("br")) {
+    return new Uint8Array(brotliDecompressSync(body));
+  }
+
+  throw new HTTPException(415, {
+    message: `Unsupported Content-Encoding: ${contentEncoding}`,
+  });
+}
+
+export async function parseOtlpHttpLogs(
+  req: Request
+): Promise<ExportLogsServiceRequest> {
+  if (!req.body) {
+    throw new HTTPException(415, { message: "No body" });
+  }
+
+  const ctype = (req.headers.get("content-type") ?? "").toLowerCase();
+  const contentEncoding = (
+    req.headers.get("content-encoding") ?? ""
+  ).toLowerCase();
+
+  if (ctype.includes("application/x-protobuf")) {
+    const rawBody = new Uint8Array(await req.arrayBuffer());
+    const body = decompressBody(rawBody, contentEncoding);
+    return fromBinary(ExportLogsServiceRequestSchema, body);
+  }
+
+  if (ctype.includes("application/json")) {
+    const jsonBody = await req.json();
+    return fromJsonString(
+      ExportLogsServiceRequestSchema,
+      // OTLP/JSON spec encodes traceId/spanId as hex strings, but protobuf's JSON parser
+      // expects base64 for bytes fields. This mismatch causes incorrect decoding.
+      // Fix: convert hex to base64 before parsing.
+      JSON.stringify(convertOtelHexIds(jsonBody))
+    );
+  }
+
+  throw new HTTPException(415, { message: "Unsupported Content-Type" });
+}
+
+export function mapExportLogsServiceRequestToLogEvents(
+  request: ExportLogsServiceRequest,
+  options: LogOptions
+): OtelLogEvent[] {
+  const events: OtelLogEvent[] = [];
+
+  for (const resourceLogs of request.resourceLogs) {
+    events.push(...mapResourceLogs(resourceLogs, options));
+  }
+
+  return events;
+}
+
+function mapResourceLogs(
+  resourceLogs: ResourceLogs,
+  options: LogOptions
+): OtelLogEvent[] {
+  const events: OtelLogEvent[] = [];
+
+  for (const scopeLogs of resourceLogs.scopeLogs) {
+    events.push(...mapScopeLogs(scopeLogs, options));
+  }
+
+  return events;
+}
+
+function mapScopeLogs(
+  scopeLogs: ScopeLogs,
+  options: LogOptions
+): OtelLogEvent[] {
+  const events: OtelLogEvent[] = [];
+
+  for (const logRecord of scopeLogs.logRecords) {
+    events.push(mapLogRecord(logRecord, options));
+  }
+
+  return events;
+}
+
+function mapLogRecord(logRecord: LogRecord, options: LogOptions): OtelLogEvent {
+  const payload = buildLogPayload(logRecord.body);
+
+  return {
+    agent_id: options.agent_id,
+    event: payload,
+  };
 }

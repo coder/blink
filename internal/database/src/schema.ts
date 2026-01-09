@@ -680,6 +680,10 @@ export const agent_deployment_target = pgTable(
   })
 );
 
+export type AgentDeploymentTarget = InferSelectModel<
+  typeof agent_deployment_target
+>;
+
 export type AgentDeploymentCompatibilityVersion = "1" | "2" | "3";
 
 export const agent_deployment = pgTable(

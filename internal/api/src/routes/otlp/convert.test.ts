@@ -1,6 +1,18 @@
-import { create } from "@bufbuild/protobuf";
-import { describe, expect, test } from "bun:test";
+/** biome-ignore-all lint/complexity/useLiteralKeys: test file */
+/** biome-ignore-all lint/suspicious/noApproximativeNumericConstant: test file */
+/** biome-ignore-all lint/suspicious/noExplicitAny: test file */
 
+import { describe, expect, test } from "bun:test";
+import { create, toBinary } from "@bufbuild/protobuf";
+import {
+  type LogOptions,
+  mapExportLogsServiceRequestToLogEvents,
+  mapExportTraceServiceRequestToOtelSpans,
+  parseOtlpHttpLogs,
+  parseOtlpHttpTraces,
+  type TraceOptions,
+} from "./convert";
+import { ExportLogsServiceRequestSchema } from "./gen/opentelemetry/proto/collector/logs/v1/logs_service_pb";
 import { ExportTraceServiceRequestSchema } from "./gen/opentelemetry/proto/collector/trace/v1/trace_service_pb";
 import {
   AnyValueSchema,
@@ -9,23 +21,23 @@ import {
   KeyValueListSchema,
   KeyValueSchema,
 } from "./gen/opentelemetry/proto/common/v1/common_pb";
+import {
+  LogRecordSchema,
+  ResourceLogsSchema,
+  ScopeLogsSchema,
+  SeverityNumber,
+} from "./gen/opentelemetry/proto/logs/v1/logs_pb";
 import { ResourceSchema } from "./gen/opentelemetry/proto/resource/v1/resource_pb";
 import {
   ResourceSpansSchema,
   ScopeSpansSchema,
-  SpanSchema,
   Span_EventSchema,
   Span_LinkSchema,
   Span_SpanKind,
-  StatusSchema,
+  SpanSchema,
   Status_StatusCode,
+  StatusSchema,
 } from "./gen/opentelemetry/proto/trace/v1/trace_pb";
-
-import {
-  mapExportTraceServiceRequestToOtelSpans,
-  parseOtlpHttpTraces,
-  type TraceOptions,
-} from "./convert";
 
 // Helper function to create mock Uint8Array IDs
 function createMockId(hexString: string): Uint8Array {
@@ -1167,6 +1179,506 @@ describe("OTEL Conversion Functions", () => {
       expect(attrs["max_value"]).toBe(Number.MAX_VALUE);
       expect(attrs["min_value"]).toBe(Number.MIN_VALUE);
       expect(attrs["epsilon"]).toBe(Number.EPSILON);
+    });
+  });
+});
+
+function createMockLogOptions(): LogOptions {
+  return {
+    agent_id: "test-agent-123",
+    deployment_id: "test-deployment-456",
+    deployment_target_id: "test-target-def",
+  };
+}
+
+// Helper function to create mock ExportLogsServiceRequest
+function createMockLogsRequest() {
+  const mockLogRecord = create(LogRecordSchema, {
+    timeUnixNano: BigInt("1640995200000000000"), // 2022-01-01 00:00:00 UTC
+    observedTimeUnixNano: BigInt("1640995200100000000"),
+    severityNumber: SeverityNumber.INFO,
+    severityText: "INFO",
+    body: create(AnyValueSchema, {
+      value: {
+        case: "stringValue",
+        value: "This is a test log message",
+      },
+    }),
+    attributes: [
+      createMockAttribute("log.source", "test-source"),
+      createMockAttribute("custom.field", "custom-value"),
+    ],
+    droppedAttributesCount: 0,
+    flags: 1,
+    traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+    spanId: createMockId("1234567890abcdef"),
+    eventName: "test-event",
+  });
+
+  const mockScopeLogs = create(ScopeLogsSchema, {
+    scope: create(InstrumentationScopeSchema, {
+      name: "test-logger",
+      version: "1.0.0",
+      attributes: [createMockAttribute("logger.language", "typescript")],
+      droppedAttributesCount: 0,
+    }),
+    logRecords: [mockLogRecord],
+    schemaUrl: "https://opentelemetry.io/schemas/1.9.0",
+  });
+
+  const mockResourceLogs = create(ResourceLogsSchema, {
+    resource: create(ResourceSchema, {
+      attributes: [
+        createMockAttribute("service.name", "test-app"),
+        createMockAttribute("service.version", "1.0.0"),
+      ],
+      droppedAttributesCount: 0,
+    }),
+    scopeLogs: [mockScopeLogs],
+    schemaUrl: "https://opentelemetry.io/schemas/1.9.0",
+  });
+
+  return create(ExportLogsServiceRequestSchema, {
+    resourceLogs: [mockResourceLogs],
+  });
+}
+
+describe("OTEL Logs Conversion Functions", () => {
+  describe("parseOtlpHttpLogs", () => {
+    test("should parse protobuf logs request", async () => {
+      const mockRequest = createMockLogsRequest();
+      const binaryData = toBinary(ExportLogsServiceRequestSchema, mockRequest);
+
+      const req = new Request("http://localhost/v1/logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-protobuf" },
+        body: binaryData,
+      });
+
+      const parsed = await parseOtlpHttpLogs(req);
+      expect(parsed.resourceLogs).toHaveLength(1);
+      expect(parsed.resourceLogs[0].scopeLogs).toHaveLength(1);
+      expect(parsed.resourceLogs[0].scopeLogs[0].logRecords).toHaveLength(1);
+    });
+
+    test("should parse JSON logs request with hex IDs", async () => {
+      const hexTraceId = "664e67a4c7b9917582df5246701a186a";
+      const hexSpanId = "abcdef1234567890";
+
+      const jsonBody = {
+        resourceLogs: [
+          {
+            resource: { attributes: [] },
+            scopeLogs: [
+              {
+                scope: {},
+                logRecords: [
+                  {
+                    timeUnixNano: "1640995200000000000",
+                    severityNumber: 9,
+                    severityText: "INFO",
+                    body: { stringValue: "Test message" },
+                    attributes: [],
+                    traceId: hexTraceId,
+                    spanId: hexSpanId,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const req = new Request("http://localhost/v1/logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(jsonBody),
+      });
+
+      const parsed = await parseOtlpHttpLogs(req);
+      const opts = createMockLogOptions();
+      const events = mapExportLogsServiceRequestToLogEvents(parsed, opts);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].event).toEqual({ message: "Test message" });
+    });
+
+    test("should throw on unsupported content type", async () => {
+      const req = new Request("http://localhost/v1/logs", {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: "test",
+      });
+
+      await expect(parseOtlpHttpLogs(req)).rejects.toThrow(
+        "Unsupported Content-Type"
+      );
+    });
+  });
+
+  describe("mapExportLogsServiceRequestToLogEvents", () => {
+    test("should convert a basic log request to OtelLogEvent array", () => {
+      const mockRequest = createMockLogsRequest();
+      const options = createMockLogOptions();
+
+      const result = mapExportLogsServiceRequestToLogEvents(
+        mockRequest,
+        options
+      );
+
+      expect(result).toHaveLength(1);
+
+      const logEvent = result[0];
+      expect(logEvent.agent_id).toBe(options.agent_id);
+      expect(logEvent.event).toEqual({
+        message: "This is a test log message",
+      });
+    });
+
+    test("should handle empty log request", () => {
+      const emptyRequest = create(ExportLogsServiceRequestSchema, {
+        resourceLogs: [],
+      });
+
+      const result = mapExportLogsServiceRequestToLogEvents(
+        emptyRequest,
+        createMockLogOptions()
+      );
+      expect(result).toEqual([]);
+    });
+
+    test("should handle multiple log records", () => {
+      const mockLogRecord1 = create(LogRecordSchema, {
+        timeUnixNano: BigInt("1640995200000000000"),
+        severityNumber: SeverityNumber.INFO,
+        body: create(AnyValueSchema, {
+          value: { case: "stringValue", value: "First log message" },
+        }),
+      });
+
+      const mockLogRecord2 = create(LogRecordSchema, {
+        timeUnixNano: BigInt("1640995201000000000"),
+        severityNumber: SeverityNumber.ERROR,
+        body: create(AnyValueSchema, {
+          value: { case: "stringValue", value: "Second log message" },
+        }),
+      });
+
+      const multiLogRequest = create(ExportLogsServiceRequestSchema, {
+        resourceLogs: [
+          create(ResourceLogsSchema, {
+            resource: create(ResourceSchema, {
+              attributes: [createMockAttribute("service.name", "test-app")],
+            }),
+            scopeLogs: [
+              create(ScopeLogsSchema, {
+                scope: create(InstrumentationScopeSchema, {
+                  name: "test-logger",
+                  version: "1.0.0",
+                }),
+                logRecords: [mockLogRecord1, mockLogRecord2],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportLogsServiceRequestToLogEvents(
+        multiLogRequest,
+        createMockLogOptions()
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0].event).toEqual({ message: "First log message" });
+      expect(result[1].event).toEqual({ message: "Second log message" });
+    });
+
+    test("should handle structured body (kvlist)", () => {
+      const structuredBody = create(AnyValueSchema, {
+        value: {
+          case: "kvlistValue",
+          value: create(KeyValueListSchema, {
+            values: [
+              create(KeyValueSchema, {
+                key: "error_code",
+                value: create(AnyValueSchema, {
+                  value: { case: "intValue", value: BigInt(500) },
+                }),
+              }),
+              create(KeyValueSchema, {
+                key: "error_message",
+                value: create(AnyValueSchema, {
+                  value: {
+                    case: "stringValue",
+                    value: "Internal Server Error",
+                  },
+                }),
+              }),
+            ],
+          }),
+        },
+      });
+
+      const request = create(ExportLogsServiceRequestSchema, {
+        resourceLogs: [
+          create(ResourceLogsSchema, {
+            scopeLogs: [
+              create(ScopeLogsSchema, {
+                logRecords: [
+                  create(LogRecordSchema, {
+                    timeUnixNano: BigInt("1640995200000000000"),
+                    severityNumber: SeverityNumber.ERROR,
+                    body: structuredBody,
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportLogsServiceRequestToLogEvents(
+        request,
+        createMockLogOptions()
+      );
+
+      expect(result[0].event).toEqual({
+        error_code: 500,
+        error_message: "Internal Server Error",
+      });
+    });
+
+    test("should handle array body", () => {
+      const arrayBody = create(AnyValueSchema, {
+        value: {
+          case: "arrayValue",
+          value: create(ArrayValueSchema, {
+            values: [
+              create(AnyValueSchema, {
+                value: { case: "stringValue", value: "item1" },
+              }),
+              create(AnyValueSchema, {
+                value: { case: "stringValue", value: "item2" },
+              }),
+              create(AnyValueSchema, {
+                value: { case: "intValue", value: BigInt(3) },
+              }),
+            ],
+          }),
+        },
+      });
+
+      const request = create(ExportLogsServiceRequestSchema, {
+        resourceLogs: [
+          create(ResourceLogsSchema, {
+            scopeLogs: [
+              create(ScopeLogsSchema, {
+                logRecords: [
+                  create(LogRecordSchema, {
+                    timeUnixNano: BigInt("1640995200000000000"),
+                    severityNumber: SeverityNumber.INFO,
+                    body: arrayBody,
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportLogsServiceRequestToLogEvents(
+        request,
+        createMockLogOptions()
+      );
+
+      expect(result[0].event).toEqual({
+        message: ["item1", "item2", 3],
+      });
+    });
+
+    test("should spread message object into payload root when message is a plain object", () => {
+      // This tests the case where the log body has a message field that is itself an object
+      // The message object should be spread into the root, with other fields overlaid
+      const structuredBody = create(AnyValueSchema, {
+        value: {
+          case: "kvlistValue",
+          value: create(KeyValueListSchema, {
+            values: [
+              create(KeyValueSchema, {
+                key: "message",
+                value: create(AnyValueSchema, {
+                  value: {
+                    case: "kvlistValue",
+                    value: create(KeyValueListSchema, {
+                      values: [
+                        create(KeyValueSchema, {
+                          key: "inner_field",
+                          value: create(AnyValueSchema, {
+                            value: {
+                              case: "stringValue",
+                              value: "inner_value",
+                            },
+                          }),
+                        }),
+                        create(KeyValueSchema, {
+                          key: "another_field",
+                          value: create(AnyValueSchema, {
+                            value: {
+                              case: "stringValue",
+                              value: "will_be_overridden",
+                            },
+                          }),
+                        }),
+                      ],
+                    }),
+                  },
+                }),
+              }),
+              create(KeyValueSchema, {
+                key: "another_field",
+                value: create(AnyValueSchema, {
+                  value: { case: "stringValue", value: "outer_value" },
+                }),
+              }),
+              create(KeyValueSchema, {
+                key: "trace_id",
+                value: create(AnyValueSchema, {
+                  value: { case: "stringValue", value: "abc123" },
+                }),
+              }),
+            ],
+          }),
+        },
+      });
+
+      const request = create(ExportLogsServiceRequestSchema, {
+        resourceLogs: [
+          create(ResourceLogsSchema, {
+            scopeLogs: [
+              create(ScopeLogsSchema, {
+                logRecords: [
+                  create(LogRecordSchema, {
+                    observedTimeUnixNano: BigInt("1768223454388863471"),
+                    body: structuredBody,
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportLogsServiceRequestToLogEvents(
+        request,
+        createMockLogOptions()
+      );
+
+      expect(result[0].event).toEqual({
+        inner_field: "inner_value",
+        another_field: "outer_value", // outer value overrides inner
+        trace_id: "abc123",
+      });
+    });
+
+    test("should handle JSON-parsed structured log body with message, trace_id, span_id", () => {
+      // This reproduces the case where the OTEL collector parses a JSON log line like:
+      // {"message":"Web search is not configured...","trace_id":"1b84934b471492df10e60c98c0aad32e","span_id":"8d1e5be733127f29"}
+      const structuredBody = create(AnyValueSchema, {
+        value: {
+          case: "kvlistValue",
+          value: create(KeyValueListSchema, {
+            values: [
+              create(KeyValueSchema, {
+                key: "message",
+                value: create(AnyValueSchema, {
+                  value: {
+                    case: "stringValue",
+                    value:
+                      "Web search is not configured. The `exaApiKey` config field is undefined.",
+                  },
+                }),
+              }),
+              create(KeyValueSchema, {
+                key: "trace_id",
+                value: create(AnyValueSchema, {
+                  value: {
+                    case: "stringValue",
+                    value: "1b84934b471492df10e60c98c0aad32e",
+                  },
+                }),
+              }),
+              create(KeyValueSchema, {
+                key: "span_id",
+                value: create(AnyValueSchema, {
+                  value: {
+                    case: "stringValue",
+                    value: "8d1e5be733127f29",
+                  },
+                }),
+              }),
+            ],
+          }),
+        },
+      });
+
+      const request = create(ExportLogsServiceRequestSchema, {
+        resourceLogs: [
+          create(ResourceLogsSchema, {
+            scopeLogs: [
+              create(ScopeLogsSchema, {
+                logRecords: [
+                  create(LogRecordSchema, {
+                    observedTimeUnixNano: BigInt("1768223454388863471"),
+                    body: structuredBody,
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportLogsServiceRequestToLogEvents(
+        request,
+        createMockLogOptions()
+      );
+
+      expect(result[0].event).toEqual({
+        message:
+          "Web search is not configured. The `exaApiKey` config field is undefined.",
+        trace_id: "1b84934b471492df10e60c98c0aad32e",
+        span_id: "8d1e5be733127f29",
+      });
+    });
+
+    test("should handle missing optional fields", () => {
+      const minimalRequest = create(ExportLogsServiceRequestSchema, {
+        resourceLogs: [
+          create(ResourceLogsSchema, {
+            resource: create(ResourceSchema, {
+              attributes: [],
+            }),
+            scopeLogs: [
+              create(ScopeLogsSchema, {
+                logRecords: [
+                  create(LogRecordSchema, {
+                    timeUnixNano: BigInt("1640995200000000000"),
+                    // No body, no attributes, no trace/span ids
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+
+      const result = mapExportLogsServiceRequestToLogEvents(
+        minimalRequest,
+        createMockLogOptions()
+      );
+
+      const logEvent = result[0];
+      expect(logEvent.event).toEqual({ message: null });
     });
   });
 });

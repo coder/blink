@@ -3,7 +3,7 @@ import { Hono, type MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { validator } from "hono/validator";
-import { decode, encode } from "next-auth/jwt";
+import { type JWT, decode, encode } from "next-auth/jwt";
 import { validate } from "uuid";
 import type { Bindings } from "../../../server";
 import { handleInsertMessages, validateMessages } from "../../messages.server";
@@ -367,4 +367,80 @@ export const generateAgentInvocationToken = (
       chat_id: params.chat_id,
     },
   });
+};
+
+export interface AgentDeploymentToken {
+  agent_id: string;
+  agent_deployment_id: string;
+  agent_deployment_target_id: string;
+}
+
+export const generateAgentDeploymentToken = (
+  authSecret: string,
+  params: AgentDeploymentToken
+) => {
+  return encode({
+    salt: "agent-deployment",
+    secret: authSecret,
+    // No maxAge - deployment tokens never expire
+    token: {
+      agent_id: params.agent_id,
+      agent_deployment_id: params.agent_deployment_id,
+      agent_deployment_target_id: params.agent_deployment_target_id,
+    },
+  });
+};
+
+export const withAgentDeploymentAuth: MiddlewareHandler<{
+  Bindings: Bindings;
+  Variables: AgentDeploymentToken;
+}> = async (c, next) => {
+  const db = await c.env.database();
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new HTTPException(401, { message: "Unauthorized" });
+  }
+
+  const tokenValue = authHeader.substring(7);
+  let token: JWT | null = null;
+  try {
+    token = await decode({
+      token: tokenValue,
+      secret: c.env.AUTH_SECRET,
+      salt: "agent-deployment",
+    });
+  } catch {
+    throw new HTTPException(401, { message: "Unauthorized" });
+  }
+  if (!token) {
+    throw new HTTPException(401, { message: "Unauthorized" });
+  }
+  if (
+    typeof token.agent_id !== "string" ||
+    typeof token.agent_deployment_id !== "string" ||
+    typeof token.agent_deployment_target_id !== "string"
+  ) {
+    throw new HTTPException(401, { message: "Unauthorized" });
+  }
+  const agentID = token.agent_id as string;
+  const deploymentID = token.agent_deployment_id as string;
+  const deploymentTargetID = token.agent_deployment_target_id as string;
+
+  const [deployment, target] = await Promise.all([
+    db.selectAgentDeploymentByID(deploymentID),
+    db.selectAgentDeploymentTargetByID(deploymentTargetID),
+  ]);
+  if (
+    !deployment ||
+    deployment.agent_id !== agentID ||
+    !target ||
+    target.agent_id !== agentID
+  ) {
+    throw new HTTPException(401, { message: "Unauthorized" });
+  }
+
+  c.set("agent_id", agentID);
+  c.set("agent_deployment_id", deploymentID);
+  c.set("agent_deployment_target_id", deploymentTargetID);
+  await next();
 };

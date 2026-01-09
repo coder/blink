@@ -11,3 +11,7 @@ export const InternalAPIServerURLEnvironmentVariable =
 
 export const InternalAPIServerListenPortEnvironmentVariable =
   "INTERNAL_BLINK_API_SERVER_LISTEN_PORT";
+
+// BlinkDeploymentTokenEnvironmentVariable is the environment variable
+// that contains the deployment token for the agent.
+export const BlinkDeploymentTokenEnvironmentVariable = "BLINK_DEPLOYMENT_TOKEN";

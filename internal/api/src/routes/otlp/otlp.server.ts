@@ -1,10 +1,16 @@
 import { create } from "@bufbuild/protobuf";
 import type { APIServer } from "../../server";
-import { withAgentInvocationAuth } from "../agents/me/me.server";
 import {
+  withAgentDeploymentAuth,
+  withAgentInvocationAuth,
+} from "../agents/me/me.server";
+import {
+  mapExportLogsServiceRequestToLogEvents,
   mapExportTraceServiceRequestToOtelSpans,
+  parseOtlpHttpLogs,
   parseOtlpHttpTraces,
 } from "./convert";
+import { ExportLogsServiceResponseSchema } from "./gen/opentelemetry/proto/collector/logs/v1/logs_service_pb";
 import { ExportTraceServiceResponseSchema } from "./gen/opentelemetry/proto/collector/trace/v1/trace_service_pb";
 
 export default function mountOtlp(server: APIServer) {
@@ -23,5 +29,26 @@ export default function mountOtlp(server: APIServer) {
     await c.env.traces.write(spans);
 
     return c.json(create(ExportTraceServiceResponseSchema, {}), 200);
+  });
+
+  // /api/otlp/v1/logs
+  server.post("/v1/logs", withAgentDeploymentAuth, async (c) => {
+    const parsedLogs = await parseOtlpHttpLogs(c.req.raw);
+    const logEvents = mapExportLogsServiceRequestToLogEvents(parsedLogs, {
+      agent_id: c.get("agent_id"),
+      deployment_id: c.get("agent_deployment_id"),
+      deployment_target_id: c.get("agent_deployment_target_id"),
+    });
+
+    await Promise.all(
+      logEvents.map((log) =>
+        c.env.logs.write({
+          agent_id: log.agent_id,
+          event: log.event,
+        })
+      )
+    );
+
+    return c.json(create(ExportLogsServiceResponseSchema, {}), 200);
   });
 }
