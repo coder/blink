@@ -29,8 +29,9 @@ function isPlainRecord(val: unknown): val is Record<string | number, unknown> {
 }
 
 const patchGlobalConsole = () => {
-  // only patch if we are in a lambda function
-  if (!process.env.AWS_LAMBDA_FUNCTION_VERSION) {
+  const inLambda = !!process.env.AWS_LAMBDA_FUNCTION_VERSION;
+  const useStructuredLogging = !!process.env.BLINK_USE_STRUCTURED_LOGGING;
+  if (!inLambda && !useStructuredLogging) {
     return;
   }
   if (consolePatched) {
@@ -72,19 +73,27 @@ const patchGlobalConsole = () => {
   };
 
   const structuredLog = <T extends (...args: any[]) => void>(
+    level: string,
     originalLog: T
   ) => {
     return (...args: any[]) => {
-      originalLog(safeTransform(args));
+      const safePayload = safeTransform(args);
+      // lambda does special log parsing, so we don't need to stringify it
+      // or add the level field
+      if (inLambda) {
+        originalLog(safePayload);
+        return;
+      }
+      originalLog(JSON.stringify({ level, ...safePayload }));
     };
   };
 
-  console.log = structuredLog(console.log);
-  console.error = structuredLog(console.error);
-  console.warn = structuredLog(console.warn);
-  console.info = structuredLog(console.info);
-  console.debug = structuredLog(console.debug);
-  console.trace = structuredLog(console.trace);
+  console.log = structuredLog("info", console.log);
+  console.error = structuredLog("error", console.error);
+  console.warn = structuredLog("warn", console.warn);
+  console.info = structuredLog("info", console.info);
+  console.debug = structuredLog("info", console.debug);
+  console.trace = structuredLog("info", console.trace);
 };
 
 class FilteringSpanProcessor implements SpanProcessor {
