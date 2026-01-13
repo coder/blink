@@ -5,6 +5,7 @@ import Client, {
 import { stat, readFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
 import { getHost, loginIfNeeded } from "./lib/auth";
+import { writeBlinkConfig } from "./lib/config";
 import { migrateDataToBlink } from "./lib/migrate";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile, readdir } from "fs/promises";
@@ -444,7 +445,7 @@ export default async function deploy(
 
   // Write deploy config on success
   if (!isCI) {
-    await writeDeployConfig(deployConfigPath, deployConfig);
+    await writeBlinkConfig(rootDirectory, deployConfig);
   }
 
   // Poll for deployment completion
@@ -527,22 +528,6 @@ const exists = async (path: string) => {
 
 async function readEnvFile(path: string): Promise<Record<string, string>> {
   return (await exists(path)) ? parse(await readFile(path, "utf-8")) : {};
-}
-
-async function writeDeployConfig(path: string, config: DeployConfig) {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(
-    path,
-    JSON.stringify(
-      {
-        _: "This file can be source controlled. It contains no secrets.",
-        ...config,
-      },
-      null,
-      2
-    ),
-    "utf-8"
-  );
 }
 
 async function mapWithConcurrency<T, R>(

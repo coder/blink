@@ -57,6 +57,23 @@ const asyncEntry = (
   };
 };
 
+/**
+ * Like asyncEntry but handles commands that return a status code.
+ * Exits with the returned code if it's non-zero.
+ */
+const asyncEntryWithExit = (
+  // biome-ignore lint/suspicious/noExplicitAny: generic function type
+  entry: () => Promise<{ default: (...args: any[]) => Promise<number> }>
+) => {
+  return async (...args: unknown[]) => {
+    const { default: entrypoint } = await entry();
+    const code = await entrypoint(...args);
+    if (code !== 0) {
+      process.exit(code);
+    }
+  };
+};
+
 program
   .command("init [directory]")
   .description("Initialize a new Blink agent.")
@@ -72,6 +89,15 @@ program
   .description("Deploy your agent to the Blink Cloud.")
   .option("-m, --message <message>", "Message for this deployment")
   .action(deploy);
+
+program
+  .command("pull [agent]")
+  .description("Pull an agent's source code to a local directory.")
+  .option(
+    "-d, --dir <directory>",
+    "Target directory (default: current directory)"
+  )
+  .action(asyncEntryWithExit(() => import("./pull")));
 
 program
   .command("build [directory]")
@@ -130,7 +156,9 @@ program
 
 program
   .command("login [url]")
-  .description("Log in to the Blink Cloud. Optionally specify a custom host URL.")
+  .description(
+    "Log in to the Blink Cloud. Optionally specify a custom host URL."
+  )
   .action(asyncEntry(() => import("./login")));
 
 const computeCommand = program
