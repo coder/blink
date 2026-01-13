@@ -236,6 +236,9 @@ export interface Bindings {
 
   readonly serverVersion: string;
 
+  /** When true, auto-add new users to all existing team organizations (self-hosted mode) */
+  readonly autoJoinOrganizations?: boolean;
+
   // Optional AWS credentials used by platform logging to CloudWatch
   readonly AWS_ACCESS_KEY_ID?: string;
   readonly AWS_SECRET_ACCESS_KEY?: string;

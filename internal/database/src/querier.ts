@@ -326,6 +326,14 @@ export default class Querier {
   }
 
   // selectOrganizationMembershipsByUserID fetches all organization memberships for a user.
+  // selectTeamOrganizations fetches all team (non-personal) organizations.
+  public async selectTeamOrganizations(): Promise<Organization[]> {
+    return this.db
+      .select()
+      .from(organization)
+      .where(eq(organization.kind, "organization"));
+  }
+
   public async selectOrganizationMembershipsByUserID(userId: string): Promise<
     Array<{
       organization_membership: OrganizationMembership;

@@ -302,6 +302,28 @@ async function handleOAuthCallback(
       password: null,
     });
 
+    // Auto-join team organizations (self-hosted mode)
+    if (c.env.autoJoinOrganizations) {
+      const teamOrgs = await db.selectTeamOrganizations();
+      if (teamOrgs.length === 0) {
+        // First user: create default org, make them owner
+        await db.insertOrganizationWithMembership({
+          name: "default",
+          kind: "organization",
+          created_by: user.id,
+        });
+      } else {
+        // Subsequent users: add as member to all existing team orgs
+        for (const org of teamOrgs) {
+          await db.insertOrganizationMembership({
+            organization_id: org.id,
+            user_id: user.id,
+            role: "member",
+          });
+        }
+      }
+    }
+
     // consume single-use invite (mark accepted)
     if (usedInviteId) {
       try {
@@ -925,6 +947,28 @@ export default function mountAuth(server: APIServer) {
         password: hashedPassword,
         email_verified: emailVerified,
       });
+
+      // Auto-join team organizations (self-hosted mode)
+      if (c.env.autoJoinOrganizations) {
+        const teamOrgs = await db.selectTeamOrganizations();
+        if (teamOrgs.length === 0) {
+          // First user: create default org, make them owner
+          await db.insertOrganizationWithMembership({
+            name: "default",
+            kind: "organization",
+            created_by: user.id,
+          });
+        } else {
+          // Subsequent users: add as member to all existing team orgs
+          for (const org of teamOrgs) {
+            await db.insertOrganizationMembership({
+              organization_id: org.id,
+              user_id: user.id,
+              role: "member",
+            });
+          }
+        }
+      }
 
       // Sync user to telemetry system (async, don't block)
       if (c.env.sendTelemetryEvent) {

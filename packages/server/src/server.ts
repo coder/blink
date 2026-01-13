@@ -145,6 +145,7 @@ export async function startServer(options: ServerOptions) {
           {
             AUTH_SECRET: authSecret,
             NODE_ENV: "development",
+            autoJoinOrganizations: true,
             serverVersion: pkg.version,
             ONBOARDING_AGENT_BUNDLE_URL:
               "https://artifacts.blink.host/starter-agent/bundle.tar.gz",
