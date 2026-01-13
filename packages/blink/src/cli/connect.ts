@@ -198,10 +198,10 @@ export class WorkspaceConnect {
       headers,
     });
     this.ws.addEventListener("open", () => {
-      this._onConnect.emit();
+      this._onConnect.emit(undefined);
     });
     this.ws.addEventListener("close", () => {
-      this._onDisconnect.emit();
+      this._onDisconnect.emit(undefined);
       if (this.disposed) {
         return;
       }

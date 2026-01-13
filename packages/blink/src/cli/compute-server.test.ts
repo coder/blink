@@ -50,14 +50,14 @@ const createRemoteClient = (url: string): Promise<RemoteClient> => {
     });
 
     const wireStream = (stream: Stream) => {
-      stream.onData((data) => {
+      stream.onData((data: Uint8Array) => {
         const payload = data.subarray(1);
         client.handleMessage(decoder.decode(payload));
       });
     };
 
     wireStream(clientStream);
-    multiplexer.onStream((stream) => {
+    multiplexer.onStream((stream: Stream) => {
       wireStream(stream);
     });
 
