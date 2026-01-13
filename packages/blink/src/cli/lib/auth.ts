@@ -13,27 +13,30 @@ import { spinner } from "@clack/prompts";
 import open from "open";
 import { openUrl } from "./util";
 
+const DEFAULT_HOST = "https://blink.coder.com";
+
+interface BlinkConfig {
+  _?: string;
+  token?: string;
+  host?: string;
+}
+
 /**
- * Gets the auth token for the Blink CLI.
- *
- * @param testAuthPath - Optional path for testing, overrides default auth path
- * @returns The auth token for the Blink CLI.
+ * Reads the full config from the auth file.
  */
-export function getAuthToken(testAuthPath?: string): string | undefined {
+function getConfig(testAuthPath?: string): BlinkConfig | undefined {
   const path = testAuthPath || getAuthTokenConfigPath();
   if (existsSync(path)) {
     const data = readFileSync(path, "utf8");
-    return JSON.parse(data).token;
+    return JSON.parse(data);
   }
   return undefined;
 }
 
 /**
- * Sets the auth token for the Blink CLI.
- * @param token - The auth token to set.
- * @param testAuthPath - Optional path for testing, overrides default auth path
+ * Writes the full config to the auth file.
  */
-export function setAuthToken(token: string, testAuthPath?: string) {
+function setConfig(config: BlinkConfig, testAuthPath?: string) {
   const path = testAuthPath || getAuthTokenConfigPath();
   if (!existsSync(dirname(path))) {
     mkdirSync(dirname(path), { recursive: true });
@@ -42,9 +45,69 @@ export function setAuthToken(token: string, testAuthPath?: string) {
     path,
     JSON.stringify({
       _: "This is your Blink credentials file. DO NOT SHARE THIS FILE WITH ANYONE!",
-      token,
+      ...config,
     })
   );
+}
+
+/**
+ * Normalizes a host URL by ensuring https:// prefix and stripping trailing slashes.
+ */
+export function normalizeHost(url: string): string {
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    url = "https://" + url;
+  }
+  return url.replace(/\/+$/, "");
+}
+
+/**
+ * Converts an HTTP(S) URL to a WebSocket URL.
+ */
+export function toWsUrl(host: string): string {
+  return host.replace(/^http:\/\//, "ws://").replace(/^https:\/\//, "wss://");
+}
+
+/**
+ * Gets the host URL for the Blink CLI.
+ * Priority: BLINK_HOST env var → config file → default
+ *
+ * @param testAuthPath - Optional path for testing, overrides default auth path
+ * @returns The host URL for the Blink CLI.
+ */
+export function getHost(testAuthPath?: string): string {
+  return (
+    process.env.BLINK_HOST ?? getConfig(testAuthPath)?.host ?? DEFAULT_HOST
+  );
+}
+
+/**
+ * Gets the auth token for the Blink CLI.
+ *
+ * @param testAuthPath - Optional path for testing, overrides default auth path
+ * @returns The auth token for the Blink CLI.
+ */
+export function getAuthToken(testAuthPath?: string): string | undefined {
+  return getConfig(testAuthPath)?.token;
+}
+
+/**
+ * Sets the auth token for the Blink CLI.
+ * @param token - The auth token to set.
+ * @param testAuthPath - Optional path for testing, overrides default auth path
+ */
+export function setAuthToken(token: string, testAuthPath?: string) {
+  const existing = getConfig(testAuthPath) ?? {};
+  setConfig({ ...existing, token }, testAuthPath);
+}
+
+/**
+ * Sets the host URL for the Blink CLI.
+ * @param host - The host URL to set.
+ * @param testAuthPath - Optional path for testing, overrides default auth path
+ */
+export function setHost(host: string, testAuthPath?: string) {
+  const existing = getConfig(testAuthPath) ?? {};
+  setConfig({ ...existing, host: normalizeHost(host) }, testAuthPath);
 }
 
 /**
@@ -67,7 +130,8 @@ function getAuthTokenConfigPath() {
 }
 
 export async function loginIfNeeded(): Promise<string> {
-  const client = new Client();
+  const host = getHost();
+  const client = new Client({ baseURL: host });
 
   // Check for BLINK_TOKEN environment variable first (for CI)
   let token = process.env.BLINK_TOKEN || getAuthToken();
@@ -139,9 +203,15 @@ function setupEnterKeyListener(onEnter: () => void): StdinCleanup {
 /**
  * Login makes the CLI output the URL to authenticate with Blink.
  * It returns a valid auth token.
+ * @param host - Optional host URL to authenticate against (will be saved to config)
  */
-export async function login(): Promise<string> {
-  const client = new Client();
+export async function login(host?: string): Promise<string> {
+  // If host is provided, normalize and save it
+  if (host) {
+    setHost(host);
+  }
+  const effectiveHost = getHost();
+  const client = new Client({ baseURL: effectiveHost });
 
   let authUrl: string | undefined;
   let browserOpened = false;

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
+import { getHost, toWsUrl } from "./lib/auth";
 
 // Tempfile logger
 const tempLogPath = path.join(os.tmpdir(), `blink-connect-${process.pid}.log`);
@@ -54,13 +55,14 @@ export default async function connect() {
     reportException(token!, err);
   });
 
+  const host = getHost();
   const srv = new WorkspaceConnect({
-    url: url ?? "wss://blink.so/api/connect",
+    url: url ?? `${toWsUrl(host)}/api/connect`,
     token,
     createDeploymentFromTar: async (tar) => {
       const uploadURL = new URL(
         "/api/static-deployment",
-        url ?? "https://blink.coder.com"
+        url ?? host
       );
       const response = await fetch(uploadURL, {
         method: "POST",
@@ -87,7 +89,7 @@ export default async function connect() {
 }
 
 const reportException = async (token: string, err: unknown) => {
-  const url = new URL("https://blink.coder.com/api/connect-error");
+  const url = new URL(`${getHost()}/api/connect-error`);
   await fetch(url.toString(), {
     method: "POST",
     headers: {

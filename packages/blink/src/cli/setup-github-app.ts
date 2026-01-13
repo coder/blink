@@ -12,6 +12,7 @@ import {
 import chalk from "chalk";
 import type { GitHubAppData } from "../edit/tools/create-github-app";
 import { createGithubApp } from "../edit/tools/create-github-app";
+import { getHost } from "./lib/auth";
 import { createDevhookID, getDevhookID, hasDevhook } from "./lib/devhook";
 import { openUrl } from "./lib/util";
 
@@ -115,7 +116,7 @@ export async function setupGithubApp(
   // Create manifest with sensible defaults for a typical GitHub App
   const manifest = {
     name: githubAppName.toString(),
-    url: "https://blink.coder.com",
+    url: getHost(),
     description: "A Blink agent for GitHub",
     public: false,
     hook_attributes: {

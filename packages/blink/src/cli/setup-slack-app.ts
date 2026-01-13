@@ -3,6 +3,7 @@ import { access, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import util from "node:util";
 import Client from "@blink.so/api";
+import { getHost } from "./lib/auth";
 import {
   confirm,
   intro,
@@ -214,7 +215,7 @@ export async function setupSlackApp(
   let lastFailedChannel: string | undefined;
 
   const client = new Client({
-    baseURL: "https://blink.coder.com",
+    baseURL: getHost(),
   });
 
   let resolveConnected = () => {};

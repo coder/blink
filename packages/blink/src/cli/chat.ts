@@ -1,11 +1,14 @@
 import open from "open";
 import { WebSocket } from "ws";
 import { WorkspaceConnect } from "./connect";
+import { getHost, toWsUrl } from "./lib/auth";
 import { openUrl } from "./lib/util";
 
 export default async function chat() {
+  const host = getHost();
+  const wsHost = toWsUrl(host);
   const id = crypto.randomUUID();
-  const ws = new WebSocket(`wss://blink.so/legacy-auth?id=${id}`);
+  const ws = new WebSocket(`${wsHost}/legacy-auth?id=${id}`);
   const opened = new Promise<void>((resolve, reject) => {
     ws.onopen = () => {
       resolve();
@@ -20,14 +23,14 @@ export default async function chat() {
       resolve(event.data.toString());
     };
   });
-  const url = `https://blink.coder.com/legacy-auth?id=${id}&type=workspace`;
+  const url = `${host}/legacy-auth?id=${id}&type=workspace`;
   console.log(`Opening the following URL in your browser: ${url}`);
   await openUrl(url);
 
   const token = await tokenPromise;
 
   const srv = new WorkspaceConnect({
-    url: "wss://blink.so/api/connect",
+    url: `${wsHost}/api/connect`,
     token,
   });
   srv.onConnect(() => {

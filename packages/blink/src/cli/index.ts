@@ -129,8 +129,8 @@ program
   .action(asyncEntry(() => import("./chat")));
 
 program
-  .command("login")
-  .description("Log in to the Blink Cloud.")
+  .command("login [url]")
+  .description("Log in to the Blink Cloud. Optionally specify a custom host URL.")
   .action(asyncEntry(() => import("./login")));
 
 const computeCommand = program

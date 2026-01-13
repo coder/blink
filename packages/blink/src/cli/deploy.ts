@@ -4,7 +4,7 @@ import Client, {
 } from "@blink.so/api";
 import { stat, readFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
-import { loginIfNeeded } from "./lib/auth";
+import { getHost, loginIfNeeded } from "./lib/auth";
 import { migrateDataToBlink } from "./lib/migrate";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile, readdir } from "fs/promises";
@@ -364,7 +364,7 @@ export default async function deploy(
     });
     deployConfig.agentId = agent.id;
     agentName = agent.name;
-    const agentUrl = `https://blink.coder.com/${organizationName}/${agentName}`;
+    const agentUrl = `${getHost()}/${organizationName}/${agentName}`;
     console.log(chalk.gray(`Agent created ${chalk.dim(agentUrl)}`));
   } else if (envEntries.length > 0) {
     // Update environment variables for existing agents
@@ -437,7 +437,7 @@ export default async function deploy(
         message: options?.message,
       });
 
-  const inspectUrl = `https://blink.coder.com/${organizationName}/${agentName}/deployments/${deployment.number}`;
+  const inspectUrl = `${getHost()}/${organizationName}/${agentName}/deployments/${deployment.number}`;
 
   // Show deployment URL immediately
   console.log(chalk.gray(`View Deployment ${chalk.dim(inspectUrl)}`));
