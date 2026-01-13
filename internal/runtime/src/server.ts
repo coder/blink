@@ -10,6 +10,7 @@ import { api } from "blink/control";
 import { getAuthToken } from "blink/internal";
 import { createServer, Server } from "node:http";
 import {
+  BlinkInvocationAuthTokenEnvironmentVariable,
   InternalAPIServerListenPortEnvironmentVariable,
   InternalAPIServerURLEnvironmentVariable,
 } from "./types";
@@ -24,6 +25,9 @@ export const InternalAuthHeader = "x-blink-internal-auth";
  * Patches globalThis.fetch to automatically add the auth token header
  * for requests to the internal API server. This allows the auth token
  * to cross the HTTP boundary from agent code to the internal API.
+ *
+ * Uses AsyncLocalStorage context (getAuthToken) as the primary source,
+ * with fallback to legacy environment variable for older blink package versions.
  */
 export function patchFetchWithAuth(internalAPIOrigin: string): void {
   const originalFetch = globalThis.fetch;
@@ -35,7 +39,10 @@ export function patchFetchWithAuth(internalAPIOrigin: string): void {
           ? input.href
           : input.url;
     if (url.startsWith(internalAPIOrigin)) {
-      const authToken = getAuthToken();
+      // Try ALS context first, fall back to legacy env var for older blink versions
+      const authToken =
+        getAuthToken() ??
+        process.env[BlinkInvocationAuthTokenEnvironmentVariable];
       if (authToken) {
         const headers = new Headers(init?.headers);
         headers.set(InternalAuthHeader, authToken);

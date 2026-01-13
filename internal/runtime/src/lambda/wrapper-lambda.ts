@@ -5,7 +5,10 @@
 // After any edits are made, run `./scripts/generate.ts` to
 // regenerate this file. The generated file is source-controlled.
 
-import { BlinkInvocationTokenHeader } from "@blink.so/runtime/types";
+import {
+  BlinkInvocationAuthTokenEnvironmentVariable,
+  BlinkInvocationTokenHeader,
+} from "@blink.so/runtime/types";
 import { runWithAuth } from "blink/internal";
 import { resolve } from "node:path";
 import { Writable } from "node:stream";
@@ -47,6 +50,10 @@ export const handler = awslambda.streamifyResponse(
         break;
       }
     }
+
+    // Legacy: Set env var for older blink package versions that don't use ALS.
+    // This is safe for Lambda since it handles one request at a time.
+    process.env[BlinkInvocationAuthTokenEnvironmentVariable] = authToken ?? "";
 
     // Use AsyncLocalStorage to ensure each request has its own auth context.
     // The patched fetch will read from this context when making internal API requests.

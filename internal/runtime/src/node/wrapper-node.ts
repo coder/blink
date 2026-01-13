@@ -2,7 +2,10 @@
 // request/response handling in a way that is compatible with
 // the Blink Agent exports.
 
-import { BlinkInvocationTokenHeader } from "@blink.so/runtime/types";
+import {
+  BlinkInvocationAuthTokenEnvironmentVariable,
+  BlinkInvocationTokenHeader,
+} from "@blink.so/runtime/types";
 import { runWithAuth } from "blink/internal";
 import http from "http";
 import { resolve } from "node:path";
@@ -26,6 +29,12 @@ const agent = await startAgentServer(resolve(process.env.ENTRYPOINT), port + 1);
 http
   .createServer((req, res) => {
     const authToken = req.headers[BlinkInvocationTokenHeader] as string;
+
+    // Legacy: Set env var for older blink package versions that don't use ALS.
+    // WARNING: This has race conditions with concurrent requests - it's here
+    // only for backwards compatibility. New blink versions use ALS context.
+    process.env[BlinkInvocationAuthTokenEnvironmentVariable] = authToken;
+
     // Use AsyncLocalStorage to ensure each request has its own auth context.
     // The patched fetch will read from this context when making internal API requests.
     runWithAuth(authToken, () => {

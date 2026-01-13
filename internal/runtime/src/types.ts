@@ -15,3 +15,14 @@ export const InternalAPIServerListenPortEnvironmentVariable =
 // BlinkDeploymentTokenEnvironmentVariable is the environment variable
 // that contains the deployment token for the agent.
 export const BlinkDeploymentTokenEnvironmentVariable = "BLINK_DEPLOYMENT_TOKEN";
+
+/**
+ * @deprecated Legacy environment variable for auth token.
+ * Used as fallback for older blink package versions that don't support
+ * AsyncLocalStorage-based auth context. New code should use runWithAuth/getAuthToken.
+ *
+ * WARNING: This approach has race conditions with concurrent requests in Node.js.
+ * It's safe for Lambda (single request at a time) but not for Node.js servers.
+ */
+export const BlinkInvocationAuthTokenEnvironmentVariable =
+  "BLINK_INVOCATION_AUTH_TOKEN";
