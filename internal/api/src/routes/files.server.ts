@@ -40,9 +40,15 @@ export default function mountFiles(server: APIServer) {
   server.get("/:id", async (c) => {
     const id = c.req.param("id");
     const file = await c.env.files.download(id);
+
+    // Don't set Content-Length header. Bun has a bug where it modifies certain content
+    // types during transmission (e.g., stripping trailing newlines from JSON files),
+    // causing a mismatch between Content-Length and actual bytes sent. This makes the
+    // client hang waiting for bytes that never arrive. Omitting Content-Length forces
+    // chunked transfer encoding which avoids the issue.
+    // Note: this happens with createServer from node:http, not with Bun.serve.
     return c.body(file.stream, 200, {
       "Content-Type": file.type,
-      "Content-Length": file.size.toString(),
       // Inline to prevent the browser from downloading the file.
       "Content-Disposition": `inline; filename="${file.name}"`,
     });
