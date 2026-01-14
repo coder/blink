@@ -110,6 +110,36 @@ export interface TraceOptions {
   chat_id?: string;
 }
 
+/**
+ * Extracts run_id, step_id, and chat_id from span attributes.
+ * Looks for flat attribute keys: blink.run_id, blink.step_id, blink.chat_id
+ */
+function extractBlinkIdsFromSpan(span: Span): {
+  run_id?: string;
+  step_id?: string;
+  chat_id?: string;
+} {
+  const result: { run_id?: string; step_id?: string; chat_id?: string } = {};
+
+  if (!span.attributes) {
+    return result;
+  }
+
+  for (const attr of span.attributes) {
+    if (attr.value?.value.case === "stringValue") {
+      if (attr.key === "blink.run_id") {
+        result.run_id = attr.value.value.value;
+      } else if (attr.key === "blink.step_id") {
+        result.step_id = attr.value.value.value;
+      } else if (attr.key === "blink.chat_id") {
+        result.chat_id = attr.value.value.value;
+      }
+    }
+  }
+
+  return result;
+}
+
 export function mapExportTraceServiceRequestToOtelSpans(
   request: ExportTraceServiceRequest,
   options: TraceOptions
@@ -131,13 +161,25 @@ function mapResourceSpans(
     resourceSpans.resource?.attributes ?? []
   );
 
+  // If IDs are undefined in options, try to extract them from the resource's blink attribute
+  const extractedIds =
+    options.run_id === undefined ||
+    options.step_id === undefined ||
+    options.chat_id === undefined
+      ? extractBlinkIdsFromResourceSpans(resourceSpans)
+      : {};
+
+  const run_id = options.run_id ?? extractedIds.run_id;
+  const step_id = options.step_id ?? extractedIds.step_id;
+  const chat_id = options.chat_id ?? extractedIds.chat_id;
+
   resourceAttrs.blink = {
     agent_id: options.agent_id,
     deployment_id: options.deployment_id,
     deployment_target_id: options.deployment_target_id,
-    ...(options.run_id ? { run_id: options.run_id } : {}),
-    ...(options.step_id ? { step_id: options.step_id } : {}),
-    ...(options.chat_id ? { chat_id: options.chat_id } : {}),
+    ...(run_id ? { run_id } : {}),
+    ...(step_id ? { step_id } : {}),
+    ...(chat_id ? { chat_id } : {}),
   };
 
   const rows: OtelSpan[] = [];
@@ -318,10 +360,57 @@ function keyValuesToRecord(entries: KeyValue[]): Record<string, unknown> {
     if (!entry || !entry.key) {
       continue;
     }
-    result[entry.key] = anyValueToJson(entry.value);
+    setNestedValue(result, entry.key, anyValueToJson(entry.value));
   }
 
   return result;
+}
+
+/**
+ * Checks if a key could be used for prototype pollution attacks.
+ */
+function isPrototypePollutingKey(key: string): boolean {
+  return key === "__proto__" || key === "constructor" || key === "prototype";
+}
+
+/**
+ * Sets a value in a nested object structure using dot-notation key.
+ * For example, setNestedValue(obj, "foo.bar.baz", 123) creates { foo: { bar: { baz: 123 } } }
+ */
+function setNestedValue(
+  obj: Record<string, unknown>,
+  key: string,
+  value: unknown
+): void {
+  const parts = key.split(".");
+
+  // If no dots, just set directly
+  if (parts.length === 1) {
+    if (isPrototypePollutingKey(key)) {
+      return;
+    }
+    obj[key] = value;
+    return;
+  }
+
+  let current = obj;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i] as string;
+    if (isPrototypePollutingKey(part)) {
+      return;
+    }
+    if (!(part in current) || !isPlainRecord(current[part])) {
+      current[part] = {};
+    }
+    current = current[part] as Record<string, unknown>;
+  }
+
+  const finalKey = parts[parts.length - 1] as string;
+  if (isPrototypePollutingKey(finalKey)) {
+    return;
+  }
+  current[finalKey] = value;
 }
 
 function anyValueToJson(value: AnyValue | undefined): unknown {

@@ -1183,6 +1183,460 @@ describe("OTEL Conversion Functions", () => {
   });
 });
 
+describe("Per-span blink ID extraction", () => {
+  // Helper to create a blink ID attribute
+  function createBlinkIdAttribute(key: string, value: string) {
+    return create(KeyValueSchema, {
+      key: `blink.${key}`,
+      value: create(AnyValueSchema, {
+        value: { case: "stringValue", value },
+      }),
+    });
+  }
+
+  // Helper to create a trace request with custom span attributes
+  function createRequestWithSpanAttributes(
+    attributes: ReturnType<typeof create<typeof KeyValueSchema>>[]
+  ) {
+    return create(ExportTraceServiceRequestSchema, {
+      resourceSpans: [
+        create(ResourceSpansSchema, {
+          resource: create(ResourceSchema, {
+            attributes: [createMockAttribute("service.name", "test-app")],
+          }),
+          scopeSpans: [
+            create(ScopeSpansSchema, {
+              scope: create(InstrumentationScopeSchema, {
+                name: "test-instrumentation",
+              }),
+              spans: [
+                create(SpanSchema, {
+                  traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                  spanId: createMockId("1234567890abcdef"),
+                  name: "test-span",
+                  kind: Span_SpanKind.INTERNAL,
+                  startTimeUnixNano: BigInt("1640995200000000000"),
+                  endTimeUnixNano: BigInt("1640995201000000000"),
+                  attributes,
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+  }
+
+  // Helper to create a ResourceSpans with blink IDs in span attributes
+  function createResourceSpansWithBlinkIds(
+    blinkIds: { run_id?: string; step_id?: string; chat_id?: string },
+    spanName: string
+  ) {
+    const spanAttributes: ReturnType<typeof create<typeof KeyValueSchema>>[] =
+      [];
+    if (blinkIds.run_id) {
+      spanAttributes.push(createBlinkIdAttribute("run_id", blinkIds.run_id));
+    }
+    if (blinkIds.step_id) {
+      spanAttributes.push(createBlinkIdAttribute("step_id", blinkIds.step_id));
+    }
+    if (blinkIds.chat_id) {
+      spanAttributes.push(createBlinkIdAttribute("chat_id", blinkIds.chat_id));
+    }
+
+    return create(ResourceSpansSchema, {
+      resource: create(ResourceSchema, {
+        attributes: [createMockAttribute("service.name", "test-app")],
+      }),
+      scopeSpans: [
+        create(ScopeSpansSchema, {
+          scope: create(InstrumentationScopeSchema, {
+            name: "test-instrumentation",
+          }),
+          spans: [
+            create(SpanSchema, {
+              traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+              spanId: createMockId("1234567890abcdef"),
+              name: spanName,
+              kind: Span_SpanKind.INTERNAL,
+              startTimeUnixNano: BigInt("1640995200000000000"),
+              endTimeUnixNano: BigInt("1640995201000000000"),
+              attributes: spanAttributes,
+            }),
+          ],
+        }),
+      ],
+    });
+  }
+
+  test("should extract IDs from each span's attributes when options IDs are undefined", () => {
+    // Create a request with two spans, each with different blink IDs in their attributes
+    const request = create(ExportTraceServiceRequestSchema, {
+      resourceSpans: [
+        createResourceSpansWithBlinkIds(
+          {
+            run_id: "first-run-id",
+            step_id: "first-step-id",
+            chat_id: "first-chat-id",
+          },
+          "first-span"
+        ),
+        createResourceSpansWithBlinkIds(
+          {
+            run_id: "second-run-id",
+            step_id: "second-step-id",
+            chat_id: "second-chat-id",
+          },
+          "second-span"
+        ),
+      ],
+    });
+
+    // Options without IDs - should extract from each resource
+    const options: TraceOptions = {
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+      // run_id, step_id, chat_id are undefined
+    };
+
+    const result = mapExportTraceServiceRequestToOtelSpans(request, options);
+
+    expect(result).toHaveLength(2);
+
+    // First span should have first resource's IDs
+    expect(result[0].payload.span.name).toBe("first-span");
+    expect(result[0].payload.resource.attributes.blink).toEqual({
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+      run_id: "first-run-id",
+      step_id: "first-step-id",
+      chat_id: "first-chat-id",
+    });
+
+    // Second span should have second resource's IDs
+    expect(result[1].payload.span.name).toBe("second-span");
+    expect(result[1].payload.resource.attributes.blink).toEqual({
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+      run_id: "second-run-id",
+      step_id: "second-step-id",
+      chat_id: "second-chat-id",
+    });
+  });
+
+  test("should use options IDs when provided (not extract from span)", () => {
+    // Create a request with blink IDs in the span
+    const request = create(ExportTraceServiceRequestSchema, {
+      resourceSpans: [
+        createResourceSpansWithBlinkIds(
+          { run_id: "resource-run-id", step_id: "resource-step-id" },
+          "test-span"
+        ),
+      ],
+    });
+
+    // Options with IDs - should use these, not extract from resource
+    const options: TraceOptions = {
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+      run_id: "options-run-id",
+      step_id: "options-step-id",
+      chat_id: "options-chat-id",
+    };
+
+    const result = mapExportTraceServiceRequestToOtelSpans(request, options);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].payload.resource.attributes.blink).toEqual({
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+      run_id: "options-run-id",
+      step_id: "options-step-id",
+      chat_id: "options-chat-id",
+    });
+  });
+
+  test("should handle partial options IDs (some from options, some from span)", () => {
+    // Create a request with blink IDs in the span
+    const request = create(ExportTraceServiceRequestSchema, {
+      resourceSpans: [
+        createResourceSpansWithBlinkIds(
+          {
+            run_id: "span-run-id",
+            step_id: "span-step-id",
+            chat_id: "span-chat-id",
+          },
+          "test-span"
+        ),
+      ],
+    });
+
+    // Options with only run_id - step_id and chat_id should come from span
+    const options: TraceOptions = {
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+      run_id: "options-run-id",
+      // step_id and chat_id are undefined
+    };
+
+    const result = mapExportTraceServiceRequestToOtelSpans(request, options);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].payload.resource.attributes.blink).toEqual({
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+      run_id: "options-run-id",
+      step_id: "span-step-id",
+      chat_id: "span-chat-id",
+    });
+  });
+
+  test("should handle span without blink attributes when options IDs are undefined", () => {
+    // Create a request without blink IDs in the span
+    const request = create(ExportTraceServiceRequestSchema, {
+      resourceSpans: [
+        create(ResourceSpansSchema, {
+          resource: create(ResourceSchema, {
+            attributes: [createMockAttribute("service.name", "test-app")],
+          }),
+          scopeSpans: [
+            create(ScopeSpansSchema, {
+              spans: [
+                create(SpanSchema, {
+                  traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                  spanId: createMockId("1234567890abcdef"),
+                  name: "test-span",
+                  kind: Span_SpanKind.INTERNAL,
+                  startTimeUnixNano: BigInt("1640995200000000000"),
+                  endTimeUnixNano: BigInt("1640995201000000000"),
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    // Options without IDs
+    const options: TraceOptions = {
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+    };
+
+    const result = mapExportTraceServiceRequestToOtelSpans(request, options);
+
+    expect(result).toHaveLength(1);
+    // Should not have run_id, step_id, chat_id
+    expect(result[0].payload.resource.attributes.blink).toEqual({
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+    });
+    expect(result[0].payload.resource.attributes.blink).not.toHaveProperty(
+      "run_id"
+    );
+    expect(result[0].payload.resource.attributes.blink).not.toHaveProperty(
+      "step_id"
+    );
+    expect(result[0].payload.resource.attributes.blink).not.toHaveProperty(
+      "chat_id"
+    );
+  });
+});
+
+describe("Prototype pollution prevention", () => {
+  test("should skip __proto__ as a single-segment key", () => {
+    const request = create(ExportTraceServiceRequestSchema, {
+      resourceSpans: [
+        create(ResourceSpansSchema, {
+          scopeSpans: [
+            create(ScopeSpansSchema, {
+              spans: [
+                create(SpanSchema, {
+                  traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                  spanId: createMockId("1234567890abcdef"),
+                  name: "test-span",
+                  kind: Span_SpanKind.INTERNAL,
+                  startTimeUnixNano: BigInt("1640995200000000000"),
+                  endTimeUnixNano: BigInt("1640995201000000000"),
+                  attributes: [
+                    createMockAttribute("__proto__", "malicious"),
+                    createMockAttribute("constructor", "malicious"),
+                    createMockAttribute("prototype", "malicious"),
+                    createMockAttribute("safe_key", "safe_value"),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = mapExportTraceServiceRequestToOtelSpans(
+      request,
+      createMockOptions()
+    );
+
+    const attrs = result[0].payload.span.attributes;
+
+    // Dangerous keys should be skipped (use Object.hasOwn to check own properties)
+    expect(Object.hasOwn(attrs, "__proto__")).toBe(false);
+    expect(Object.hasOwn(attrs, "constructor")).toBe(false);
+    expect(Object.hasOwn(attrs, "prototype")).toBe(false);
+
+    // Safe key should be present
+    expect(attrs["safe_key"]).toBe("safe_value");
+
+    // Object.prototype should not be polluted
+    expect(({} as any).malicious).toBeUndefined();
+  });
+
+  test("should skip keys with __proto__ as an intermediate segment", () => {
+    const request = create(ExportTraceServiceRequestSchema, {
+      resourceSpans: [
+        create(ResourceSpansSchema, {
+          scopeSpans: [
+            create(ScopeSpansSchema, {
+              spans: [
+                create(SpanSchema, {
+                  traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                  spanId: createMockId("1234567890abcdef"),
+                  name: "test-span",
+                  kind: Span_SpanKind.INTERNAL,
+                  startTimeUnixNano: BigInt("1640995200000000000"),
+                  endTimeUnixNano: BigInt("1640995201000000000"),
+                  attributes: [
+                    createMockAttribute("foo.__proto__.polluted", "malicious"),
+                    createMockAttribute(
+                      "bar.constructor.polluted",
+                      "malicious"
+                    ),
+                    createMockAttribute("baz.prototype.polluted", "malicious"),
+                    createMockAttribute("safe.nested.key", "safe_value"),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = mapExportTraceServiceRequestToOtelSpans(
+      request,
+      createMockOptions()
+    );
+
+    const attrs = result[0].payload.span.attributes;
+
+    // The first segment may be created but the dangerous property should not be traversed
+    // Most importantly, Object.prototype should not be polluted
+    expect(({} as any).polluted).toBeUndefined();
+
+    // Safe nested key should be present
+    expect((attrs["safe"] as any)?.["nested"]?.["key"]).toBe("safe_value");
+  });
+
+  test("should skip keys with __proto__ as the final segment", () => {
+    const request = create(ExportTraceServiceRequestSchema, {
+      resourceSpans: [
+        create(ResourceSpansSchema, {
+          scopeSpans: [
+            create(ScopeSpansSchema, {
+              spans: [
+                create(SpanSchema, {
+                  traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                  spanId: createMockId("1234567890abcdef"),
+                  name: "test-span",
+                  kind: Span_SpanKind.INTERNAL,
+                  startTimeUnixNano: BigInt("1640995200000000000"),
+                  endTimeUnixNano: BigInt("1640995201000000000"),
+                  attributes: [
+                    createMockAttribute("foo.__proto__", "malicious"),
+                    createMockAttribute("bar.constructor", "malicious"),
+                    createMockAttribute("baz.prototype", "malicious"),
+                    createMockAttribute("safe.key", "safe_value"),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    const result = mapExportTraceServiceRequestToOtelSpans(
+      request,
+      createMockOptions()
+    );
+
+    const attrs = result[0].payload.span.attributes;
+
+    // Parent objects may be created, but the dangerous final key should not be set as own property
+    if (attrs["foo"]) {
+      expect(Object.hasOwn(attrs["foo"] as object, "__proto__")).toBe(false);
+    }
+    if (attrs["bar"]) {
+      expect(Object.hasOwn(attrs["bar"] as object, "constructor")).toBe(false);
+    }
+    if (attrs["baz"]) {
+      expect(Object.hasOwn(attrs["baz"] as object, "prototype")).toBe(false);
+    }
+
+    // Safe nested key should be present
+    expect((attrs["safe"] as any)?.["key"]).toBe("safe_value");
+
+    // Object.prototype should not be polluted
+    expect(({} as any).malicious).toBeUndefined();
+  });
+
+  test("should not pollute Object.prototype when processing malicious OTLP payload", () => {
+    // Store original prototype state
+    const originalProtoKeys = Object.keys(Object.prototype);
+
+    const request = create(ExportTraceServiceRequestSchema, {
+      resourceSpans: [
+        create(ResourceSpansSchema, {
+          scopeSpans: [
+            create(ScopeSpansSchema, {
+              spans: [
+                create(SpanSchema, {
+                  traceId: createMockId("a1b2c3d4e5f67890fedcba0987654321"),
+                  spanId: createMockId("1234567890abcdef"),
+                  name: "test-span",
+                  kind: Span_SpanKind.INTERNAL,
+                  startTimeUnixNano: BigInt("1640995200000000000"),
+                  endTimeUnixNano: BigInt("1640995201000000000"),
+                  attributes: [
+                    createMockAttribute("__proto__.isAdmin", "true"),
+                    createMockAttribute("constructor.prototype.pwned", "yes"),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ],
+    });
+
+    mapExportTraceServiceRequestToOtelSpans(request, createMockOptions());
+
+    // Verify Object.prototype was not modified
+    expect(Object.keys(Object.prototype)).toEqual(originalProtoKeys);
+    expect(({} as any).isAdmin).toBeUndefined();
+    expect(({} as any).pwned).toBeUndefined();
+  });
+});
+
 function createMockLogOptions(): LogOptions {
   return {
     agent_id: "test-agent-123",

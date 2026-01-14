@@ -1,9 +1,9 @@
 import type { Chat } from "@blink.so/database/schema";
-import { Hono, type MiddlewareHandler } from "hono";
+import type { Hono, MiddlewareHandler } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { validator } from "hono/validator";
-import { type JWT, decode, encode } from "next-auth/jwt";
+import { decode, encode } from "next-auth/jwt";
 import { validate } from "uuid";
 import type { Bindings } from "../../../server";
 import { handleInsertMessages, validateMessages } from "../../messages.server";
@@ -292,51 +292,128 @@ export default function mountAgentsMe(app: Hono<{ Bindings: Bindings }>) {
   );
 }
 
+// Helper: Extract bearer token from Authorization header
+const extractBearerToken = (authHeader: string | undefined): string => {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new HTTPException(401, { message: "Unauthorized" });
+  }
+  return authHeader.substring(7);
+};
+
+// Helper: Try to decode an invocation token, returns null on failure
+const tryDecodeInvocationToken = async (
+  tokenValue: string,
+  secret: string
+): Promise<AgentInvocationToken | null> => {
+  try {
+    const token = await decode({
+      token: tokenValue,
+      secret,
+      salt: "agent-invocation",
+    });
+    if (
+      !token?.agent_id ||
+      !token?.agent_deployment_id ||
+      !token?.agent_deployment_target_id
+    ) {
+      return null;
+    }
+    return {
+      agent_id: token.agent_id as string,
+      agent_deployment_id: token.agent_deployment_id as string,
+      agent_deployment_target_id: token.agent_deployment_target_id as string,
+      run_id: token.run_id as string | undefined,
+      step_id: token.step_id as string | undefined,
+      chat_id: token.chat_id as string | undefined,
+    };
+  } catch {
+    return null;
+  }
+};
+
+// Helper: Try to decode a deployment token, returns null on failure
+const tryDecodeDeploymentToken = async (
+  tokenValue: string,
+  secret: string
+): Promise<AgentDeploymentToken | null> => {
+  try {
+    const token = await decode({
+      token: tokenValue,
+      secret,
+      salt: "agent-deployment",
+    });
+    if (
+      typeof token?.agent_id !== "string" ||
+      typeof token?.agent_deployment_id !== "string" ||
+      typeof token?.agent_deployment_target_id !== "string"
+    ) {
+      return null;
+    }
+    return {
+      agent_id: token.agent_id,
+      agent_deployment_id: token.agent_deployment_id,
+      agent_deployment_target_id: token.agent_deployment_target_id,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const validateDeploymentTokenWithDB = async (
+  db: Awaited<ReturnType<Bindings["database"]>>,
+  token: AgentDeploymentToken
+): Promise<boolean> => {
+  const [deployment, target] = await Promise.all([
+    db.selectAgentDeploymentByID(token.agent_deployment_id),
+    db.selectAgentDeploymentTargetByID(token.agent_deployment_target_id),
+  ]);
+  return !!(
+    deployment &&
+    deployment.agent_id === token.agent_id &&
+    target &&
+    target.agent_id === token.agent_id
+  );
+};
+
+const setInvocationContext = <
+  C extends {
+    set: (key: string, value: string) => void;
+  },
+>(
+  c: C,
+  token: AgentInvocationToken
+) => {
+  c.set("agent_id", token.agent_id);
+  c.set("agent_deployment_id", token.agent_deployment_id);
+  c.set("agent_deployment_target_id", token.agent_deployment_target_id);
+  if (token.run_id) c.set("run_id", token.run_id);
+  if (token.step_id) c.set("step_id", token.step_id);
+  if (token.chat_id) c.set("chat_id", token.chat_id);
+};
+
+const setDeploymentContext = <
+  C extends {
+    set: (key: string, value: string) => void;
+  },
+>(
+  c: C,
+  token: AgentDeploymentToken
+) => {
+  c.set("agent_id", token.agent_id);
+  c.set("agent_deployment_id", token.agent_deployment_id);
+  c.set("agent_deployment_target_id", token.agent_deployment_target_id);
+};
+
 export const withAgentInvocationAuth: MiddlewareHandler<{
   Bindings: Bindings;
   Variables: AgentInvocationToken;
 }> = async (c, next) => {
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new HTTPException(401, { message: "Unauthorized" });
-  }
-
-  const tokenValue = authHeader.substring(7);
-  let token;
-  try {
-    token = await decode({
-      token: tokenValue,
-      secret: c.env.AUTH_SECRET,
-      salt: "agent-invocation",
-    });
-  } catch {
-    throw new HTTPException(401, { message: "Unauthorized" });
-  }
+  const tokenValue = extractBearerToken(c.req.header("Authorization"));
+  const token = await tryDecodeInvocationToken(tokenValue, c.env.AUTH_SECRET);
   if (!token) {
     throw new HTTPException(401, { message: "Unauthorized" });
   }
-  if (
-    !token.agent_id ||
-    !token.agent_deployment_id ||
-    !token.agent_deployment_target_id
-  ) {
-    throw new HTTPException(401, { message: "Unauthorized" });
-  }
-  c.set("agent_id", token.agent_id as string);
-  c.set("agent_deployment_id", token.agent_deployment_id as string);
-  c.set(
-    "agent_deployment_target_id",
-    token.agent_deployment_target_id as string
-  );
-  if (token.run_id) {
-    c.set("run_id", token.run_id as string);
-  }
-  if (token.step_id) {
-    c.set("step_id", token.step_id as string);
-  }
-  if (token.chat_id) {
-    c.set("chat_id", token.chat_id as string);
-  }
+  setInvocationContext(c, token);
   await next();
 };
 
@@ -395,52 +472,62 @@ export const withAgentDeploymentAuth: MiddlewareHandler<{
   Bindings: Bindings;
   Variables: AgentDeploymentToken;
 }> = async (c, next) => {
-  const db = await c.env.database();
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new HTTPException(401, { message: "Unauthorized" });
-  }
-
-  const tokenValue = authHeader.substring(7);
-  let token: JWT | null = null;
-  try {
-    token = await decode({
-      token: tokenValue,
-      secret: c.env.AUTH_SECRET,
-      salt: "agent-deployment",
-    });
-  } catch {
-    throw new HTTPException(401, { message: "Unauthorized" });
-  }
+  const tokenValue = extractBearerToken(c.req.header("Authorization"));
+  const token = await tryDecodeDeploymentToken(tokenValue, c.env.AUTH_SECRET);
   if (!token) {
     throw new HTTPException(401, { message: "Unauthorized" });
   }
-  if (
-    typeof token.agent_id !== "string" ||
-    typeof token.agent_deployment_id !== "string" ||
-    typeof token.agent_deployment_target_id !== "string"
-  ) {
+  const db = await c.env.database();
+  if (!(await validateDeploymentTokenWithDB(db, token))) {
     throw new HTTPException(401, { message: "Unauthorized" });
   }
-  const agentID = token.agent_id as string;
-  const deploymentID = token.agent_deployment_id as string;
-  const deploymentTargetID = token.agent_deployment_target_id as string;
-
-  const [deployment, target] = await Promise.all([
-    db.selectAgentDeploymentByID(deploymentID),
-    db.selectAgentDeploymentTargetByID(deploymentTargetID),
-  ]);
-  if (
-    !deployment ||
-    deployment.agent_id !== agentID ||
-    !target ||
-    target.agent_id !== agentID
-  ) {
-    throw new HTTPException(401, { message: "Unauthorized" });
-  }
-
-  c.set("agent_id", agentID);
-  c.set("agent_deployment_id", deploymentID);
-  c.set("agent_deployment_target_id", deploymentTargetID);
+  setDeploymentContext(c, token);
   await next();
+};
+
+export type AgentAuthType = "invocation" | "deployment";
+
+export interface AgentAuthVariables extends AgentInvocationToken {
+  auth_type: AgentAuthType;
+}
+
+/**
+ * Middleware that accepts either an agent invocation token OR an agent deployment token.
+ * Tries invocation token first, then falls back to deployment token with DB validation.
+ * Sets `auth_type` to "invocation" or "deployment" to indicate which token type was used.
+ */
+export const withAgentAuth: MiddlewareHandler<{
+  Bindings: Bindings;
+  Variables: AgentAuthVariables;
+}> = async (c, next) => {
+  const tokenValue = extractBearerToken(c.req.header("Authorization"));
+
+  // Try invocation token first
+  const invocationToken = await tryDecodeInvocationToken(
+    tokenValue,
+    c.env.AUTH_SECRET
+  );
+  if (invocationToken) {
+    c.set("auth_type", "invocation");
+    setInvocationContext(c, invocationToken);
+    await next();
+    return;
+  }
+
+  // Try deployment token with DB validation
+  const deploymentToken = await tryDecodeDeploymentToken(
+    tokenValue,
+    c.env.AUTH_SECRET
+  );
+  if (deploymentToken) {
+    const db = await c.env.database();
+    if (await validateDeploymentTokenWithDB(db, deploymentToken)) {
+      c.set("auth_type", "deployment");
+      setDeploymentContext(c, deploymentToken);
+      await next();
+      return;
+    }
+  }
+
+  throw new HTTPException(401, { message: "Unauthorized" });
 };
