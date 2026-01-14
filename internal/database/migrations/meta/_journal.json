@@ -15,6 +15,13 @@
       "when": 1767894988953,
       "tag": "0001_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1768484370772,
+      "tag": "0002_tracepayload",
+      "breakpoints": true
     }
   ]
 }

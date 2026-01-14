@@ -43,6 +43,31 @@ export interface ReadTracesOpts {
   limit: number;
 }
 
+export function checkForDotKeys(obj: unknown, path: string[] = []): boolean {
+  if (obj === null || typeof obj !== "object") {
+    return false;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.some((item, index) =>
+      checkForDotKeys(item, [...path, String(index)])
+    );
+  }
+
+  for (const key of Object.keys(obj)) {
+    if (key.includes(".")) {
+      return true;
+    }
+    if (
+      checkForDotKeys((obj as Record<string, unknown>)[key], [...path, key])
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export async function writeTraces(
   db: NodePgDatabase<any>,
   spans: OtelSpan[]
@@ -51,13 +76,20 @@ export async function writeTraces(
     return;
   }
 
+  for (const span of spans) {
+    if (checkForDotKeys(span.payload)) {
+      // biome-ignore lint/suspicious/noConsole: we want to warn about this
+      console.warn(
+        `writeTraces: span payload contains keys with dots - this is a bug, filtering won't work properly: ${JSON.stringify(span)}`
+      );
+    }
+  }
+
   const values = spans.map((span) => ({
     agent_id: span.agent_id,
     start_time: new Date(span.start_time),
     end_time: new Date(span.end_time),
     payload: span.payload as any,
-    payload_original: JSON.stringify(span.payload),
-    payload_str: JSON.stringify(span.payload),
   }));
 
   await db.insert(agent_trace).values(values);
@@ -89,7 +121,7 @@ export async function readTraces(
       created_at: agent_trace.created_at,
       start_time: agent_trace.start_time,
       end_time: agent_trace.end_time,
-      payload_original: agent_trace.payload_original,
+      payload: agent_trace.payload,
     })
     .from(agent_trace)
     .where(and(...whereClauses))
@@ -101,6 +133,6 @@ export async function readTraces(
     created_at: row.created_at.toISOString(),
     start_time: row.start_time.toISOString(),
     end_time: row.end_time.toISOString(),
-    payload: JSON.parse(row.payload_original),
+    payload: row.payload as unknown as OtelPayload,
   }));
 }

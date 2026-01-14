@@ -57,9 +57,9 @@ function compileFiltersInner(
     }
     // Use PostgreSQL's JSONB path extraction operator #>>
     // This extracts the value at the given JSON path as text
-    // For example: payload #>> '{key}' = 'value'
-    // This is equivalent to Clickhouse's JSON_VALUE(payload_str, '$.key') = 'value'
-    const jsonPath = `{${filters.key}}`;
+    // For example: payload #>> '{span,name}' = 'value' for key "span.name"
+    // Path elements are separated by commas in PostgreSQL's #>> operator
+    const jsonPath = `{${filters.key.split(".").join(",")}}`;
     return sql`${payloadColumn} #>> ${jsonPath} = ${filters.value}`;
   } else {
     const _exhaustiveCheck: never = filters;

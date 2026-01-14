@@ -1124,8 +1124,6 @@ export const agent_trace = pgTable(
     start_time: timestamp("start_time").notNull(),
     end_time: timestamp("end_time").notNull(),
     payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
-    payload_original: text("payload_original").notNull(),
-    payload_str: text("payload_str").notNull(),
   },
   (table) => ({
     agentTimeIdx: index("agent_trace_agent_time_idx").on(
