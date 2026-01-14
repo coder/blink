@@ -10,6 +10,7 @@ import { api } from "blink/control";
 import { getAuthToken } from "blink/internal";
 import { createServer, Server } from "node:http";
 import {
+  BlinkDeploymentTokenEnvironmentVariable,
   BlinkInvocationAuthTokenEnvironmentVariable,
   InternalAPIServerListenPortEnvironmentVariable,
   InternalAPIServerURLEnvironmentVariable,
@@ -79,6 +80,7 @@ export function startInternalAPIServer() {
       const client = new AgentInvocationClient({
         baseURL: process.env[InternalAPIServerURLEnvironmentVariable],
         authToken,
+        deploymentToken: process.env[BlinkDeploymentTokenEnvironmentVariable],
       });
 
       // Create request-scoped bindings that use this client

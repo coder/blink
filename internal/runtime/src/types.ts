@@ -4,6 +4,10 @@
 // This must be used to send requests from the Lambda to the API.
 export const BlinkInvocationTokenHeader = "x-blink-invocation-token";
 
+export const BlinkInvocationRunIDHeader = "x-blink-invocation-run-id";
+export const BlinkInvocationStepIDHeader = "x-blink-invocation-step-id";
+export const BlinkInvocationChatIDHeader = "x-blink-invocation-chat-id";
+
 // This is only used for tests, but maybe someday
 // we'll change the API server and be very happy.
 export const InternalAPIServerURLEnvironmentVariable =

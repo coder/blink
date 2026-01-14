@@ -236,8 +236,8 @@ describe("OTEL Conversion Functions", () => {
       );
 
       const span = result[0];
-      expect(span.start_time).toBe("2022-01-01 00:00:00.000000000");
-      expect(span.end_time).toBe("2022-01-01 00:00:01.000000000");
+      expect(span.start_time).toBe("2022-01-01 00:00:00.000000000Z");
+      expect(span.end_time).toBe("2022-01-01 00:00:01.000000000Z");
       expect(span.payload.span.duration_ns).toBe("1000000000"); // 1 second in nanoseconds
     });
 
@@ -250,8 +250,8 @@ describe("OTEL Conversion Functions", () => {
 
       const span = result[0];
       expect(span.payload.span.attributes).toEqual({
-        "service.name": "test-service",
-        "span.kind": "internal",
+        service: { name: "test-service" },
+        span: { kind: "internal" },
       });
     });
 
@@ -265,8 +265,10 @@ describe("OTEL Conversion Functions", () => {
 
       const span = result[0];
       expect(span.payload.resource.attributes).toEqual({
-        "service.name": "test-app",
-        "service.version": "1.0.0",
+        service: {
+          name: "test-app",
+          version: "1.0.0",
+        },
         blink: {
           agent_id: options.agent_id,
           deployment_id: options.deployment_id,
@@ -466,8 +468,14 @@ describe("OTEL Conversion Functions", () => {
       );
 
       // Other attributes should remain unchanged
-      expect(span.payload.resource.attributes["service.name"]).toBe("test-app");
-      expect(span.payload.resource.attributes["service.version"]).toBe("1.0.0");
+      expect(span.payload.resource.attributes).toHaveProperty(
+        "service.name",
+        "test-app"
+      );
+      expect(span.payload.resource.attributes).toHaveProperty(
+        "service.version",
+        "1.0.0"
+      );
     });
 
     test("should convert scope attributes correctly", () => {
@@ -479,7 +487,7 @@ describe("OTEL Conversion Functions", () => {
 
       const span = result[0];
       expect(span.payload.scope.attributes).toEqual({
-        "library.language": "typescript",
+        library: { language: "typescript" },
       });
       expect(span.payload.scope.name).toBe("test-instrumentation");
       expect(span.payload.scope.version).toBe("1.0.0");
@@ -495,11 +503,11 @@ describe("OTEL Conversion Functions", () => {
       const span = result[0];
       expect(span.payload.span.events).toHaveLength(1);
       expect(span.payload.span.events[0]).toEqual({
-        time: "2022-01-01 00:00:00.500000000",
+        time: "2022-01-01 00:00:00.500000000Z",
         name: "test-event",
         dropped_attributes_count: 0,
         attributes: {
-          "event.type": "log",
+          event: { type: "log" },
         },
       });
     });
@@ -520,7 +528,7 @@ describe("OTEL Conversion Functions", () => {
         flags: 1,
         dropped_attributes_count: 0,
         attributes: {
-          "link.type": "reference",
+          link: { type: "reference" },
         },
       });
     });
@@ -1396,6 +1404,85 @@ describe("Per-span blink ID extraction", () => {
       step_id: "span-step-id",
       chat_id: "span-chat-id",
     });
+  });
+
+  test("should remove only blink ID keys from span attributes, preserving other blink attributes", () => {
+    const request = createRequestWithSpanAttributes([
+      createBlinkIdAttribute("run_id", "extracted-run-id"),
+      createBlinkIdAttribute("step_id", "extracted-step-id"),
+      createBlinkIdAttribute("chat_id", "extracted-chat-id"),
+      // Other blink attributes that should be preserved
+      createBlinkIdAttribute("custom_field", "custom-value"),
+      create(KeyValueSchema, {
+        key: "blink.another_field",
+        value: create(AnyValueSchema, {
+          value: { case: "intValue", value: BigInt(42) },
+        }),
+      }),
+      // Other non-blink attributes
+      createMockAttribute("http.method", "GET"),
+      createMockAttribute("http.url", "https://example.com"),
+    ]);
+
+    const options: TraceOptions = {
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+    };
+
+    const result = mapExportTraceServiceRequestToOtelSpans(request, options);
+    expect(result).toHaveLength(1);
+
+    const spanAttrs = result[0].payload.span.attributes;
+
+    // Verify blink ID keys are removed
+    expect(spanAttrs).not.toHaveProperty("blink.run_id");
+    expect(spanAttrs).not.toHaveProperty("blink.step_id");
+    expect(spanAttrs).not.toHaveProperty("blink.chat_id");
+
+    // Verify other blink attributes are preserved
+    expect(spanAttrs).toHaveProperty("blink.custom_field", "custom-value");
+    expect(spanAttrs).toHaveProperty("blink.another_field", 42);
+
+    // Verify other non-blink attributes are preserved
+    expect(spanAttrs).toHaveProperty("http.method", "GET");
+    expect(spanAttrs).toHaveProperty("http.url", "https://example.com");
+
+    // Verify the IDs were moved to resource.attributes.blink
+    expect(result[0].payload.resource.attributes.blink).toEqual({
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+      run_id: "extracted-run-id",
+      step_id: "extracted-step-id",
+      chat_id: "extracted-chat-id",
+    });
+  });
+
+  test("should remove blink object entirely when it only contains ID keys", () => {
+    const request = createRequestWithSpanAttributes([
+      createBlinkIdAttribute("run_id", "extracted-run-id"),
+      createBlinkIdAttribute("step_id", "extracted-step-id"),
+      createMockAttribute("http.method", "GET"),
+    ]);
+
+    const options: TraceOptions = {
+      agent_id: "test-agent-123",
+      deployment_id: "test-deployment-456",
+      deployment_target_id: "test-target-789",
+    };
+
+    const result = mapExportTraceServiceRequestToOtelSpans(request, options);
+
+    expect(result).toHaveLength(1);
+
+    const spanAttrs = result[0].payload.span.attributes;
+
+    // Verify blink object is completely removed (it only had ID fields)
+    expect(spanAttrs).not.toHaveProperty("blink");
+
+    // Verify other attributes are preserved
+    expect(spanAttrs).toHaveProperty("http.method", "GET");
   });
 
   test("should handle span without blink attributes when options IDs are undefined", () => {

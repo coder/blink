@@ -1,5 +1,10 @@
 import type Querier from "@blink.so/database/querier";
-import { BlinkInvocationTokenHeader } from "@blink.so/runtime/types";
+import {
+  BlinkInvocationRunIDHeader,
+  BlinkInvocationStepIDHeader,
+  BlinkInvocationChatIDHeader,
+  BlinkInvocationTokenHeader,
+} from "@blink.so/runtime/types";
 import {
   isToolOrDynamicToolUIPart,
   isToolUIPart,
@@ -169,6 +174,9 @@ export async function runChat({
           chat_id: id,
         }
       ),
+      [BlinkInvocationRunIDHeader]: run.id,
+      [BlinkInvocationStepIDHeader]: step.id,
+      [BlinkInvocationChatIDHeader]: id,
     };
 
     if (deployment.compatibility_version === "3") {

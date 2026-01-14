@@ -161,34 +161,13 @@ function mapResourceSpans(
     resourceSpans.resource?.attributes ?? []
   );
 
-  // If IDs are undefined in options, try to extract them from the resource's blink attribute
-  const extractedIds =
-    options.run_id === undefined ||
-    options.step_id === undefined ||
-    options.chat_id === undefined
-      ? extractBlinkIdsFromResourceSpans(resourceSpans)
-      : {};
-
-  const run_id = options.run_id ?? extractedIds.run_id;
-  const step_id = options.step_id ?? extractedIds.step_id;
-  const chat_id = options.chat_id ?? extractedIds.chat_id;
-
-  resourceAttrs.blink = {
-    agent_id: options.agent_id,
-    deployment_id: options.deployment_id,
-    deployment_target_id: options.deployment_target_id,
-    ...(run_id ? { run_id } : {}),
-    ...(step_id ? { step_id } : {}),
-    ...(chat_id ? { chat_id } : {}),
-  };
-
   const rows: OtelSpan[] = [];
 
   for (const scopeSpans of resourceSpans.scopeSpans) {
     rows.push(
       ...mapScopeSpans({
         scopeSpans,
-        agentId: options.agent_id,
+        options,
         resourceAttributes: resourceAttrs,
         resourceDroppedAttributesCount:
           resourceSpans.resource?.droppedAttributesCount ?? 0,
@@ -202,7 +181,7 @@ function mapResourceSpans(
 
 function mapScopeSpans(args: {
   scopeSpans: ScopeSpans;
-  agentId: string;
+  options: TraceOptions;
 
   resourceAttributes: Record<string, unknown>;
   resourceDroppedAttributesCount: number;
@@ -210,7 +189,7 @@ function mapScopeSpans(args: {
 }): OtelSpan[] {
   const {
     scopeSpans,
-    agentId,
+    options,
     resourceAttributes,
     resourceSchemaUrl,
     resourceDroppedAttributesCount,
@@ -230,7 +209,7 @@ function mapScopeSpans(args: {
     spanRows.push(
       mapSpan({
         span,
-        agentId,
+        options,
         resourceAttributes,
         resourceDroppedAttributesCount,
         resourceSchemaUrl,
@@ -248,7 +227,7 @@ function mapScopeSpans(args: {
 
 function mapSpan(args: {
   span: Span;
-  agentId: string;
+  options: TraceOptions;
   resourceAttributes: Record<string, unknown>;
   resourceDroppedAttributesCount: number;
   resourceSchemaUrl?: string | undefined;
@@ -260,7 +239,7 @@ function mapSpan(args: {
 }): OtelSpan {
   const {
     span,
-    agentId,
+    options,
     resourceAttributes,
     resourceDroppedAttributesCount,
     resourceSchemaUrl,
@@ -272,6 +251,46 @@ function mapSpan(args: {
   } = args;
 
   const spanAttributes = keyValuesToRecord(span.attributes ?? []);
+
+  // Extract IDs from span attributes if not provided in options
+  const extractedIds =
+    options.run_id === undefined ||
+    options.step_id === undefined ||
+    options.chat_id === undefined
+      ? extractBlinkIdsFromSpan(span)
+      : {};
+
+  const run_id = options.run_id ?? extractedIds.run_id;
+  const step_id = options.step_id ?? extractedIds.step_id;
+  const chat_id = options.chat_id ?? extractedIds.chat_id;
+
+  // Remove blink.* ID keys from span attributes (they've been moved to resource.attributes.blink)
+  // Note: keyValuesToRecord converts "blink.run_id" to nested { blink: { run_id: ... } }
+  // so we need to delete the nested properties, not flat keys
+  const blinkAttrs = spanAttributes.blink;
+  if (blinkAttrs && typeof blinkAttrs === "object") {
+    const blink = blinkAttrs as Record<string, unknown>;
+    delete blink.run_id;
+    delete blink.step_id;
+    delete blink.chat_id;
+    // Remove blink object entirely if empty
+    if (Object.keys(blink).length === 0) {
+      delete spanAttributes.blink;
+    }
+  }
+
+  // Build resource attributes with blink info
+  const resourceAttrsWithBlink: Record<string, unknown> = {
+    ...resourceAttributes,
+    blink: {
+      agent_id: options.agent_id,
+      deployment_id: options.deployment_id,
+      deployment_target_id: options.deployment_target_id,
+      ...(run_id ? { run_id } : {}),
+      ...(step_id ? { step_id } : {}),
+      ...(chat_id ? { chat_id } : {}),
+    },
+  };
 
   const statusCode = normalizeStatusCode(span.status);
   const statusMessage = normalizeEmpty(span.status?.message) ?? "";
@@ -285,7 +304,7 @@ function mapSpan(args: {
   );
 
   return {
-    agent_id: agentId,
+    agent_id: options.agent_id,
     start_time: startTime,
     end_time: endTime,
     payload: {
@@ -308,7 +327,7 @@ function mapSpan(args: {
         links: mapLinks(span.links ?? []),
       },
       resource: {
-        attributes: resourceAttributes,
+        attributes: resourceAttrsWithBlink,
         dropped_attributes_count: resourceDroppedAttributesCount,
         schema_url: resourceSchemaUrl,
       },
@@ -507,7 +526,7 @@ function formatUnixNano(unixNano: bigint): string {
   const secondsPart = padNumber(date.getUTCSeconds(), 2);
   const nanoPart = padNumber(nanos, 9);
 
-  return `${year}-${month}-${day} ${hours}:${minutes}:${secondsPart}.${nanoPart}`;
+  return `${year}-${month}-${day} ${hours}:${minutes}:${secondsPart}.${nanoPart}Z`;
 }
 
 function padNumber(value: number, length: number): string {

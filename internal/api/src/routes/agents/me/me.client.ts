@@ -10,6 +10,7 @@ import type {
 export interface AgentInvocationClientOptions {
   baseURL?: string;
   authToken?: string;
+  deploymentToken?: string;
 }
 
 // No Zod here so the wrapper client has no dependencies.
@@ -22,10 +23,12 @@ export interface SendMessagesRequest {
 export default class AgentInvocationClient {
   private readonly baseURL: string;
   private readonly authToken?: string;
+  private readonly deploymentToken?: string;
 
   public constructor(options?: AgentInvocationClientOptions) {
     this.baseURL = options?.baseURL ?? "https://blink.so";
     this.authToken = options?.authToken;
+    this.deploymentToken = options?.deploymentToken;
   }
 
   public async deleteStorage(key: string): Promise<void> {
@@ -173,8 +176,9 @@ export default class AgentInvocationClient {
   }
 
   public async proxyOtlpTraces(request: Request): Promise<Response> {
-    if (!this.authToken) {
-      // There are valid situations where the agent may send traces but an invocation
+    if (!this.authToken && !this.deploymentToken) {
+      // In our new docker-based runtime, the deployment token should always be available.
+      // In our legacy lambda runtime, there are valid situations where the agent may send traces but an invocation
       // token is not available. For example, when the blink platform
       // queries `/_agent/health` and the agent sends an associated trace.
       // In these situations, we silently drop the traces and tell the agent
@@ -215,6 +219,11 @@ export default class AgentInvocationClient {
       }
       headers[key] = value;
     });
+    if (this.deploymentToken) {
+      headers.Authorization = `Bearer ${this.deploymentToken}`;
+    } else if (this.authToken) {
+      headers.Authorization = `Bearer ${this.authToken}`;
+    }
 
     return this.request(
       request.method as "GET" | "POST" | "PUT" | "DELETE" | "PATCH",

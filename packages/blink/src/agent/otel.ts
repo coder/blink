@@ -1,4 +1,11 @@
-import { trace } from "@opentelemetry/api";
+import util from "node:util";
+import {
+  type Context,
+  context,
+  propagation,
+  type Span,
+  trace,
+} from "@opentelemetry/api";
 import { OTLPTraceExporter as OTLPHttpTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
@@ -11,7 +18,6 @@ import {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import type { MiddlewareHandler } from "hono";
-import util from "node:util";
 import { APIServerURLEnvironmentVariable } from "./constants";
 
 let otelProvider: NodeTracerProvider | undefined;
@@ -122,6 +128,28 @@ class FilteringSpanProcessor implements SpanProcessor {
   }
 }
 
+/**
+ * SpanProcessor that copies baggage entries to span attributes.
+ * This allows attributes set via baggage in parent contexts to be
+ * automatically inherited by all child spans.
+ */
+class BaggageSpanProcessor implements SpanProcessor {
+  onStart(span: Span, parentContext: Context): void {
+    const bag = propagation.getBaggage(parentContext);
+    if (!bag) return;
+
+    for (const [key, entry] of bag.getAllEntries()) {
+      span.setAttribute(key, entry.value);
+    }
+  }
+
+  onEnd(_span: ReadableSpan): void {}
+
+  async shutdown(): Promise<void> {}
+
+  async forceFlush(): Promise<void> {}
+}
+
 export function initOtel(): NodeTracerProvider {
   if (otelProvider) {
     return otelProvider;
@@ -133,32 +161,37 @@ export function initOtel(): NodeTracerProvider {
     resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: "blink.agent",
     }),
-    spanProcessors: apiUrl
-      ? [
-          new FilteringSpanProcessor(
-            new BatchSpanProcessor(
-              // The Authorization header is added by the Blink API server proxy,
-              // so we don't need to add it here.
-              new OTLPHttpTraceExporter({
-                url: new URL("/otlp/v1/traces", apiUrl).toString(),
-              })
+    spanProcessors: [
+      // BaggageSpanProcessor copies baggage entries to span attributes,
+      // allowing attributes to be inherited by all child spans.
+      new BaggageSpanProcessor(),
+      ...(apiUrl
+        ? [
+            new FilteringSpanProcessor(
+              new BatchSpanProcessor(
+                // The Authorization header is added by the Blink API server proxy,
+                // so we don't need to add it here.
+                new OTLPHttpTraceExporter({
+                  url: new URL("/otlp/v1/traces", apiUrl).toString(),
+                })
+              ),
+              (span) => {
+                // UndiciInstrumentation creates an HTTP instrumentation that logs spans
+                // for all outgoing HTTP requests, including the ones emitted by the trace exporter itself.
+                // This creates an endless loop - we export a span, we emit a span for that export,
+                // we export the second span, then we emit a span for that export, etc.
+                // So here we filter out spans for the trace exporter itself to avoid the loop.
+                const urlPath = span.attributes["url.path"];
+                return !(
+                  span.instrumentationScope.name.includes("opentelemetry") &&
+                  typeof urlPath === "string" &&
+                  urlPath.endsWith("v1/traces")
+                );
+              }
             ),
-            (span) => {
-              // UndiciInstrumentation creates an HTTP instrumentation that logs spans
-              // for all outgoing HTTP requests, including the ones emitted by the trace exporter itself.
-              // This creates an endless loop - we export a span, we emit a span for that export,
-              // we export the second span, then we emit a span for that export, etc.
-              // So here we filter out spans for the trace exporter itself to avoid the loop.
-              const urlPath = span.attributes["url.path"];
-              return !(
-                span.instrumentationScope.name.includes("opentelemetry") &&
-                typeof urlPath === "string" &&
-                urlPath.endsWith("v1/traces")
-              );
-            }
-          ),
-        ]
-      : [],
+          ]
+        : []),
+    ],
   });
 
   provider.register();
@@ -178,6 +211,30 @@ export function initOtel(): NodeTracerProvider {
   return provider;
 }
 
+/**
+ * Sets baggage entries that will be inherited as attributes by all child spans.
+ * Returns a new context with the baggage set.
+ *
+ * @example
+ * ```ts
+ * const ctx = setSpanBaggage({ "request.id": "abc123", "user.id": "user456" });
+ * context.with(ctx, () => {
+ *   // All spans created here will have request.id and user.id attributes
+ * });
+ * ```
+ */
+export function setSpanBaggage(
+  entries: Record<string, string>,
+  parentContext: Context = context.active()
+): Context {
+  let bag =
+    propagation.getBaggage(parentContext) ?? propagation.createBaggage();
+  for (const [key, value] of Object.entries(entries)) {
+    bag = bag.setEntry(key, { value });
+  }
+  return propagation.setBaggage(parentContext, bag);
+}
+
 export const otelMiddleware: MiddlewareHandler = async (c, next) => {
   initOtel();
   const pathname = new URL(c.req.raw.url).pathname;
@@ -185,24 +242,36 @@ export const otelMiddleware: MiddlewareHandler = async (c, next) => {
     return await next();
   }
 
-  const tracer = trace.getTracer("blink");
-  return await tracer.startActiveSpan(
-    `${c.req.method} ${pathname}`,
-    async (span) => {
-      try {
-        return await next();
-      } finally {
-        try {
-          span.end();
-        } catch (err) {
-          console.warn("Error flushing OpenTelemetry", err);
-        }
-        // fire and forget. this is a best effort call.
-        // a properly awaited flush should be handled by a POST to /_agent/flush-otel
-        flushOtel();
-      }
-    }
+  const baggage: Record<string, string | undefined> = {};
+  baggage["blink.run_id"] = c.req.header("x-blink-invocation-run-id");
+  baggage["blink.step_id"] = c.req.header("x-blink-invocation-step-id");
+  baggage["blink.chat_id"] = c.req.header("x-blink-invocation-chat-id");
+  const ctx = setSpanBaggage(
+    Object.fromEntries(
+      Object.entries(baggage).filter(([_, value]) => value !== undefined)
+    ) as Record<string, string>
   );
+
+  const tracer = trace.getTracer("blink");
+  return await context.with(ctx, () => {
+    return tracer.startActiveSpan(
+      `${c.req.method} ${pathname}`,
+      async (span) => {
+        try {
+          return await next();
+        } finally {
+          try {
+            span.end();
+          } catch (err) {
+            console.warn("Error flushing OpenTelemetry", err);
+          }
+          // fire and forget. this is a best effort call.
+          // a properly awaited flush should be handled by a POST to /_agent/flush-otel
+          flushOtel();
+        }
+      }
+    );
+  });
 };
 
 export const flushOtel = async () => {
