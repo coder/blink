@@ -216,11 +216,16 @@ export async function login(host?: string): Promise<string> {
   let authUrl: string | undefined;
   let browserOpened = false;
 
-  // Promise that resolves once authUrl is initialized
+  // Promise that resolves once authUrl is initialized, or rejects on connection error
   let resolveAuthUrlInitialized: () => void;
-  const authUrlInitializedPromise = new Promise<void>((resolve) => {
+  let rejectAuthUrlInitialized: (error: Error) => void;
+  const authUrlInitializedPromise = new Promise<void>((resolve, reject) => {
     resolveAuthUrlInitialized = resolve;
+    rejectAuthUrlInitialized = reject;
   });
+
+  // Show connecting message before attempting WebSocket connection
+  console.log(chalk.dim(`Connecting to ${effectiveHost}...`));
 
   // Start the auth process - this returns a promise for the token
   const tokenPromise = client.auth.token((url: string, _id: string) => {
@@ -230,6 +235,12 @@ export async function login(host?: string): Promise<string> {
 
     // Signal that authUrl is now available
     resolveAuthUrlInitialized();
+  });
+
+  // If the token promise rejects before we get the URL (connection error),
+  // propagate that to authUrlInitializedPromise so we don't hang
+  tokenPromise.catch((error) => {
+    rejectAuthUrlInitialized(error);
   });
 
   // Setup Enter key listener (non-blocking)
@@ -243,7 +254,19 @@ export async function login(host?: string): Promise<string> {
     }
   });
 
-  await authUrlInitializedPromise;
+  try {
+    await authUrlInitializedPromise;
+  } catch (error) {
+    stdinCleanup.cleanup();
+    console.error(
+      chalk.red(`\nFailed to connect to ${effectiveHost}: ${error}`)
+    );
+    console.error(
+      chalk.dim("Make sure the host URL is correct and the server is running.")
+    );
+    process.exit(1);
+  }
+
   // Show spinner while waiting for authentication
   const s = spinner();
   s.start("Waiting for authentication...");
