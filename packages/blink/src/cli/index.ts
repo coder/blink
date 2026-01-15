@@ -157,9 +157,14 @@ program
 program
   .command("login [url]")
   .description(
-    "Log in to the Blink Cloud. Optionally specify a custom host URL."
+    "Log in to a Blink platform. Optionally specify a custom host URL."
   )
   .action(asyncEntry(() => import("./login")));
+
+program
+  .command("logout")
+  .description("Log out from the Blink platform and remove saved credentials.")
+  .action(asyncEntry(() => import("./logout")));
 
 const computeCommand = program
   .command("compute")
