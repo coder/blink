@@ -202,6 +202,7 @@ export async function startServer(options: ServerOptions) {
                     data.id === id
                   ) {
                     client.send(token);
+                    client.close();
                   }
                 });
               },
