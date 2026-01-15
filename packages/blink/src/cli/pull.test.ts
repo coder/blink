@@ -88,6 +88,7 @@ describe("pull command", () => {
       _deps: {
         client: client as unknown as Client,
         authenticate: async () => "test-token",
+        getHost: () => "https://test.blink.so",
       },
     });
   }

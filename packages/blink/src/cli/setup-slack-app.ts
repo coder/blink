@@ -3,7 +3,6 @@ import { access, readdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import util from "node:util";
 import Client from "@blink.so/api";
-import { getHost } from "./lib/auth";
 import {
   confirm,
   intro,
@@ -16,8 +15,24 @@ import {
 } from "@clack/prompts";
 import chalk from "chalk";
 import { createSlackApp } from "../edit/tools/create-slack-app";
+import { getHost, loginIfNeeded } from "./lib/auth";
 import { createDevhookID, getDevhookID, hasDevhook } from "./lib/devhook";
 import { openUrl } from "./lib/util";
+
+export interface SetupSlackAppDeps {
+  /**
+   * Authentication function. If not provided, uses the default loginIfNeeded.
+   */
+  authenticate?: () => Promise<void>;
+  /**
+   * Get host function. If not provided, uses the default getHost.
+   */
+  getHost?: () => string | undefined;
+  /**
+   * API client instance. If not provided, a new client is created.
+   */
+  client?: Client;
+}
 
 export async function verifySlackCredentials(
   botToken: string
@@ -159,8 +174,13 @@ export async function setupSlackApp(
   options?: {
     name?: string;
     packageManager?: "bun" | "npm" | "pnpm" | "yarn";
+    _deps?: SetupSlackAppDeps;
   }
 ): Promise<void> {
+  const authenticate = options?._deps?.authenticate ?? loginIfNeeded;
+  const getHostFn = options?._deps?.getHost ?? getHost;
+  await authenticate();
+
   const name =
     options?.name || basename(directory).replace(/[^a-zA-Z0-9]/g, "-");
   const packageManager =
@@ -214,9 +234,17 @@ export async function setupSlackApp(
   let signatureFailureDetected = false;
   let lastFailedChannel: string | undefined;
 
-  const client = new Client({
-    baseURL: getHost(),
-  });
+  const host = getHostFn();
+  if (!host) {
+    throw new Error(
+      "No Blink host configured. Set the BLINK_HOST environment variable or run `blink login <host>`."
+    );
+  }
+  const client =
+    options?._deps?.client ??
+    new Client({
+      baseURL: host,
+    });
 
   let resolveConnected = () => {};
   let rejectConnected = (_error: unknown) => {};

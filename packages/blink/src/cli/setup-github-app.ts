@@ -1,5 +1,6 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import type Client from "@blink.so/api";
 import {
   confirm,
   intro,
@@ -12,9 +13,24 @@ import {
 import chalk from "chalk";
 import type { GitHubAppData } from "../edit/tools/create-github-app";
 import { createGithubApp } from "../edit/tools/create-github-app";
-import { getHost } from "./lib/auth";
+import { getHost, loginIfNeeded } from "./lib/auth";
 import { createDevhookID, getDevhookID, hasDevhook } from "./lib/devhook";
 import { openUrl } from "./lib/util";
+
+export interface SetupGithubAppDeps {
+  /**
+   * Authentication function. If not provided, uses the default loginIfNeeded.
+   */
+  authenticate?: () => Promise<void>;
+  /**
+   * Get host function. If not provided, uses the default getHost.
+   */
+  getHost?: () => string | undefined;
+  /**
+   * API client instance. If not provided, a new client is created.
+   */
+  client?: Client;
+}
 
 export async function updateEnvCredentials(
   envPath: string,
@@ -55,8 +71,14 @@ export async function setupGithubApp(
   directory: string,
   options?: {
     name?: string;
+    /** Test dependencies - only used in tests */
+    _deps?: SetupGithubAppDeps;
   }
 ): Promise<void> {
+  const authenticate = options?._deps?.authenticate ?? loginIfNeeded;
+  const getHostFn = options?._deps?.getHost ?? getHost;
+  await authenticate();
+
   const name =
     options?.name || basename(directory).replace(/[^a-zA-Z0-9]/g, "-");
 
@@ -113,10 +135,15 @@ export async function setupGithubApp(
   }
   const webhookUrl = `https://${devhookId}.blink.host`;
 
+  const host = getHostFn();
+  if (!host) {
+    throw new Error("No Blink host configured.");
+  }
+
   // Create manifest with sensible defaults for a typical GitHub App
   const manifest = {
     name: githubAppName.toString(),
-    url: getHost(),
+    url: host,
     description: "A Blink agent for GitHub",
     public: false,
     hook_attributes: {

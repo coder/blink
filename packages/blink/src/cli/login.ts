@@ -1,5 +1,5 @@
-import { login as loginFn } from "./lib/auth";
+import { loginIfNeeded } from "./lib/auth";
 
 export default async function login(url?: string) {
-  await loginFn(url);
+  await loginIfNeeded(url);
 }

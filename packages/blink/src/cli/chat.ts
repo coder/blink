@@ -6,6 +6,11 @@ import { openUrl } from "./lib/util";
 
 export default async function chat() {
   const host = getHost();
+  if (!host) {
+    throw new Error(
+      "No Blink host configured. Set the BLINK_HOST environment variable or run `blink login <host>`."
+    );
+  }
   const wsHost = toWsUrl(host);
   const id = crypto.randomUUID();
   const ws = new WebSocket(`${wsHost}/legacy-auth?id=${id}`);

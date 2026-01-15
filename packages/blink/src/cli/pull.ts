@@ -25,6 +25,11 @@ export interface PullDeps {
    * Return the auth token.
    */
   authenticate?: () => Promise<string>;
+
+  /**
+   * Get host function. If not provided, uses the default getHost.
+   */
+  getHost?: () => string | undefined;
 }
 
 export interface PullOptions {
@@ -48,12 +53,18 @@ export default async function pull(
 
   // Authenticate first (needed for both modes)
   const authenticate = deps?.authenticate ?? loginIfNeeded;
+  const getHostFn = deps?.getHost ?? getHost;
   const token = await authenticate();
+  // Host is guaranteed to be set after authenticate (loginIfNeeded)
+  const host = getHostFn();
+  if (!host) {
+    throw new Error("No Blink host configured");
+  }
 
   const client =
     deps?.client ??
     new Client({
-      baseURL: getHost(),
+      baseURL: host,
       authToken: token,
       // @ts-expect-error - This is just because of Bun.
       fetch: (url, init) => {

@@ -1,9 +1,16 @@
 import { describe, expect, it } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type Client from "@blink.so/api";
 import type { GitHubAppData } from "../edit/tools/create-github-app";
-import { BLINK_COMMAND, KEY_CODES, makeTmpDir, render } from "./lib/terminal";
-import { updateEnvCredentials } from "./setup-github-app";
+import {
+  captureStdout,
+  createMockClient,
+  KEY_CODES,
+  mockIO,
+} from "./lib/in-memory-cli";
+import { makeTmpDir } from "./lib/terminal";
+import { setupGithubApp, updateEnvCredentials } from "./setup-github-app";
 
 const mockGitHubAppData: GitHubAppData = {
   id: 123456,
@@ -137,86 +144,104 @@ GITHUB_CLIENT_ID=active_client_id
 });
 
 describe("setup github-app command", () => {
-  it("should show error when .env.local does not exist", async () => {
-    await using tempDir = await makeTmpDir();
-    using term = render(`${BLINK_COMMAND} setup github-app`, {
-      cwd: tempDir.path,
+  function callSetupGithubApp(directory: string) {
+    const client = createMockClient();
+    return setupGithubApp(directory, {
+      _deps: {
+        authenticate: async () => {},
+        getHost: () => "https://test.blink.so",
+        client: client as unknown as Client,
+      },
     });
+  }
 
-    await term.waitUntil((screen) =>
-      screen.includes("No .env.local file found")
-    );
-    expect(term.getScreen()).toContain("No .env.local file found");
+  it("should show error when .env.local does not exist", async () => {
+    using capture = captureStdout();
+    await using tempDir = await makeTmpDir();
+
+    await callSetupGithubApp(tempDir.path);
+
+    const output = await capture.getOutput();
+    expect(output).toContain("No .env.local file found");
   });
 
   it("should prompt for app name when .env.local exists", async () => {
+    using io = mockIO();
     await using tempDir = await makeTmpDir();
     const envPath = join(tempDir.path, ".env.local");
     await writeFile(envPath, "SOME_VAR=value\n", "utf-8");
 
-    using term = render(`${BLINK_COMMAND} setup github-app`, {
-      cwd: tempDir.path,
-    });
+    const setupPromise = callSetupGithubApp(tempDir.path);
 
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("What should your GitHub App be called?")
     );
-    expect(term.getScreen()).toContain(
+    expect(await io.stdout.getOutput()).toContain(
       "What should your GitHub App be called?"
     );
+
+    // Cancel to end the test
+    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    await setupPromise.catch(() => {});
   });
 
   it("should prompt for organization after entering app name", async () => {
+    using io = mockIO();
     await using tempDir = await makeTmpDir();
     const envPath = join(tempDir.path, ".env.local");
     await writeFile(envPath, "SOME_VAR=value\n", "utf-8");
 
-    using term = render(`${BLINK_COMMAND} setup github-app`, {
-      cwd: tempDir.path,
-    });
+    const setupPromise = callSetupGithubApp(tempDir.path);
 
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("What should your GitHub App be called?")
     );
-    term.write("my-test-app");
-    term.write(KEY_CODES.ENTER);
+    process.stdin.emit("data", "my-test-app");
+    process.stdin.emit("data", KEY_CODES.ENTER);
 
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("Enter a GitHub organization name")
     );
-    expect(term.getScreen()).toContain("Enter a GitHub organization name");
-    expect(term.getScreen()).toContain("Leave blank for personal app");
+    const output = await io.stdout.getOutput();
+    expect(output).toContain("Enter a GitHub organization name");
+    expect(output).toContain("Leave blank for personal app");
+
+    // Cancel to end the test
+    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    await setupPromise.catch(() => {});
   });
 
   it("should show URL and browser prompt after organization input", async () => {
+    using io = mockIO();
     await using tempDir = await makeTmpDir();
     const envPath = join(tempDir.path, ".env.local");
     await writeFile(envPath, "SOME_VAR=value\n", "utf-8");
 
-    using term = render(`${BLINK_COMMAND} setup github-app`, {
-      cwd: tempDir.path,
-    });
+    const setupPromise = callSetupGithubApp(tempDir.path);
 
     // Enter app name
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("What should your GitHub App be called?")
     );
-    term.write("my-test-app");
-    term.write(KEY_CODES.ENTER);
+    process.stdin.emit("data", "my-test-app");
+    process.stdin.emit("data", KEY_CODES.ENTER);
 
     // Skip organization (leave blank for personal app)
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("Enter a GitHub organization name")
     );
-    term.write(KEY_CODES.ENTER);
+    process.stdin.emit("data", KEY_CODES.ENTER);
 
     // Should show URL and ask about opening browser
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("Open this URL in your browser automatically?")
     );
-    expect(term.getScreen()).toContain("http://127.0.0.1:");
-    expect(term.getScreen()).toContain(
-      "Open this URL in your browser automatically?"
-    );
+    const output = await io.stdout.getOutput();
+    expect(output).toContain("http://127.0.0.1:");
+    expect(output).toContain("Open this URL in your browser automatically?");
+
+    // Cancel to end the test
+    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    await setupPromise.catch(() => {});
   });
 });

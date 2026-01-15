@@ -34,8 +34,13 @@ export default async function deploy(
   await migrateDataToBlink(directory);
 
   const token = await loginIfNeeded();
+  // Host is guaranteed to be set after loginIfNeeded()
+  const host = getHost();
+  if (!host) {
+    throw new Error("No Blink host configured");
+  }
   const client = new Client({
-    baseURL: getHost(),
+    baseURL: host,
     authToken: token,
     // @ts-ignore - This is just because of Bun.
     fetch: (url, init) => {
@@ -366,7 +371,7 @@ export default async function deploy(
     });
     deployConfig.agentId = agent.id;
     agentName = agent.name;
-    const agentUrl = `${getHost()}/${organizationName}/${agentName}`;
+    const agentUrl = `${host}/${organizationName}/${agentName}`;
     console.log(chalk.gray(`Agent created ${chalk.dim(agentUrl)}`));
   } else if (envEntries.length > 0) {
     // Update environment variables for existing agents
@@ -439,7 +444,7 @@ export default async function deploy(
         message: options?.message,
       });
 
-  const inspectUrl = `${getHost()}/${organizationName}/${agentName}/deployments/${deployment.number}`;
+  const inspectUrl = `${host}/${organizationName}/${agentName}/deployments/${deployment.number}`;
 
   // Show deployment URL immediately
   console.log(chalk.gray(`View Deployment ${chalk.dim(inspectUrl)}`));

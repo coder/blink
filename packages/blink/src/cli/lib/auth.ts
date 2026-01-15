@@ -1,4 +1,3 @@
-import Client from "@blink.so/api";
 import {
   existsSync,
   mkdirSync,
@@ -7,10 +6,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import XDGAppPaths from "xdg-app-paths";
+import Client from "@blink.so/api";
+import { isCancel, spinner, text } from "@clack/prompts";
 import chalk from "chalk";
-import { spinner } from "@clack/prompts";
-import open from "open";
+import XDGAppPaths from "xdg-app-paths";
 import { openUrl } from "./util";
 
 const DEFAULT_HOST = "https://blink.coder.com";
@@ -28,7 +27,13 @@ function getConfig(testAuthPath?: string): BlinkConfig | undefined {
   const path = testAuthPath || getAuthTokenConfigPath();
   if (existsSync(path)) {
     const data = readFileSync(path, "utf8");
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    // When Blink was first released, the host would always be the default host
+    // and was not stored in the config file. This is a fallback for older config files.
+    if (!parsed.host) {
+      parsed.host = DEFAULT_HOST;
+    }
+    return parsed;
   }
   return undefined;
 }
@@ -51,13 +56,50 @@ function setConfig(config: BlinkConfig, testAuthPath?: string) {
 }
 
 /**
- * Normalizes a host URL by ensuring https:// prefix and stripping trailing slashes.
+ * Checks if a hostname is localhost or an IP address.
+ */
+function isLocalhostOrIP(hostname: string): boolean {
+  if (hostname === "localhost") return true;
+  // IPv4 pattern
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return true;
+  // IPv6 pattern (simplified - covers most common cases)
+  if (/^[\da-fA-F:]+$/.test(hostname) && hostname.includes(":")) return true;
+  return false;
+}
+
+/**
+ * Normalizes a host URL by ensuring protocol prefix, stripping paths and trailing slashes.
+ * Defaults to https:// unless the host is localhost or an IP address (then http://).
  */
 export function normalizeHost(url: string): string {
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    url = "https://" + url;
+  let protocol = "";
+  let rest = url;
+
+  if (url.startsWith("http://")) {
+    protocol = "http://";
+    rest = url.slice(7);
+  } else if (url.startsWith("https://")) {
+    protocol = "https://";
+    rest = url.slice(8);
   }
-  return url.replace(/\/+$/, "");
+
+  // Extract just the host (and optional port), stripping any path
+  const slashIndex = rest.indexOf("/");
+  const hostWithPort = slashIndex === -1 ? rest : rest.slice(0, slashIndex);
+
+  // Extract hostname without port for localhost/IP check
+  // Check if there's a port at the end (colon followed by digits only)
+  const portMatch = hostWithPort.match(/:(\d+)$/);
+  const hostname = portMatch
+    ? hostWithPort.slice(0, hostWithPort.length - portMatch[0].length)
+    : hostWithPort;
+
+  // If no protocol was provided, determine the default
+  if (!protocol) {
+    protocol = isLocalhostOrIP(hostname) ? "http://" : "https://";
+  }
+
+  return protocol + hostWithPort;
 }
 
 /**
@@ -69,15 +111,14 @@ export function toWsUrl(host: string): string {
 
 /**
  * Gets the host URL for the Blink CLI.
- * Priority: BLINK_HOST env var → config file → default
+ * Priority: BLINK_HOST env var → config file → undefined
  *
  * @param testAuthPath - Optional path for testing, overrides default auth path
- * @returns The host URL for the Blink CLI.
+ * @returns The host URL for the Blink CLI, or undefined if not configured.
  */
-export function getHost(testAuthPath?: string): string {
-  return (
-    process.env.BLINK_HOST ?? getConfig(testAuthPath)?.host ?? DEFAULT_HOST
-  );
+export function getHost(testAuthPath?: string): string | undefined {
+  const host = process.env.BLINK_HOST ?? getConfig(testAuthPath)?.host;
+  return host ? normalizeHost(host) : undefined;
 }
 
 /**
@@ -129,8 +170,40 @@ function getAuthTokenConfigPath() {
   return join(dirs[0]!, "auth.json");
 }
 
-export async function loginIfNeeded(): Promise<string> {
-  const host = getHost();
+export async function loginIfNeeded(host?: string): Promise<string> {
+  // If host is not configured, prompt for it or show help message
+  host = host ?? getHost();
+  if (!host) {
+    const isInteractive = process.stdin.isTTY && process.stdout.isTTY;
+
+    if (!isInteractive) {
+      throw new Error(
+        "No Blink host configured. Set the BLINK_HOST environment variable or run `blink login <host>` interactively."
+      );
+    }
+
+    // Prompt for the host URL
+    const hostInput = await text({
+      message: "Enter your Blink host URL:",
+      placeholder: "https://blink.example.com",
+      validate: (value) => {
+        if (!value || value.trim().length === 0) {
+          return "Host URL is required";
+        }
+      },
+    });
+
+    if (isCancel(hostInput)) {
+      throw new Error("Login cancelled");
+    }
+
+    setHost(hostInput as string);
+    host = getHost();
+    if (!host) {
+      throw new Error("Failed to save host configuration");
+    }
+  }
+
   const client = new Client({ baseURL: host });
 
   // Check for BLINK_TOKEN environment variable first (for CI)
@@ -211,6 +284,11 @@ export async function login(host?: string): Promise<string> {
     setHost(host);
   }
   const effectiveHost = getHost();
+  if (!effectiveHost) {
+    throw new Error(
+      "No Blink host configured. Set the BLINK_HOST environment variable or run `blink login <host>`."
+    );
+  }
   const client = new Client({ baseURL: effectiveHost });
 
   let authUrl: string | undefined;
@@ -239,7 +317,10 @@ export async function login(host?: string): Promise<string> {
 
       // Wait for authUrl to be initialized before opening
       await authUrlInitializedPromise;
-      await openUrl(authUrl!);
+      if (!authUrl) {
+        throw new Error("Authentication URL not set, this is a bug.");
+      }
+      await openUrl(authUrl);
     }
   });
 

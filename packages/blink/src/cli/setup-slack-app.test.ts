@@ -2,8 +2,19 @@ import { describe, expect, it } from "bun:test";
 import crypto from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { BLINK_COMMAND, KEY_CODES, makeTmpDir, render } from "./lib/terminal";
-import { updateEnvCredentials, verifySlackSignature } from "./setup-slack-app";
+import type Client from "@blink.so/api";
+import {
+  captureStdout,
+  createMockClient,
+  KEY_CODES,
+  mockIO,
+} from "./lib/in-memory-cli";
+import { makeTmpDir } from "./lib/terminal";
+import {
+  setupSlackApp,
+  updateEnvCredentials,
+  verifySlackSignature,
+} from "./setup-slack-app";
 
 describe("verifySlackSignature", () => {
   const signingSecret = "test_signing_secret_12345";
@@ -235,85 +246,111 @@ SLACK_SIGNING_SECRET=active_secret
 });
 
 describe("setup slack-app command", () => {
-  it("should show error when .env.local does not exist", async () => {
-    await using tempDir = await makeTmpDir();
-    using term = render(`${BLINK_COMMAND} setup slack-app`, {
-      cwd: tempDir.path,
-    });
-
-    await term.waitUntil((screen) =>
-      screen.includes("No .env.local file found")
+  function callSetupSlackApp(directory: string) {
+    const client = createMockClient();
+    // Mock devhook.listen to avoid WebSocket connections
+    client.devhook.listen.mockImplementation(
+      ({ onConnect }: { onConnect?: () => void }) => {
+        setTimeout(() => onConnect?.(), 0);
+        return { dispose: () => {}, [Symbol.dispose]: () => {} };
+      }
     );
-    expect(term.getScreen()).toContain("No .env.local file found");
+    return setupSlackApp(directory, {
+      _deps: {
+        authenticate: async () => {},
+        getHost: () => "https://test.blink.so",
+        client: client as unknown as Client,
+      },
+    });
+  }
+
+  it("should show error when .env.local does not exist", async () => {
+    using capture = captureStdout();
+    await using tempDir = await makeTmpDir();
+
+    await callSetupSlackApp(tempDir.path);
+
+    const output = await capture.getOutput();
+    expect(output).toContain("No .env.local file found");
   });
 
   it("should prompt for app name when .env.local exists", async () => {
+    using io = mockIO();
     await using tempDir = await makeTmpDir();
     const envPath = join(tempDir.path, ".env.local");
     await writeFile(envPath, "SOME_VAR=value\n", "utf-8");
 
-    using term = render(`${BLINK_COMMAND} setup slack-app`, {
-      cwd: tempDir.path,
-    });
+    const setupPromise = callSetupSlackApp(tempDir.path);
 
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("What should your Slack app be called?")
     );
-    expect(term.getScreen()).toContain("What should your Slack app be called?");
+    expect(await io.stdout.getOutput()).toContain(
+      "What should your Slack app be called?"
+    );
+
+    // Cancel to end the test
+    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    await setupPromise.catch(() => {});
   });
 
   it("should show URL and browser prompt after entering app name", async () => {
+    using io = mockIO();
     await using tempDir = await makeTmpDir();
     const envPath = join(tempDir.path, ".env.local");
     await writeFile(envPath, "SOME_VAR=value\n", "utf-8");
 
-    using term = render(`${BLINK_COMMAND} setup slack-app`, {
-      cwd: tempDir.path,
-    });
+    const setupPromise = callSetupSlackApp(tempDir.path);
 
     // Enter app name
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("What should your Slack app be called?")
     );
-    term.write("my-test-slack-app");
-    term.write(KEY_CODES.ENTER);
+    process.stdin.emit("data", "my-test-slack-app");
+    process.stdin.emit("data", KEY_CODES.ENTER);
 
     // Should show URL and ask about opening browser
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("Open this URL in your browser automatically?")
     );
-    expect(term.getScreen()).toContain("api.slack.com");
-    expect(term.getScreen()).toContain(
-      "Open this URL in your browser automatically?"
-    );
+    const output = await io.stdout.getOutput();
+    expect(output).toContain("api.slack.com");
+    expect(output).toContain("Open this URL in your browser automatically?");
+
+    // Cancel to end the test
+    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    await setupPromise.catch(() => {});
   });
 
   it("should prompt for App ID after declining to open browser", async () => {
+    using io = mockIO();
     await using tempDir = await makeTmpDir();
     const envPath = join(tempDir.path, ".env.local");
     await writeFile(envPath, "SOME_VAR=value\n", "utf-8");
 
-    using term = render(`${BLINK_COMMAND} setup slack-app`, {
-      cwd: tempDir.path,
-    });
+    const setupPromise = callSetupSlackApp(tempDir.path);
 
     // Enter app name
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("What should your Slack app be called?")
     );
-    term.write("my-test-slack-app");
-    term.write(KEY_CODES.ENTER);
+    process.stdin.emit("data", "my-test-slack-app");
+    process.stdin.emit("data", KEY_CODES.ENTER);
 
     // Decline to open browser
-    await term.waitUntil((screen) =>
+    await io.stdout.waitUntil((screen) =>
       screen.includes("Open this URL in your browser automatically?")
     );
     // Move selection to "No" and confirm
-    term.write(KEY_CODES.LEFT);
-    term.write(KEY_CODES.ENTER);
+    process.stdin.emit("data", KEY_CODES.LEFT);
+    process.stdin.emit("data", KEY_CODES.ENTER);
 
     // Should prompt for App ID
-    await term.waitUntil((screen) => screen.includes("paste the App ID"));
-    expect(term.getScreen()).toContain("App ID");
+    await io.stdout.waitUntil((screen) => screen.includes("paste the App ID"));
+    expect(await io.stdout.getOutput()).toContain("App ID");
+
+    // Cancel to end the test
+    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    await setupPromise.catch(() => {});
   });
 });

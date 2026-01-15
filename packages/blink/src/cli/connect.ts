@@ -23,6 +23,8 @@ const appendLog = async (message: string): Promise<void> => {
   } catch {}
 };
 
+const DEFAULT_HOST = "https://blink.coder.com";
+
 export default async function connect() {
   const url = process.env.BLINK_URL;
   const token = process.env.BLINK_TOKEN;
@@ -55,15 +57,12 @@ export default async function connect() {
     reportException(token!, err);
   });
 
-  const host = getHost();
+  const host = getHost() ?? DEFAULT_HOST;
   const srv = new WorkspaceConnect({
     url: url ?? `${toWsUrl(host)}/api/connect`,
     token,
     createDeploymentFromTar: async (tar) => {
-      const uploadURL = new URL(
-        "/api/static-deployment",
-        url ?? host
-      );
+      const uploadURL = new URL("/api/static-deployment", url ?? host);
       const response = await fetch(uploadURL, {
         method: "POST",
         body: tar,
@@ -89,7 +88,8 @@ export default async function connect() {
 }
 
 const reportException = async (token: string, err: unknown) => {
-  const url = new URL(`${getHost()}/api/connect-error`);
+  const host = getHost() ?? DEFAULT_HOST;
+  const url = new URL(`${host}/api/connect-error`);
   await fetch(url.toString(), {
     method: "POST",
     headers: {
