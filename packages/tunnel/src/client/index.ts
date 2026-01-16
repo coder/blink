@@ -1,16 +1,44 @@
+import {
+  ClientMessageType,
+  createWebSocketMessagePayload,
+  parseWebSocketMessagePayload,
+  ServerMessageType,
+} from "@blink-sdk/compute-protocol/schema";
 import type { Disposable } from "@blink-sdk/events";
 import Multiplexer, { type Stream } from "@blink-sdk/multiplexer";
 import WebSocket from "ws";
-import {
-  ClientMessageType,
-  type ConnectionEstablished,
-  createWebSocketMessagePayload,
-  type ProxyInitRequest,
-  type ProxyInitResponse,
-  parseWebSocketMessagePayload,
-  ServerMessageType,
-  type WebSocketClosePayload,
-} from "../schema";
+import type { ConnectionEstablished } from "../schema";
+import { TUNNEL_COOKIE_HEADER } from "../schema";
+
+interface ProxyInitRequest {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+}
+
+interface ProxyInitResponse {
+  status_code: number;
+  status_message: string;
+  headers: Record<string, string>;
+}
+
+interface WebSocketClosePayload {
+  code?: number;
+  reason?: string;
+}
+
+const getHeaderValue = (
+  headers: Record<string, string>,
+  name: string
+): string | undefined => {
+  const target = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === target) {
+      return value;
+    }
+  }
+  return undefined;
+};
 
 /**
  * Represents an incoming request to be transformed before proxying.
@@ -345,11 +373,12 @@ export class TunnelClient {
       const payload = message.subarray(1);
 
       switch (type) {
-        case ServerMessageType.PROXY_INIT: {
+        case ClientMessageType.PROXY_INIT: {
           requestInit = JSON.parse(
             this.decoder.decode(payload)
           ) as ProxyInitRequest;
-          isWebSocket = requestInit.headers.upgrade === "websocket";
+          const upgradeHeader = getHeaderValue(requestInit.headers, "upgrade");
+          isWebSocket = upgradeHeader?.toLowerCase() === "websocket";
 
           if (!isWebSocket) {
             // Set up body stream for non-WebSocket requests
@@ -366,7 +395,7 @@ export class TunnelClient {
           break;
         }
 
-        case ServerMessageType.PROXY_BODY: {
+        case ClientMessageType.PROXY_BODY: {
           if (bodyWriter) {
             if (payload.length === 0) {
               // Empty chunk signals end of body
@@ -378,12 +407,12 @@ export class TunnelClient {
           break;
         }
 
-        case ServerMessageType.PROXY_WEBSOCKET_MESSAGE: {
+        case ClientMessageType.PROXY_WEBSOCKET_MESSAGE: {
           // WebSocket messages are handled by the WebSocket handler
           break;
         }
 
-        case ServerMessageType.PROXY_WEBSOCKET_CLOSE: {
+        case ClientMessageType.PROXY_WEBSOCKET_CLOSE: {
           // WebSocket close is handled by the WebSocket handler
           break;
         }
@@ -439,24 +468,28 @@ export class TunnelClient {
       // Send response headers
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
-        // Skip Set-Cookie - handled separately to preserve multiple cookies
-        if (key.toLowerCase() !== "set-cookie") {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey !== "set-cookie" && lowerKey !== TUNNEL_COOKIE_HEADER) {
           headers[key] = value;
         }
       });
 
-      // Extract Set-Cookie headers separately (preserves multiple cookies)
-      const setCookies = response.headers.getSetCookie();
+      const setCookies =
+        typeof response.headers.getSetCookie === "function"
+          ? response.headers.getSetCookie()
+          : [];
+      if (setCookies.length > 0) {
+        headers[TUNNEL_COOKIE_HEADER] = JSON.stringify(setCookies);
+      }
 
       const proxyInit: ProxyInitResponse = {
         status_code: response.status,
         status_message: response.statusText,
         headers,
-        set_cookies: setCookies.length > 0 ? setCookies : undefined,
       };
 
       stream.writeTyped(
-        ClientMessageType.PROXY_INIT,
+        ServerMessageType.PROXY_INIT,
         this.encoder.encode(JSON.stringify(proxyInit)),
         true
       );
@@ -469,7 +502,7 @@ export class TunnelClient {
             const { done, value } = await reader.read();
             if (done) break;
             if (value) {
-              stream.writeTyped(ClientMessageType.PROXY_DATA, value);
+              stream.writeTyped(ServerMessageType.PROXY_DATA, value);
             }
           }
         } finally {
@@ -486,12 +519,12 @@ export class TunnelClient {
         headers: { "content-type": "text/plain" },
       };
       stream.writeTyped(
-        ClientMessageType.PROXY_INIT,
+        ServerMessageType.PROXY_INIT,
         this.encoder.encode(JSON.stringify(proxyInit)),
         true
       );
       stream.writeTyped(
-        ClientMessageType.PROXY_DATA,
+        ServerMessageType.PROXY_DATA,
         this.encoder.encode(
           `Error proxying request: ${err instanceof Error ? err.message : String(err)}`
         )
@@ -525,14 +558,14 @@ export class TunnelClient {
           transformed.url.protocol === "https:" ? "wss:" : "ws:";
       }
 
-      const ws = new WebSocket(
-        transformed.url.toString(),
-        transformed.headers["sec-websocket-protocol"],
-        {
-          headers: transformed.headers,
-          perMessageDeflate: false,
-        }
+      const protocol = getHeaderValue(
+        transformed.headers,
+        "sec-websocket-protocol"
       );
+      const ws = new WebSocket(transformed.url.toString(), protocol, {
+        headers: transformed.headers,
+        perMessageDeflate: false,
+      });
 
       ws.on("open", () => {
         const proxyInit: ProxyInitResponse = {
@@ -541,7 +574,7 @@ export class TunnelClient {
           headers: {},
         };
         stream.writeTyped(
-          ClientMessageType.PROXY_INIT,
+          ServerMessageType.PROXY_INIT,
           this.encoder.encode(JSON.stringify(proxyInit)),
           true
         );
@@ -557,7 +590,7 @@ export class TunnelClient {
         // Convert text messages to string so they're encoded correctly
         const payload = isBinary ? buffer : buffer.toString("utf-8");
         stream.writeTyped(
-          ClientMessageType.PROXY_WEBSOCKET_MESSAGE,
+          ServerMessageType.PROXY_WEBSOCKET_MESSAGE,
           createWebSocketMessagePayload(payload, this.encoder)
         );
       });
@@ -569,7 +602,7 @@ export class TunnelClient {
             reason: reason.toString(),
           };
           stream.writeTyped(
-            ClientMessageType.PROXY_WEBSOCKET_CLOSE,
+            ServerMessageType.PROXY_WEBSOCKET_CLOSE,
             this.encoder.encode(JSON.stringify(closePayload))
           );
           stream.close();
@@ -585,7 +618,7 @@ export class TunnelClient {
             reason: err.message,
           };
           stream.writeTyped(
-            ClientMessageType.PROXY_WEBSOCKET_CLOSE,
+            ServerMessageType.PROXY_WEBSOCKET_CLOSE,
             this.encoder.encode(JSON.stringify(closePayload))
           );
           stream.close();
@@ -600,12 +633,12 @@ export class TunnelClient {
         const payload = message.subarray(1);
 
         switch (type) {
-          case ServerMessageType.PROXY_WEBSOCKET_MESSAGE: {
+          case ClientMessageType.PROXY_WEBSOCKET_MESSAGE: {
             const parsed = parseWebSocketMessagePayload(payload, this.decoder);
             ws.send(parsed);
             break;
           }
-          case ServerMessageType.PROXY_WEBSOCKET_CLOSE: {
+          case ClientMessageType.PROXY_WEBSOCKET_CLOSE: {
             try {
               const closePayload = JSON.parse(
                 this.decoder.decode(payload)
@@ -635,7 +668,7 @@ export class TunnelClient {
         headers: {},
       };
       stream.writeTyped(
-        ClientMessageType.PROXY_INIT,
+        ServerMessageType.PROXY_INIT,
         this.encoder.encode(JSON.stringify(proxyInit)),
         true
       );

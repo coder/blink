@@ -1,7 +1,7 @@
 {
   "name": "@blink-sdk/tunnel",
   "description": "Tunnel - expose local servers via a public URL",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "keywords": [
     "blink",
@@ -37,8 +37,10 @@
     }
   },
   "dependencies": {
+    "@blink-sdk/compute-protocol": "workspace:*",
     "@blink-sdk/events": "workspace:*",
     "@blink-sdk/multiplexer": "workspace:*",
+    "@blink.so/compute-protocol-worker": "workspace:*",
     "ws": "^8.18.0"
   },
   "devDependencies": {

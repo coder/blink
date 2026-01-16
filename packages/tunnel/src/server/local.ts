@@ -6,10 +6,11 @@
  */
 
 import { createServer, type Server as HttpServer } from "node:http";
+import { Worker } from "@blink.so/compute-protocol-worker";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ConnectionEstablished } from "../schema";
+import { TUNNEL_COOKIE_HEADER } from "../schema";
 import { generateTunnelId } from "./crypto";
-import { Worker } from "./worker";
 
 export interface LocalServerOptions {
   /**
@@ -190,16 +191,18 @@ export function createLocalServer(opts: LocalServerOptions): {
       // Write response headers
       const responseHeaders: Record<string, string | string[]> = {};
       response.headers.forEach((value, key) => {
-        // Skip Set-Cookie - handled separately to preserve multiple cookies
-        if (key.toLowerCase() !== "set-cookie") {
+        const lowerKey = key.toLowerCase();
+        if (
+          lowerKey !== "set-cookie" &&
+          lowerKey !== TUNNEL_COOKIE_HEADER
+        ) {
           responseHeaders[key] = value;
         }
       });
 
-      // Handle multiple Set-Cookie headers (Node.js requires array for multiple values)
-      const setCookies = response.headers.getSetCookie();
-      if (setCookies.length > 0) {
-        responseHeaders["Set-Cookie"] = setCookies;
+      const tunnelCookies = parseTunnelCookies(response.headers);
+      if (tunnelCookies.length > 0) {
+        responseHeaders["Set-Cookie"] = tunnelCookies;
       }
 
       res.writeHead(response.status, response.statusText, responseHeaders);
@@ -266,11 +269,12 @@ export function createLocalServer(opts: LocalServerOptions): {
         // Create worker for this session
         const worker = new Worker({
           initialNextStreamID: session?.worker ? undefined : 1,
-          sendToClient: (data: Uint8Array) => {
+          sendToServer: (data: Uint8Array) => {
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(data);
             }
           },
+          sendToClient: (_streamID: number, _message: string) => {},
         });
 
         session = {
@@ -312,7 +316,7 @@ export function createLocalServer(opts: LocalServerOptions): {
         opts.onClientConnect?.(tunnelId);
 
         ws.on("message", (data: Buffer) => {
-          worker.handleClientMessage(new Uint8Array(data));
+          worker.handleServerMessage(new Uint8Array(data));
         });
 
         ws.on("close", () => {
@@ -491,4 +495,20 @@ function getPublicUrl(
     url.hostname = `${id}.${url.hostname}`;
     return url.toString().replace(/\/$/, "");
   }
+}
+
+function parseTunnelCookies(headers: Headers): string[] {
+  const raw = headers.get(TUNNEL_COOKIE_HEADER);
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((cookie) => typeof cookie === "string");
+    }
+  } catch {
+    // ignore invalid cookie payloads
+  }
+  return [];
 }

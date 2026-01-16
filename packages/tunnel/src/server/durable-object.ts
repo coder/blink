@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
+import { Worker } from "@blink.so/compute-protocol-worker";
 import type { ConnectionEstablished } from "../schema";
-import { Worker } from "./worker";
+import { TUNNEL_COOKIE_HEADER } from "../schema";
 
 type WebsocketState =
   | {
@@ -177,18 +178,25 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
         });
       }
 
+      const responseHeaders = new Headers(response.headers);
+      const tunnelCookies = parseTunnelCookies(responseHeaders);
+      responseHeaders.delete(TUNNEL_COOKIE_HEADER);
+      for (const cookie of tunnelCookies) {
+        responseHeaders.append("Set-Cookie", cookie);
+      }
+
       // Handle null body status codes
       if ([101, 204, 205, 304].includes(response.status)) {
         return new Response(null, {
           status: response.status,
-          headers: response.headers,
+          headers: responseHeaders,
           statusText: response.statusText,
         });
       }
 
       return new Response(response.body ?? null, {
         status: response.status,
-        headers: response.headers,
+        headers: responseHeaders,
         statusText: response.statusText,
       });
     } catch (err) {
@@ -230,7 +238,7 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
         } else {
           bytes = new Uint8Array(message);
         }
-        worker.handleClientMessage(bytes);
+        worker.handleServerMessage(bytes);
         break;
       }
       case "proxied": {
@@ -303,7 +311,7 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
     if (!this.cachedWorker) {
       this.cachedWorker = new Worker({
         initialNextStreamID: this.nextStreamID,
-        sendToClient: (data: Uint8Array) => {
+        sendToServer: (data: Uint8Array) => {
           const clients = this.ctx.getWebSockets("client");
           for (const client of clients) {
             try {
@@ -313,6 +321,7 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
             }
           }
         },
+        sendToClient: (_streamID: number, _message: string) => {},
       });
 
       // Persist stream ID changes
@@ -356,4 +365,20 @@ export class TunnelSession extends DurableObject<TunnelSessionEnv> {
       return url.toString().replace(/\/$/, "");
     }
   }
+}
+
+function parseTunnelCookies(headers: Headers): string[] {
+  const raw = headers.get(TUNNEL_COOKIE_HEADER);
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((cookie) => typeof cookie === "string");
+    }
+  } catch {
+    // ignore invalid cookie payloads
+  }
+  return [];
 }
