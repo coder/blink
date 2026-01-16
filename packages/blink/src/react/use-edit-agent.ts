@@ -12,7 +12,7 @@ export interface UseEditAgentOptions {
   readonly directory: string;
   readonly apiServerUrl?: string;
   readonly env: Record<string, string>;
-  readonly getDevhookUrl: () => string;
+  readonly getDevhookUrl: () => Promise<string>;
 }
 
 interface ClientAndLock {

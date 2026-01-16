@@ -327,7 +327,7 @@ export default async function deploy(
           chalk.dim("  Skipping webhook tunnel migration in CI mode")
         );
       } else {
-        const productionUrl = `https://${devhookID}.blink.host`;
+        const productionUrl = await client.devhook.getUrl(devhookID);
         console.log("\n" + chalk.cyan("Webhook Tunnel"));
         console.log(chalk.dim(`  Current: ${productionUrl} → local dev`));
         console.log(chalk.dim(`  After: ${productionUrl} → production`));

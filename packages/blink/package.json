@@ -1,6 +1,6 @@
 {
   "name": "blink",
-  "version": "1.1.36",
+  "version": "1.1.37",
   "description": "Blink is a tool for building and deploying AI agents.",
   "type": "module",
   "bin": {
@@ -93,7 +93,7 @@
     "@ai-sdk/xai": "^2.0.16",
     "@blink-sdk/compute": "^0.0.15",
     "@blink-sdk/events": "workspace:*",
-    "@blink.so/api": "^1.0.0",
+    "@blink.so/api": "^1.1.0",
     "@clack/prompts": "^0.11.0",
     "@hono/node-server": "^1.19.3",
     "@jaaydenh/gemini-cli": "0.11.0-nightly-20251022-2",

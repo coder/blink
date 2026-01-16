@@ -248,13 +248,11 @@ SLACK_SIGNING_SECRET=active_secret
 describe("setup slack-app command", () => {
   function callSetupSlackApp(directory: string) {
     const client = createMockClient();
+    client.devhook.getUrl.mockResolvedValue("https://test.blink.so/devhook");
     // Mock devhook.listen to avoid WebSocket connections
-    client.devhook.listen.mockImplementation(
-      ({ onConnect }: { onConnect?: () => void }) => {
-        setTimeout(() => onConnect?.(), 0);
-        return { dispose: () => {}, [Symbol.dispose]: () => {} };
-      }
-    );
+    client.devhook.listen.mockImplementation(() => {
+      return { dispose: () => {}, [Symbol.dispose]: () => {} };
+    });
     return setupSlackApp(directory, {
       _deps: {
         authenticate: async () => {},

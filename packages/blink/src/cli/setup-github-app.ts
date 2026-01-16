@@ -1,6 +1,6 @@
 import { access, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type Client from "@blink.so/api";
+import Client from "@blink.so/api";
 import {
   confirm,
   intro,
@@ -133,12 +133,17 @@ export async function setupGithubApp(
   if (!devhookId) {
     throw new Error("Failed to obtain devhook ID");
   }
-  const webhookUrl = `https://${devhookId}.blink.host`;
 
   const host = getHostFn();
   if (!host) {
     throw new Error("No Blink host configured.");
   }
+  const client =
+    options?._deps?.client ??
+    new Client({
+      baseURL: host,
+    });
+  const webhookUrl = await client.devhook.getUrl(devhookId);
 
   // Create manifest with sensible defaults for a typical GitHub App
   const manifest = {

@@ -218,21 +218,9 @@ export async function setupSlackApp(
   const devhookId = hasDevhook(directory)
     ? getDevhookID(directory)
     : createDevhookID(directory);
-  const webhookUrl = `https://${devhookId}.blink.host`;
   if (!devhookId) {
     throw new Error("Failed to obtain devhook ID");
   }
-
-  log.info("Starting webhook listener...");
-
-  // State for handling Slack events
-  let signingSecret = "";
-  let botToken = "";
-  let dmReceived = false;
-  let dmChannel = "";
-  let dmTimestamp = "";
-  let signatureFailureDetected = false;
-  let lastFailedChannel: string | undefined;
 
   const host = getHostFn();
   if (!host) {
@@ -245,6 +233,18 @@ export async function setupSlackApp(
     new Client({
       baseURL: host,
     });
+  const webhookUrl = await client.devhook.getUrl(devhookId);
+
+  log.info("Starting webhook listener...");
+
+  // State for handling Slack events
+  let signingSecret = "";
+  let botToken = "";
+  let dmReceived = false;
+  let dmChannel = "";
+  let dmTimestamp = "";
+  let signatureFailureDetected = false;
+  let lastFailedChannel: string | undefined;
 
   let resolveConnected = () => {};
   let rejectConnected = (_error: unknown) => {};

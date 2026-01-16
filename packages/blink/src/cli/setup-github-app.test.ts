@@ -146,6 +146,7 @@ GITHUB_CLIENT_ID=active_client_id
 describe("setup github-app command", () => {
   function callSetupGithubApp(directory: string) {
     const client = createMockClient();
+    client.devhook.getUrl.mockResolvedValue("https://test.blink.so/devhook");
     return setupGithubApp(directory, {
       _deps: {
         authenticate: async () => {},

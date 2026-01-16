@@ -36,7 +36,7 @@ export interface EditAgent {
 export function createEditAgent(options: {
   directory: string;
   env: Record<string, string>;
-  getDevhookUrl: () => string;
+  getDevhookUrl: () => Promise<string>;
 }): EditAgent {
   const agent = new Agent();
 

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { lock, getLockInfo } from "../local/lockfile";
 import { join } from "node:path";
 import chalk from "chalk";
-import { getDevhookID } from "../cli/lib/devhook";
+import { getHost } from "../cli/lib/auth";
 import type { Logger } from "./use-logger";
 
 export interface UseDevhookOptions {
@@ -25,6 +25,36 @@ export default function useDevhook(options: UseDevhookOptions) {
   const [status, setStatus] = useState<"connected" | "disconnected" | "error">(
     "disconnected"
   );
+  const [publicUrl, setPublicUrl] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!options.id) {
+      setPublicUrl(undefined);
+      return;
+    }
+    const host = getHost();
+    if (!host) {
+      // Skip URL lookup if not logged in
+      setPublicUrl(undefined);
+      return;
+    }
+    let cancelled = false;
+    setPublicUrl(undefined);
+    const client = new Client({ baseURL: host });
+    void client.devhook
+      .getUrl(options.id)
+      .then((url) => {
+        if (!cancelled) {
+          setPublicUrl(url);
+        }
+      })
+      .catch(() => {
+        // Ignore lookup errors; listener will retry on connect.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [options.id]);
 
   useEffect(() => {
     // Don't connect if disabled or no devhook ID exists
@@ -95,6 +125,16 @@ export default function useDevhook(options: UseDevhookOptions) {
         );
       }
 
+      // Check if user is logged in before connecting
+      const host = getHost();
+      if (!host) {
+        options.logger.log(
+          "system",
+          `Run ${chalk.bold("blink login")} to send webhooks to your agent from anywhere`
+        );
+        return;
+      }
+
       // Lock acquired, now connect
       const connect = () => {
         if (disposed || isConnecting) return;
@@ -112,19 +152,19 @@ export default function useDevhook(options: UseDevhookOptions) {
         }
 
         // No authentication needed for devhooks.
-        const client = new Client({
-          // TODO: This shouldn't be hardcoded but our @blink.so/api package
-          // currently uses `BLINK_API_URL` which this does too 🤦🤦🤦.
-          baseURL: "https://blink.coder.com",
-        });
+        const client = new Client({ baseURL: host });
         currentListener = client.devhook.listen({
           id: options.id!,
           onRequest: async (request) => {
             return onRequestRef.current(request);
           },
           onConnect: () => {
-            isConnecting = false;
-            setStatus("connected");
+            void (async () => {
+              const url = await client.devhook.getUrl(options.id!);
+              isConnecting = false;
+              setStatus("connected");
+              setPublicUrl(url);
+            })();
           },
           onDisconnect: () => {
             isConnecting = false;
@@ -181,11 +221,11 @@ export default function useDevhook(options: UseDevhookOptions) {
         }
       }
     };
-  }, [options.disabled, options.directory]);
+  }, [options.disabled, options.directory, options.id]);
 
   return {
     id: options.id,
-    url: options.id ? `https://${options.id}.blink.host` : undefined,
+    url: publicUrl,
     status,
   };
 }

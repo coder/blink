@@ -4,7 +4,9 @@ import { isToolOrDynamicToolUIPart } from "ai";
 import { isToolApprovalOutput } from "../agent/tools";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { join } from "path";
-import type { Client, CapabilitiesResponse } from "../agent/client";
+import Client from "@blink.so/api";
+import type { CapabilitiesResponse } from "../agent/client";
+import { getHost } from "../cli/lib/auth";
 import { getDevhookID, createDevhookID, hasDevhook } from "../cli/lib/devhook";
 import { createLocalServer, type LocalServer } from "../local/server";
 import { isLogMessage, isStoredMessageMetadata } from "../local/types";
@@ -230,10 +232,12 @@ export default function useDevMode(options: UseDevModeOptions): UseDevMode {
     directory,
     apiServerUrl: server.url,
     env,
-    getDevhookUrl: useCallback(() => {
+    getDevhookUrl: useCallback(async () => {
       const id = getDevhookID(directory) ?? createDevhookID(directory);
       setDevhookID(id);
-      return `https://${id}.blink.host`;
+      const host = getHost();
+      const client = host ? new Client({ baseURL: host }) : new Client();
+      return client.devhook.getUrl(id);
     }, [directory]),
   });
 
