@@ -357,7 +357,7 @@
     },
     "packages/scout-agent": {
       "name": "@blink-sdk/scout-agent",
-      "version": "0.0.16",
+      "version": "0.0.17",
       "dependencies": {
         "@blink-sdk/compute": "^0.0.15",
         "@blink-sdk/github": "^0.0.23",
@@ -373,7 +373,7 @@
         "@biomejs/biome": "2.3.2",
         "@types/node": "latest",
         "ai": "^5.0.0",
-        "blink": "^1.1.35",
+        "blink": "^1.1.36",
         "esbuild": "latest",
         "msw": "^2.12.1",
         "tsdown": "^0.3.0",
