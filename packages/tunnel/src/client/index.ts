@@ -10,6 +10,12 @@ import WebSocket from "ws";
 import type { ConnectionEstablished } from "../schema";
 import { TUNNEL_COOKIE_HEADER } from "../schema";
 
+interface Logger {
+  info(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+}
+
 interface ProxyInitRequest {
   method: string;
   url: string;
@@ -168,6 +174,10 @@ export interface TunnelClientOptions {
    * @default 10000 (10 seconds)
    */
   pongTimeoutMs?: number;
+  /**
+   * Logger to use for logging.
+   */
+  logger?: Logger;
 }
 
 /**
@@ -194,8 +204,10 @@ export interface TunnelClientOptions {
 export class TunnelClient {
   private readonly encoder = new TextEncoder();
   private readonly decoder = new TextDecoder();
-
-  constructor(private readonly opts: TunnelClientOptions) {}
+  private readonly logger: Logger;
+  constructor(private readonly opts: TunnelClientOptions) {
+    this.logger = opts.logger ?? console;
+  }
 
   /**
    * Connect to the tunnel server.
@@ -552,7 +564,7 @@ export class TunnelClient {
 
       stream.close();
     } catch (err) {
-      // Send error response
+      this.logger.error("Error proxying request:", err);
       const proxyInit: ProxyInitResponse = {
         status_code: 502,
         status_message: "Bad Gateway",
