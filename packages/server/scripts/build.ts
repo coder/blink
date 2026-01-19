@@ -23,7 +23,7 @@ async function buildServer() {
  * buildNextSite builds the NextJS site and copies the necessary files to the dist directory.
  */
 function buildNextSite() {
-  const sitePackage = join(repoRoot, "packages", "site");
+  const sitePackage = join(repoRoot, "internal", "site");
 
   execSync("bun run build", {
     cwd: sitePackage,
@@ -40,7 +40,7 @@ function buildNextSite() {
   mkdirSync(join(distDir, "site"), { recursive: true });
   // This moves all of the compiled site and sources to run the server-side.
   cpSync(
-    join(sitePackage, ".next", "standalone", "packages", "site", ".next"),
+    join(sitePackage, ".next", "standalone", "internal", "site", ".next"),
     join(distDir, "site", ".next"),
     { recursive: true }
   );
