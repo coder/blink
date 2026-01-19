@@ -40,6 +40,45 @@ const getHeaderValue = (
   return undefined;
 };
 
+const HOP_BY_HOP_HEADERS = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "proxy-connection",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+]);
+
+const stripHopByHopHeaders = (
+  headers: Record<string, string>
+): Record<string, string> => {
+  const connectionTokens = new Set<string>();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== "connection") {
+      continue;
+    }
+    for (const token of value.split(",")) {
+      const trimmed = token.trim().toLowerCase();
+      if (trimmed) {
+        connectionTokens.add(trimmed);
+      }
+    }
+  }
+
+  const sanitized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    const lowerKey = key.toLowerCase();
+    if (HOP_BY_HOP_HEADERS.has(lowerKey) || connectionTokens.has(lowerKey)) {
+      continue;
+    }
+    sanitized[key] = value;
+  }
+  return sanitized;
+};
+
 /**
  * Represents an incoming request to be transformed before proxying.
  */
@@ -435,6 +474,7 @@ export class TunnelClient {
         url: new URL(init.url),
         headers: { ...init.headers },
       });
+      const sanitizedHeaders = stripHopByHopHeaders(transformed.headers);
 
       // Check if the original request has a body based on its method
       // We use the original method because the body stream exists based on
@@ -454,7 +494,7 @@ export class TunnelClient {
 
       const request = new Request(transformed.url.toString(), {
         method: transformed.method,
-        headers: transformed.headers,
+        headers: sanitizedHeaders,
         body: hasBody ? body : undefined,
         // @ts-expect-error - Required for Node.js streaming
         duplex: hasBody ? "half" : undefined,
@@ -548,6 +588,7 @@ export class TunnelClient {
         url: new URL(init.url),
         headers: { ...init.headers },
       });
+      const sanitizedHeaders = stripHopByHopHeaders(transformed.headers);
 
       // Ensure protocol is ws/wss for WebSocket
       if (
@@ -559,11 +600,11 @@ export class TunnelClient {
       }
 
       const protocol = getHeaderValue(
-        transformed.headers,
+        sanitizedHeaders,
         "sec-websocket-protocol"
       );
       const ws = new WebSocket(transformed.url.toString(), protocol, {
-        headers: transformed.headers,
+        headers: sanitizedHeaders,
         perMessageDeflate: false,
       });
 

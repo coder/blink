@@ -1045,6 +1045,42 @@ export function runSharedTests(
         }
       });
 
+      it("should strip hop-by-hop headers", async () => {
+        let receivedHeaders: Record<string, string | string[] | undefined> = {};
+
+        mockServer.setHandler((req, res) => {
+          receivedHeaders = req.headers as Record<
+            string,
+            string | string[] | undefined
+          >;
+          res.writeHead(200);
+          res.end("OK");
+        });
+
+        using _disposable = await connectClient({
+          secret: "hop-by-hop-test",
+          transformHeaders: (headers) => ({
+            ...headers,
+            Connection: "x-remove-me, transfer-encoding",
+            "X-Remove-Me": "1",
+            "Transfer-Encoding": "chunked",
+            "Proxy-Connection": "keep-alive",
+          }),
+        });
+
+        const tunnelId = await getTunnelId("hop-by-hop-test", serverSecret);
+        const response = await fetch(getTunnelUrl(server, tunnelId, "/test"));
+
+        assert.strictEqual(response.status, 200);
+        assert.strictEqual(receivedHeaders["x-remove-me"], undefined);
+        assert.strictEqual(receivedHeaders["proxy-connection"], undefined);
+        assert.strictEqual(receivedHeaders["transfer-encoding"], undefined);
+        const connectionValue = Array.isArray(receivedHeaders.connection)
+          ? receivedHeaders.connection.join(",")
+          : (receivedHeaders.connection ?? "");
+        assert.ok(!connectionValue.toLowerCase().includes("x-remove-me"));
+      });
+
       it("should preserve header value case", async () => {
         let receivedHeader: string | undefined;
 
