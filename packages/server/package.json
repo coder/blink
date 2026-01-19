@@ -29,6 +29,7 @@
   "devDependencies": {
     "@blink-sdk/tunnel": "workspace:*",
     "@blink.so/api": "workspace:*",
+    "@blink.so/compute-protocol-worker": "workspace:*",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
     "@types/ws": "^8.5.13",
@@ -39,6 +40,7 @@
     "drizzle-orm": "^0.44.5",
     "fetch-to-node": "^2.1.0",
     "pg": "^8.16.0",
+    "uuid": "^13.0.0",
     "ws": "^8.18.0",
     "xdg-portable": "^10.6.0"
   },

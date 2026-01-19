@@ -16,6 +16,7 @@ import { parse } from "url";
 import { WebSocket, WebSocketServer } from "ws";
 import { deployAgentWithDocker } from "./agent-deployment";
 import { ChatManager } from "./chat";
+import { createDevhookSupport } from "./devhook";
 
 type WSData = { type: "token"; id: string } | { type: "chat"; chatID: string };
 
@@ -26,13 +27,21 @@ interface ServerOptions {
   baseUrl: string;
   devProxy?: string; // e.g. "localhost:3000"
   accessUrl: string;
+  wildcardAccessUrl?: string;
 }
 
 // Files are now stored in the database instead of in-memory
 
 export async function startServer(options: ServerOptions) {
-  const { port, postgresUrl, authSecret, baseUrl, accessUrl, devProxy } =
-    options;
+  const {
+    port,
+    postgresUrl,
+    authSecret,
+    baseUrl,
+    accessUrl,
+    devProxy,
+    wildcardAccessUrl,
+  } = options;
 
   const db = await connectToPostgres(postgresUrl);
   const querier = new Querier(db);
@@ -81,6 +90,12 @@ export async function startServer(options: ServerOptions) {
 
   // Create WebSocket server first (needed in api.fetch below)
   const wss = new WebSocketServer({ noServer: true });
+  const devhook = createDevhookSupport({
+    accessUrl,
+    wildcardAccessUrl,
+    querier,
+  });
+  const { matchRequestHost, createRequestURL } = devhook;
 
   // Helper to convert Node.js request to Fetch Request
   const toFetchRequest = (nodeReq: IncomingMessage): Request => {
@@ -188,6 +203,8 @@ export async function startServer(options: ServerOptions) {
             },
             apiBaseURL: url,
             accessUrl: new URL(accessUrl),
+            matchRequestHost,
+            createRequestURL,
             auth: {
               handleWebSocketTokenRequest: async (id, request) => {
                 // WebSocket upgrades are handled in the 'upgrade' event
@@ -206,6 +223,10 @@ export async function startServer(options: ServerOptions) {
                   }
                 });
               },
+            },
+            devhook: {
+              handleListen: devhook.handleListen,
+              handleRequest: devhook.handleRequest,
             },
             chat: {
               async handleMessagesChanged(event, id, messages) {
@@ -419,6 +440,16 @@ export async function startServer(options: ServerOptions) {
 
         nextWs.on("error", () => clientWs.close());
         clientWs.on("error", () => nextWs.close());
+      });
+      return;
+    }
+
+    const devhookMatch = pathname?.match(/^\/api\/devhook\/([^/]+)\/?$/);
+    if (devhookMatch?.[1]) {
+      const id = decodeURIComponent(devhookMatch[1]);
+      void devhook.handleUpgrade(id, request, socket, head).catch((error) => {
+        console.error("Devhook upgrade error:", error);
+        socket.destroy();
       });
       return;
     }

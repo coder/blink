@@ -20,6 +20,10 @@ program
     "-d, --dev [host]",
     "Proxy frontend requests to Next.js dev server (default: localhost:3000)"
   )
+  .option(
+    "--wildcard-access-url <host>",
+    'Wildcard access URL for subdomain routing (e.g. "*.blink.example.com")'
+  )
   .action(async (options) => {
     try {
       await runServer(options);
@@ -32,7 +36,11 @@ program
     }
   });
 
-async function runServer(options: { port: string; dev?: boolean | string }) {
+async function runServer(options: {
+  port: string;
+  dev?: boolean | string;
+  wildcardAccessUrl?: string;
+}) {
   const port = parseInt(options.port, 10);
   if (Number.isNaN(port) || port < 1 || port > 65535) {
     throw new Error(`Invalid port: ${options.port}`);
@@ -89,6 +97,7 @@ async function runServer(options: { port: string; dev?: boolean | string }) {
     baseUrl,
     devProxy,
     accessUrl,
+    wildcardAccessUrl: options.wildcardAccessUrl,
   });
 
   const box = boxen(
