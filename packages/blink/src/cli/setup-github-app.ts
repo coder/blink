@@ -13,7 +13,7 @@ import {
 import chalk from "chalk";
 import type { GitHubAppData } from "../edit/tools/create-github-app";
 import { createGithubApp } from "../edit/tools/create-github-app";
-import { getHost, loginIfNeeded } from "./lib/auth";
+import { getAuthToken, getHost, loginIfNeeded } from "./lib/auth";
 import { createDevhookID, getDevhookID, hasDevhook } from "./lib/devhook";
 import { openUrl } from "./lib/util";
 
@@ -142,6 +142,7 @@ export async function setupGithubApp(
     options?._deps?.client ??
     new Client({
       baseURL: host,
+      authToken: getAuthToken(),
     });
   const webhookUrl = await client.devhook.getUrl(devhookId);
 

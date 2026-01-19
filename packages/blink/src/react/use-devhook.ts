@@ -5,6 +5,7 @@ import { join } from "node:path";
 import chalk from "chalk";
 import { getHost } from "../cli/lib/auth";
 import type { Logger } from "./use-logger";
+import { getAuthToken } from "../cli/lib/auth";
 
 export interface UseDevhookOptions {
   // ID can optionally be provided to identify the devhook.
@@ -33,14 +34,15 @@ export default function useDevhook(options: UseDevhookOptions) {
       return;
     }
     const host = getHost();
-    if (!host) {
+    const token = getAuthToken();
+    if (!host || !token) {
       // Skip URL lookup if not logged in
       setPublicUrl(undefined);
       return;
     }
     let cancelled = false;
     setPublicUrl(undefined);
-    const client = new Client({ baseURL: host });
+    const client = new Client({ baseURL: host, authToken: token });
     void client.devhook
       .getUrl(options.id)
       .then((url) => {
@@ -127,7 +129,8 @@ export default function useDevhook(options: UseDevhookOptions) {
 
       // Check if user is logged in before connecting
       const host = getHost();
-      if (!host) {
+      const token = getAuthToken();
+      if (!host || !token) {
         options.logger.log(
           "system",
           `Run ${chalk.bold("blink login")} to send webhooks to your agent from anywhere`
@@ -151,8 +154,7 @@ export default function useDevhook(options: UseDevhookOptions) {
           currentListener = undefined;
         }
 
-        // No authentication needed for devhooks.
-        const client = new Client({ baseURL: host });
+        const client = new Client({ baseURL: host, authToken: token });
         currentListener = client.devhook.listen({
           id: options.id!,
           onRequest: async (request) => {
