@@ -1,5 +1,7 @@
 import type { Disposable } from "@blink-sdk/events";
-import Client from "../client.node";
+import { z } from "zod";
+import type Client from "../client.node";
+import { assertResponseStatus } from "../client-helper";
 
 export interface DevhookListenOptions {
   readonly id: string;
@@ -10,11 +12,31 @@ export interface DevhookListenOptions {
   readonly onError?: (error: unknown) => void;
 }
 
+export const schemaDevhookUrlResponse = z.object({
+  url: z.string(),
+});
+
+export type DevhookUrlResponse = z.infer<typeof schemaDevhookUrlResponse>;
+
 export default class Devhook {
   private readonly client: Client;
 
   public constructor(client: Client) {
     this.client = client;
+  }
+
+  public async getUrl(id: string): Promise<string> {
+    if (!id) {
+      throw new Error("Devhook ID is required");
+    }
+
+    const response = await this.client.request(
+      "GET",
+      `/api/devhook/${id}/url`
+    );
+    await assertResponseStatus(response, 200);
+    const payload = schemaDevhookUrlResponse.parse(await response.json());
+    return payload.url;
   }
 
   public listen(options: DevhookListenOptions): Disposable {
@@ -76,6 +98,19 @@ export default class Devhook {
       },
     });
 
+    const toUint8Array = (data: unknown): Uint8Array | undefined => {
+      if (data instanceof ArrayBuffer) {
+        return new Uint8Array(data);
+      }
+      if (ArrayBuffer.isView(data)) {
+        return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+      }
+      if (typeof Buffer !== "undefined" && Buffer.isBuffer(data)) {
+        return new Uint8Array(data);
+      }
+      return undefined;
+    };
+
     const attachListeners = (ws: WebSocket) => {
       ws.binaryType = "arraybuffer";
 
@@ -107,7 +142,12 @@ export default class Devhook {
           return;
         }
         try {
-          server.handleMessage(new Uint8Array(event.data as ArrayBuffer));
+          const payload = toUint8Array(event.data);
+          if (!payload) {
+            console.warn("Message skipped because it is not a buffer.");
+            return;
+          }
+          server.handleMessage(payload);
         } catch (err) {
           console.error("message handler error", err);
           try {

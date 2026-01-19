@@ -150,6 +150,7 @@
         "@welldone-software/why-did-you-render": "^10.0.1",
         "@xterm/xterm": "^5.5.0",
         "bcrypt-ts": "^7.0.0",
+        "blink": "workspace:*",
         "class-variance-authority": "^0.7.1",
         "classnames": "^2.5.1",
         "clsx": "^2.1.1",

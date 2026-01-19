@@ -1,6 +1,31 @@
 import { expect, test } from "bun:test";
 import { serve } from "../test";
 
+test("devhook url with createRequestURL", async () => {
+  const { helpers, bindings } = await serve();
+  const { client } = await helpers.createUser();
+
+  const id = crypto.randomUUID();
+
+  const url = await client.devhook.getUrl(id);
+  expect(url).toBe(bindings.createRequestURL!(id).toString().replace(/\/$/, ""));
+});
+
+test("devhook url with path-based routing", async () => {
+  const { helpers, bindings } = await serve({
+    bindings: {
+      createRequestURL: undefined,
+    },
+  });
+  const { client } = await helpers.createUser();
+
+  const id = crypto.randomUUID();
+
+  const url = await client.devhook.getUrl(id);
+  const expectedUrl = new URL(`api/webhook/${id}`, bindings.accessUrl);
+  expect(url).toBe(expectedUrl.toString());
+});
+
 test("devhook", async () => {
   const { helpers, bindings, url } = await serve();
   // This endpoint doesn't actually need auth, we just
@@ -36,8 +61,7 @@ test("devhook", async () => {
   // Test wildcard hostname routing.
   // We need to make the request go through the test server with the correct Host header.
   const devhookURL = bindings.createRequestURL!(id);
-  const testURL = new URL("/test/path", devhookURL);
-  const response = await fetch(testURL);
+  const response = await fetch(url, { headers: { Host: devhookURL.host } });
   expect(response.status).toBe(200);
   expect(await response.text()).toBe("Hello from devhook!");
   expect(requestReceived).toBe(true);

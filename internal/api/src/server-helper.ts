@@ -53,11 +53,21 @@ export const detectRequestLocation = (request: Request): string | undefined => {
   return parts.length ? parts.join(", ") : undefined;
 };
 
+export const getAccessUrlBase = (accessUrl: URL): URL => {
+  const baseUrl = new URL(accessUrl);
+  baseUrl.search = "";
+  baseUrl.hash = "";
+  if (!baseUrl.pathname.endsWith("/")) {
+    baseUrl.pathname += "/";
+  }
+  return baseUrl;
+};
+
 /**
  * Construct a webhook URL for an agent.
- * Uses subdomain routing if matchRequestHost is configured, otherwise uses path-based routing.
+ * Uses subdomain routing if createRequestURL is configured, otherwise uses path-based routing.
  *
- * @param env - The bindings containing createRequestURL, matchRequestHost, and accessUrl
+ * @param env - The bindings containing createRequestURL and accessUrl
  * @param requestId - The deployment target's request ID
  * @param path - The webhook path (e.g., "github", "slack", or "/github")
  * @returns The webhook URL
@@ -75,15 +85,10 @@ export const createWebhookURL = (
     return new URL(normalizedPath, baseUrl).toString();
   }
 
-  // Use subdomain routing if configured
-  if (env.matchRequestHost) {
-    // Construct subdomain URL from accessUrl: https://{request_id}.{host}/{path}
-    const baseUrl = new URL(env.accessUrl);
-    baseUrl.host = `${requestId}.${baseUrl.host}`;
-    baseUrl.pathname = normalizedPath;
-    return baseUrl.toString();
-  }
-
   // Path-based webhook mode: /api/webhook/{request_id}/{path}
-  return `${env.accessUrl.origin}/api/webhook/${requestId}${normalizedPath}`;
+  const baseUrl = getAccessUrlBase(env.accessUrl);
+  return new URL(
+    `api/webhook/${requestId}${normalizedPath}`,
+    baseUrl
+  ).toString();
 };

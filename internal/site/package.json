@@ -22,6 +22,7 @@
     "typescript": "^5"
   },
   "devDependencies": {
+    "blink": "workspace:*",
     "@blink-sdk/compute-protocol": "workspace:*",
     "@blink-sdk/events": "workspace:*",
     "@cloudflare/workers-types": "^4.20251211.0",

@@ -1,7 +1,7 @@
 {
   "name": "@blink.so/api",
   "description": "The TypeScript SDK for the Blink API.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Coder",
   "type": "module",
   "license": "MIT",
