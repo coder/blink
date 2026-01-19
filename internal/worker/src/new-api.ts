@@ -252,6 +252,7 @@ export default function handleNewAPI(
         },
       },
       devhook: {
+        disableAuth: true,
         handleListen: async (id, req) => {
           const ws = env.WORKSPACE.get(
             env.WORKSPACE.idFromName(id)

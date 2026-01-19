@@ -1,9 +1,10 @@
 import { validate } from "uuid";
+import { withDevhookAuth } from "../middleware";
 import type { APIServer } from "../server";
 import { createWebhookURL } from "../server-helper";
 
 export default function mountDevhook(server: APIServer) {
-  server.get("/:devhook/url", async (c) => {
+  server.get("/:devhook/url", withDevhookAuth, async (c) => {
     const id = c.req.param("devhook");
     if (!validate(id)) {
       return c.json({ message: "Invalid devhook ID" }, 400);
@@ -20,7 +21,7 @@ export default function mountDevhook(server: APIServer) {
     return c.json({ url });
   });
 
-  server.get("/:devhook", async (c) => {
+  server.get("/:devhook", withDevhookAuth, async (c) => {
     const id = c.req.param("devhook");
     if (!validate(id)) {
       return c.json({ message: "Invalid devhook ID" }, 400);

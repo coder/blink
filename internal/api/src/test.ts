@@ -14,6 +14,7 @@ export interface PartialBindings
       Bindings,
       | "auth"
       | "chat"
+      | "devhook"
       | "files"
       | "logs"
       | "traces"
@@ -24,6 +25,7 @@ export interface PartialBindings
   > {
   auth?: Partial<Bindings["auth"]>;
   chat?: Partial<Bindings["chat"]>;
+  devhook?: Partial<NonNullable<Bindings["devhook"]>>;
   files?: Partial<Bindings["files"]>;
   logs?: Partial<Bindings["logs"]>;
   traces?: Partial<Bindings["traces"]>;

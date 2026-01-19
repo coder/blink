@@ -196,6 +196,7 @@ export interface Bindings {
   readonly devhook?: {
     readonly handleListen: (id: string, req: Request) => Promise<Response>;
     readonly handleRequest: (id: string, req: Request) => Promise<Response>;
+    readonly disableAuth?: boolean;
   };
   readonly sendEmail?: (email: Email) => Promise<void>;
   readonly sendTelemetryEvent?: (event: TelemetryEvent) => Promise<void>;

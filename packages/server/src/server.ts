@@ -228,6 +228,7 @@ export async function startServer(options: ServerOptions) {
             devhook: {
               handleListen: devhook.handleListen,
               handleRequest: devhook.handleRequest,
+              disableAuth: process.env.BLINK_DEVHOOK_DISABLE_AUTH !== undefined,
             },
             chat: {
               async handleMessagesChanged(event, id, messages) {

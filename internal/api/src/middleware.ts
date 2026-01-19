@@ -205,6 +205,21 @@ function readAuthTokenFromRequest(
 
 export const withAuth = createAuthMiddleware();
 
+export const withDevhookAuth: MiddlewareHandler<{
+  Bindings: Bindings;
+  Variables: {
+    user_id?: string;
+    api_key?: ApiKey;
+    auth_type?: "session" | "api_key";
+  };
+}> = async (c, next) => {
+  if (c.env.devhook?.disableAuth) {
+    await next();
+    return;
+  }
+  return withAuth(c as Parameters<typeof withAuth>[0], next);
+};
+
 export const withOrganizationIDQueryParam: MiddlewareHandler<
   {
     Bindings: Bindings;
