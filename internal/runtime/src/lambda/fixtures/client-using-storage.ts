@@ -15,7 +15,7 @@ http
     // Read auth token from request header (set by the wrapper's proxy)
     // and set up AsyncLocalStorage context so internal API calls work.
     const authToken = req.headers[InternalAuthHeader] as string;
-    
+
     await runWithAuth(authToken ?? "", async () => {
       await client.kv[":key"].$post({
         param: {

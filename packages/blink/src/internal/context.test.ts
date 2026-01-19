@@ -69,9 +69,7 @@ describe("AsyncLocalStorage auth context", () => {
     const requests = Array.from({ length: 10 }, (_, i) =>
       runWithAuth(`token-${i}`, async () => {
         // Random delay to increase chance of interleaving
-        await new Promise((resolve) =>
-          setTimeout(resolve, Math.random() * 50)
-        );
+        await new Promise((resolve) => setTimeout(resolve, Math.random() * 50));
         const token = getAuthToken();
         tokens.push(`${i}:${token}`);
         return token;

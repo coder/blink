@@ -30,10 +30,7 @@ export default class Devhook {
       throw new Error("Devhook ID is required");
     }
 
-    const response = await this.client.request(
-      "GET",
-      `/api/devhook/${id}/url`
-    );
+    const response = await this.client.request("GET", `/api/devhook/${id}/url`);
     await assertResponseStatus(response, 200);
     const payload = schemaDevhookUrlResponse.parse(await response.json());
     return payload.url;

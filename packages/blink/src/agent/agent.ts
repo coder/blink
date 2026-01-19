@@ -558,10 +558,7 @@ const model = (model: string, options?: { token?: string }) => {
   // This bypass is *ONLY* for temporary testing
   // until we fix the onboarding flow.
   const token =
-    options?.token ??
-    process.env.BLINK_TOKEN ??
-    getAuthToken() ??
-    "fake-key";
+    options?.token ?? process.env.BLINK_TOKEN ?? getAuthToken() ?? "fake-key";
   //   if (!token) {
   //     throw new Error(`You must be authenticated with Blink to use the model gateway.
 

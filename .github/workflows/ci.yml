@@ -26,7 +26,7 @@ jobs:
         run: bun run build
 
       - name: Run formatter check
-        run: bun run format --check
+        run: bun run format:check
 
       - name: Run type checking
         run: bun run typecheck

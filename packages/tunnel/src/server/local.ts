@@ -192,10 +192,7 @@ export function createLocalServer(opts: LocalServerOptions): {
       const responseHeaders: Record<string, string | string[]> = {};
       response.headers.forEach((value, key) => {
         const lowerKey = key.toLowerCase();
-        if (
-          lowerKey !== "set-cookie" &&
-          lowerKey !== TUNNEL_COOKIE_HEADER
-        ) {
+        if (lowerKey !== "set-cookie" && lowerKey !== TUNNEL_COOKIE_HEADER) {
           responseHeaders[key] = value;
         }
       });

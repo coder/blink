@@ -7,6 +7,7 @@
     "build": "turbo build",
     "dev": "turbo dev",
     "format": "prettier --write --cache .",
+    "format:check": "prettier --check --cache .",
     "test": "bun test",
     "typecheck": "turbo typecheck"
   },

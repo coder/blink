@@ -91,103 +91,103 @@ export const handler = awslambda.streamifyResponse(
         "https://lambda.internal"
       );
 
-    let body: string | Buffer | undefined;
-    if (event.body != null && method !== "GET" && method !== "HEAD") {
-      body = event.isBase64Encoded
-        ? Buffer.from(event.body, "base64")
-        : event.body;
-    }
-
-    // It is *extremely* important that we have a controller here.
-    // If we do not, it's possible upstream that the request closes,
-    // and we don't notice - then the Lambda's run until timeout.
-    const controller = new AbortController();
-    const onCloseOrError = () => {
-      controller.abort();
-    };
-    responseStream.on("close", onCloseOrError);
-    responseStream.on("error", onCloseOrError);
-
-    // abort a bit before Lambda hard timeout
-    // we need a bit of extra time to call `/_agent/flush-otel` after the main request is finished
-    const msLeft = Math.max(0, context.getRemainingTimeInMillis() - 5000);
-    const timeout = setTimeout(() => controller.abort(), msLeft);
-
-    try {
-      const res: Response = await agent.fetch(
-        url,
-        { method, body, headers, signal: controller.signal },
-        { event, lambdaContext: context }
-      );
-
-      const resHeaders: Record<string, string> = {};
-      res.headers.forEach((value, key) => {
-        resHeaders[key] = value;
-      });
-
-      const cookies =
-        res.headers.getSetCookie?.() ??
-        (res.headers.get("set-cookie")
-          ? [res.headers.get("set-cookie") as string]
-          : []);
-
-      const http = awslambda.HttpResponseStream.from(responseStream, {
-        statusCode: res.status,
-        headers: resHeaders,
-        cookies,
-      });
-
-      if (res.body) {
-        await res.body.pipeTo(
-          Writable.toWeb(http) as WritableStream<Uint8Array<ArrayBufferLike>>,
-          { signal: controller.signal }
-        );
-      } else {
-        http.end();
+      let body: string | Buffer | undefined;
+      if (event.body != null && method !== "GET" && method !== "HEAD") {
+        body = event.isBase64Encoded
+          ? Buffer.from(event.body, "base64")
+          : event.body;
       }
-    } catch (err) {
+
+      // It is *extremely* important that we have a controller here.
+      // If we do not, it's possible upstream that the request closes,
+      // and we don't notice - then the Lambda's run until timeout.
+      const controller = new AbortController();
+      const onCloseOrError = () => {
+        controller.abort();
+      };
+      responseStream.on("close", onCloseOrError);
+      responseStream.on("error", onCloseOrError);
+
+      // abort a bit before Lambda hard timeout
+      // we need a bit of extra time to call `/_agent/flush-otel` after the main request is finished
+      const msLeft = Math.max(0, context.getRemainingTimeInMillis() - 5000);
+      const timeout = setTimeout(() => controller.abort(), msLeft);
+
       try {
-        const http = awslambda.HttpResponseStream.from(responseStream, {
-          statusCode: controller.signal.aborted ? 499 : 502,
-          headers: { "content-type": "application/json" },
+        const res: Response = await agent.fetch(
+          url,
+          { method, body, headers, signal: controller.signal },
+          { event, lambdaContext: context }
+        );
+
+        const resHeaders: Record<string, string> = {};
+        res.headers.forEach((value, key) => {
+          resHeaders[key] = value;
         });
-        http.write(
-          JSON.stringify({
-            message: controller.signal.aborted
-              ? "client closed"
-              : "upstream error",
-          })
-        );
-        http.end();
-      } catch {}
-    } finally {
-      clearTimeout(timeout);
-      responseStream.off("close", onCloseOrError);
-      responseStream.off("error", onCloseOrError);
 
-      const flushController = new AbortController();
-      const flushTimeout = setTimeout(
-        () => flushController.abort("timeout"),
-        5000
-      );
-      try {
-        // Wait for all waitUntil promises to settle before flushing
-        await Promise.allSettled(waitUntilPromises);
+        const cookies =
+          res.headers.getSetCookie?.() ??
+          (res.headers.get("set-cookie")
+            ? [res.headers.get("set-cookie") as string]
+            : []);
 
-        // Ensure all OpenTelemetry spans are flushed before the Lambda exits.
-        await agent.fetch(
-          new URL("/_agent/flush-otel", "http://lambda.internal"),
-          {
-            method: "POST",
-            signal: flushController.signal,
-          }
-        );
-      } catch {
-        // Ignore errors. Older agents may not have the flush endpoint.
+        const http = awslambda.HttpResponseStream.from(responseStream, {
+          statusCode: res.status,
+          headers: resHeaders,
+          cookies,
+        });
+
+        if (res.body) {
+          await res.body.pipeTo(
+            Writable.toWeb(http) as WritableStream<Uint8Array<ArrayBufferLike>>,
+            { signal: controller.signal }
+          );
+        } else {
+          http.end();
+        }
+      } catch (err) {
+        try {
+          const http = awslambda.HttpResponseStream.from(responseStream, {
+            statusCode: controller.signal.aborted ? 499 : 502,
+            headers: { "content-type": "application/json" },
+          });
+          http.write(
+            JSON.stringify({
+              message: controller.signal.aborted
+                ? "client closed"
+                : "upstream error",
+            })
+          );
+          http.end();
+        } catch {}
       } finally {
-        clearTimeout(flushTimeout);
+        clearTimeout(timeout);
+        responseStream.off("close", onCloseOrError);
+        responseStream.off("error", onCloseOrError);
+
+        const flushController = new AbortController();
+        const flushTimeout = setTimeout(
+          () => flushController.abort("timeout"),
+          5000
+        );
+        try {
+          // Wait for all waitUntil promises to settle before flushing
+          await Promise.allSettled(waitUntilPromises);
+
+          // Ensure all OpenTelemetry spans are flushed before the Lambda exits.
+          await agent.fetch(
+            new URL("/_agent/flush-otel", "http://lambda.internal"),
+            {
+              method: "POST",
+              signal: flushController.signal,
+            }
+          );
+        } catch {
+          // Ignore errors. Older agents may not have the flush endpoint.
+        } finally {
+          clearTimeout(flushTimeout);
+        }
       }
-    }
     }); // end runWithAuth
   }
 );

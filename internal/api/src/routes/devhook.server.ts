@@ -37,4 +37,3 @@ export default function mountDevhook(server: APIServer) {
     return c.env.devhook.handleListen(id, c.req.raw);
   });
 }
-

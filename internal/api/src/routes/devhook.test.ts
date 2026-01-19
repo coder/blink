@@ -8,7 +8,9 @@ test("devhook url with createRequestURL", async () => {
   const id = crypto.randomUUID();
 
   const url = await client.devhook.getUrl(id);
-  expect(url).toBe(bindings.createRequestURL!(id).toString().replace(/\/$/, ""));
+  expect(url).toBe(
+    bindings.createRequestURL!(id).toString().replace(/\/$/, "")
+  );
 });
 
 test("devhook url with path-based routing", async () => {
