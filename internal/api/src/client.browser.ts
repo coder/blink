@@ -18,7 +18,7 @@ export interface ClientOptions {
 export default class Client {
   public authToken?: string;
 
-  private readonly baseURL: URL;
+  protected readonly baseURL: URL;
   private readonly fetch?: typeof globalThis.fetch;
 
   public readonly auth: Auth;

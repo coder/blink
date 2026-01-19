@@ -14,6 +14,17 @@ export default class Client extends BrowserClient {
       baseURL: options?.baseURL ?? process.env.BLINK_API_URL,
     });
   }
+
+  public override websocket(path: string): WebSocket {
+    const url = new URL(path, this.baseURL);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    const headers: Record<string, string> = {};
+    if (this.authToken) {
+      headers.Authorization = `Bearer ${this.authToken}`;
+    }
+    // biome-ignore lint/suspicious/noExplicitAny: types are wrong
+    return new WebSocket(url.toString(), { headers } as any);
+  }
 }
 
 export * from "./client.browser";
