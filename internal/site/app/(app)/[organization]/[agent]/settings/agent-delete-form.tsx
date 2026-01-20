@@ -92,13 +92,13 @@ export function AgentDeleteForm({
                 <DialogTitle>Are you absolutely sure?</DialogTitle>
                 <DialogDescription>
                   This action cannot be undone. This will permanently delete the
-                  agent <strong>{agentName}</strong> and remove all of its data,
-                  deployments, and configurations.
+                  agent <strong>{agentName}</strong> and remove all of its data
+                  including chats, deployments, and configurations.
                 </DialogDescription>
               </DialogHeader>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label
                     htmlFor="agent-name-confirm"
                     className="text-sm font-medium"
