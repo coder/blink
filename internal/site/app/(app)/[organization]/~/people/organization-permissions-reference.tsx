@@ -1,7 +1,14 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Check, HelpCircle, X } from "lucide-react";
 
 interface PermissionFeature {
   name: string;
@@ -143,17 +150,23 @@ function PermissionCell({ value }: { value: boolean | string }) {
   );
 }
 
-export function OrganizationPermissionsReference() {
+export function OrganizationPermissionsReferenceModal() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Organization roles</CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">
-          Understand what each role can do in this organization
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-6">
+    <Dialog>
+      <DialogTrigger asChild>
+        <button className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <HelpCircle className="h-4 w-4" />
+          <span>What can each role do?</span>
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Organization roles</DialogTitle>
+          <DialogDescription>
+            Understand what each role can do in this organization
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-4 space-y-6">
           {/* Permission headers */}
           <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 pb-3 border-b">
             <div className="text-sm font-medium text-muted-foreground">
@@ -235,7 +248,7 @@ export function OrganizationPermissionsReference() {
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

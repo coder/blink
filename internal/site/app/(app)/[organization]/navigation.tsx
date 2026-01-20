@@ -27,8 +27,6 @@ export function OrganizationNavigation({
             label: "People",
             href: `${base}/~/people`,
             icon: Users,
-            disabled: true,
-            tooltip: "Coming Soon",
           } as NavigationItem,
         ]
       : []),

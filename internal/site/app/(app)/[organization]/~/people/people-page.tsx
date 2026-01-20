@@ -9,7 +9,7 @@ import useSWR from "swr";
 import { InviteLinkModal } from "./invite-link-modal";
 import { InviteMemberModal } from "./invite-member-modal";
 import { MembersTable } from "./members-table";
-import { OrganizationPermissionsReference } from "./organization-permissions-reference";
+import { OrganizationPermissionsReferenceModal } from "./organization-permissions-reference";
 import { PendingInvitesTable } from "./pending-invites-table";
 
 interface PeoplePageProps {
@@ -93,50 +93,55 @@ export function PeoplePage({
   }, [members, searchQuery, roleFilter]);
 
   return (
-    <div className="space-y-6">
-      {isAdmin && (
-        <div className="flex items-center gap-3">
-          <Button onClick={() => setShowInviteModal(true)}>
-            <UserPlus className="h-4 w-4" />
-            Invite Member
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setShowInviteLinkModal(true)}
-          >
-            <LinkIcon className="h-4 w-4" />
-            Invite Link
-          </Button>
+    <div className="space-y-8">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-medium">Members</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage who has access to this organization
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <OrganizationPermissionsReferenceModal />
+            {isAdmin && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowInviteLinkModal(true)}
+                >
+                  <LinkIcon className="h-4 w-4" />
+                  Invite Link
+                </Button>
+                <Button onClick={() => setShowInviteModal(true)}>
+                  <UserPlus className="h-4 w-4" />
+                  Invite Member
+                </Button>
+              </>
+            )}
+          </div>
         </div>
-      )}
 
-      <OrganizationPermissionsReference />
-
-      <MembersTable
-        members={filteredMembers}
-        isAdmin={isAdmin}
-        viewerUserId={viewerUserId}
-        organizationId={organizationId}
-        onMemberUpdated={mutateMembers}
-        onMemberRemoved={mutateMembers}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        roleFilter={roleFilter}
-        onRoleFilterChange={setRoleFilter}
-      />
+        <MembersTable
+          members={filteredMembers}
+          isAdmin={isAdmin}
+          viewerUserId={viewerUserId}
+          organizationId={organizationId}
+          onMemberUpdated={mutateMembers}
+          onMemberRemoved={mutateMembers}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          roleFilter={roleFilter}
+          onRoleFilterChange={setRoleFilter}
+        />
+      </div>
 
       {isAdmin && pendingEmailInvites.length > 0 && (
-        <>
-          <div
-            className="border-t border-neutral-300 dark:border-neutral-800"
-            role="separator"
-          />
-          <PendingInvitesTable
-            invites={pendingEmailInvites}
-            organizationId={organizationId}
-            onInviteDeleted={mutateInvites}
-          />
-        </>
+        <PendingInvitesTable
+          invites={pendingEmailInvites}
+          organizationId={organizationId}
+          onInviteDeleted={mutateInvites}
+        />
       )}
 
       <InviteMemberModal
