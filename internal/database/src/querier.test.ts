@@ -394,6 +394,59 @@ test("new user flow improvements", async () => {
   expect(user3.username).not.toContain("personal-org");
 });
 
+describe("deleteAgent", () => {
+  test("cascade deletes associated chats when agent is deleted", async () => {
+    const url = await createPostgresURL();
+    const querier = new Querier(await connectToPostgres(url));
+
+    const user = await createTestUser(querier);
+    const org = await createTestOrganization(querier, { created_by: user.id });
+    const agent = await createTestAgent(querier, {
+      created_by: user.id,
+      organization_id: org.id,
+    });
+
+    // Create multiple chats for this agent
+    const chat1 = await createTestChat(querier, {
+      created_by: user.id,
+      organization_id: org.id,
+      agent_id: agent.id,
+    });
+    const chat2 = await createTestChat(querier, {
+      created_by: user.id,
+      organization_id: org.id,
+      agent_id: agent.id,
+    });
+
+    // Verify chats exist
+    const chatsBefore = await querier.selectChats({
+      organizationID: org.id,
+      limit: 10,
+    });
+    expect(chatsBefore.items.length).toBe(2);
+    expect(chatsBefore.items.map((c) => c.id).sort()).toEqual(
+      [chat1.id, chat2.id].sort()
+    );
+
+    // Delete the agent - this should cascade delete all chats
+    await querier.deleteAgent({ id: agent.id });
+
+    // Verify chats are deleted
+    const chatsAfter = await querier.selectChats({
+      organizationID: org.id,
+      limit: 10,
+    });
+    expect(chatsAfter.items.length).toBe(0);
+
+    // Verify individual chats are gone
+    const chat1After = await querier.selectChatByID({ id: chat1.id });
+    expect(chat1After).toBeUndefined();
+
+    const chat2After = await querier.selectChatByID({ id: chat2.id });
+    expect(chat2After).toBeUndefined();
+  });
+});
+
 test("reserved usernames cannot be used", async () => {
   const url = await createPostgresURL();
   const querier = new Querier(await connectToPostgres(url));
