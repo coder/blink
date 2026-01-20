@@ -17,7 +17,9 @@ function getOrCreateTunnelSecret(): string {
     return readFileSync(tunnelSecretPath, "utf-8").trim();
   }
   mkdirSync(getBlinkServerConfigDir(), { recursive: true });
-  const secret = crypto.getRandomValues(new Uint8Array(16)).toBase64();
+  const secret = Buffer.from(
+    crypto.getRandomValues(new Uint8Array(16))
+  ).toString("base64");
   writeFileSync(tunnelSecretPath, secret);
   return secret;
 }

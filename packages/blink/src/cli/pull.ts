@@ -66,12 +66,11 @@ export default async function pull(
     new Client({
       baseURL: host,
       authToken: token,
-      // @ts-expect-error - This is just because of Bun.
-      fetch: (url, init) => {
+      fetch: ((url: RequestInfo | URL, init?: RequestInit) => {
         const headers = new Headers(init?.headers);
         headers.set("x-blink-cli-version", version);
         return fetch(url, { ...init, headers });
-      },
+      }) as typeof fetch,
     });
 
   let orgId: string;

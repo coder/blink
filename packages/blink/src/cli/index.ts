@@ -10,7 +10,7 @@ if (!globalThis.WebSocket) {
 
 // Bun does not support this, so it simply prevents
 // a really annoying "Not implemented" error.
-if (typeof globalThis["Bun"] !== "undefined") {
+if (typeof (globalThis as Record<string, unknown>).Bun !== "undefined") {
   const perfHooks = require("perf_hooks");
   perfHooks.monitorEventLoopDelay = () => {
     return {

@@ -389,7 +389,7 @@ describe("OTLP Server", () => {
             "Content-Type": "application/x-protobuf",
             "Content-Encoding": encoding,
           },
-          body: compressedBody,
+          body: new Uint8Array(compressedBody),
         });
 
         const response = await app.fetch(request, bindings);
@@ -908,7 +908,7 @@ describe("OTLP Server - Logs", () => {
           "Content-Type": "application/x-protobuf",
           "Content-Encoding": encoding,
         },
-        body: compressedBody,
+        body: new Uint8Array(compressedBody),
       });
 
       const response = await fetch(request);

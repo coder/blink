@@ -137,7 +137,7 @@ export default async function serveCompute(
   } catch (e) {
     // It's fine, we don't _need_ to use TTYs.
   }
-  if (typeof Bun !== "undefined") {
+  if (typeof (globalThis as Record<string, unknown>).Bun !== "undefined") {
     nodePty = undefined;
   }
 

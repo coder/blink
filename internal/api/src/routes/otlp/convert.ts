@@ -620,7 +620,7 @@ function hexToBytes(hex: string): Uint8Array {
   if (s.length % 2 !== 0) {
     throw new Error("invalid hex length");
   }
-  return Uint8Array.fromHex(s);
+  return new Uint8Array(Buffer.from(s, "hex"));
 }
 
 function looksHex(v: unknown): v is string {
@@ -642,7 +642,7 @@ function convertOtelHexIds(input: unknown): unknown {
       if (k === "traceId" || k === "spanId" || k === "parentSpanId") {
         const v = obj[k];
         if (looksHex(v)) {
-          obj[k] = hexToBytes(v).toBase64();
+          obj[k] = Buffer.from(hexToBytes(v)).toString("base64");
         }
       } else {
         obj[k] = convertOtelHexIds(obj[k]);
