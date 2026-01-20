@@ -1,5 +1,14 @@
 {
   "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": []
+  },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/cli/lib/in-memory-cli.ts"
+  ]
 }

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p tsconfig.test.json"
   },
   "exports": {
     ".": "./src/worker.ts"
@@ -11,5 +11,9 @@
   "dependencies": {
     "@blink-sdk/compute-protocol": "^0.0.2",
     "@blink-sdk/events": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1",
+    "@types/node": "^22"
   }
 }

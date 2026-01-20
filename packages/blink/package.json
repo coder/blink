@@ -78,13 +78,15 @@
     "dev": "tsdown --watch",
     "dev-install": "rm -rf ./*.tgz && bun run build && npm pack && bun remove -g blink && bun install -g $(pwd)/*.tgz",
     "gen-templates": "bun run src/cli/scripts/generate-templates.ts && cd ../.. && bun format",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
     "@blink-sdk/compute-protocol": "^0.0.7"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^2.0.15",
+    "@types/bun": "^1",
+    "@types/node": "^22",
     "@ai-sdk/gateway": "^2.0.0",
     "@ai-sdk/google": "^2.0.13",
     "@ai-sdk/openai": "^2.0.28",

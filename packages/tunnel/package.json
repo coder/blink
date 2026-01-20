@@ -28,7 +28,7 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p tsconfig.test.json"
   },
   "exports": {
     ".": {
@@ -45,6 +45,8 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250109.0",
+    "@types/bun": "^1",
+    "@types/node": "^22",
     "@types/ws": "^8.5.10",
     "hono": "^4.7.10",
     "tsdown": "^0.11.12",

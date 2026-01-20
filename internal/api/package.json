@@ -23,11 +23,13 @@
   "scripts": {
     "build": "tsdown",
     "pack": "bun run build && cd dist && npm pack",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p tsconfig.test.json",
     "publish": "bun run pack && cd dist && npm publish"
   },
   "devDependencies": {
     "@blink-sdk/events": "workspace:*",
+    "@types/bun": "^1",
+    "@types/node": "^22",
     "blink": "workspace:*",
     "@bufbuild/protobuf": "^2.9.0",
     "@testing-library/react": "^16.3.0",

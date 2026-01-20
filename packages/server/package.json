@@ -23,13 +23,14 @@
   "type": "module",
   "scripts": {
     "build": "bun scripts/build.ts",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsgo --noEmit && tsgo --noEmit -p tsconfig.test.json",
     "dev": "bun src/cli.ts --dev"
   },
   "devDependencies": {
     "@blink-sdk/tunnel": "workspace:*",
     "@blink.so/api": "workspace:*",
     "@blink.so/compute-protocol-worker": "workspace:*",
+    "@types/bun": "^1",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
     "@types/ws": "^8.5.13",
