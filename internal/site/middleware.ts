@@ -97,6 +97,18 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // In self-hosted mode, redirect unauthenticated users from marketing pages to login
+  const isSelfHosted = process.env.SELF_HOSTED === "true";
+  if (isSelfHosted && !token) {
+    const marketingPages = ["/", "/home", "/privacy", "/terms"];
+    const isMarketingPage = marketingPages.some(
+      (p) => pathname === p || pathname.startsWith(p + "/")
+    );
+    if (isMarketingPage) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+  }
+
   if (token && pathname === "/") {
     if (response) {
       // Preserve cookie migration in redirect
@@ -126,6 +138,9 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/",
+    "/home",
+    "/privacy",
+    "/terms/:path*",
     "/chat",
     "/chat/:id",
     "/api/:path*",

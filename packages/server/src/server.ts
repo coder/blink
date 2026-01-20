@@ -623,6 +623,7 @@ const startNextServer = async (opts: StartNextServerOptions) => {
   }
   // This is required for Next to not freak out about not having a config.
   // Their standalone generated file does exactly this.
+  process.env.SELF_HOSTED = "true";
   process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig);
 
   const next = customRequire("next") as typeof import("next").default;
