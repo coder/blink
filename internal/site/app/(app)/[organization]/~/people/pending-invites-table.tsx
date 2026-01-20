@@ -23,8 +23,8 @@ export function PendingInvitesTable({
           Pending Invites
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {invites.length} {invites.length === 1 ? "invite" : "invites"} awaiting
-          response
+          {invites.length} {invites.length === 1 ? "invite" : "invites"}{" "}
+          awaiting response
         </p>
       </div>
 
