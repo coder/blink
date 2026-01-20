@@ -22,6 +22,13 @@
       "when": 1768484370772,
       "tag": "0002_tracepayload",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1768923150315,
+      "tag": "0003_chat_agent_cascade_delete",
+      "breakpoints": true
     }
   ]
 }

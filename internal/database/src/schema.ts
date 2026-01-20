@@ -303,7 +303,7 @@ export const chat = pgTable(
     agent_id: uuid("agent_id")
       .notNull()
       .references(() => agent.id, {
-        onDelete: "set null",
+        onDelete: "cascade",
       }),
     agent_deployment_id: uuid("agent_deployment_id").references(
       () => agent_deployment.id,
