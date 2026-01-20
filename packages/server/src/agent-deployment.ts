@@ -195,7 +195,7 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
       "bash",
       "-c",
       // Start the collector and pipe the agent's output to it
-      `/opt/otel/start-collector.sh && node ${wrapperEntrypoint} 2>&1 | tee >(nc 127.0.0.1 54525)`,
+      `/opt/otel/start-collector.sh && node ${wrapperEntrypoint} 2>&1 | tee /var/log/agent/agent.pipe`,
     ];
 
     console.log(`Running: docker ${dockerArgs.join(" ")}`);

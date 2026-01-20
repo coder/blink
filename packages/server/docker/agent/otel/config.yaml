@@ -1,6 +1,7 @@
 receivers:
-  tcplog:
-    listen_address: "127.0.0.1:54525"
+  namedpipe:
+    path: /var/log/agent/agent.pipe
+    mode: 0600
 
 processors:
   transform:
@@ -24,8 +25,10 @@ service:
     logs:
       level: info
       encoding: console
+    metrics:
+      level: none
   pipelines:
     logs:
-      receivers: [tcplog]
+      receivers: [namedpipe]
       processors: [transform, batch]
       exporters: [otlphttp]

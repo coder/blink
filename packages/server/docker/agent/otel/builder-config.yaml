@@ -3,7 +3,7 @@ dist:
   output_path: ./dist
 
 receivers:
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/tcplogreceiver v0.143.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/namedpipereceiver v0.143.0
 
 exporters:
   - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.143.0

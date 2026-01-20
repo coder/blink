@@ -14,8 +14,8 @@ RUN builder --config builder-config.yaml
 
 FROM node:22-alpine
 
-# Install bash (for process substitution) and netcat (for piping logs to collector)
-RUN apk add --no-cache bash netcat-openbsd
+# Install bash (for process substitution)
+RUN apk add --no-cache bash
 
 COPY --from=otel-builder /build/dist/collector /usr/local/bin/collector
 
