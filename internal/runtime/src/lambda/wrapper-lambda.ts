@@ -18,7 +18,7 @@ import {
   startInternalAPIServer,
 } from "../server";
 
-const { server, port } = await startInternalAPIServer();
+const { server, port } = startInternalAPIServer();
 // It is *extremely* important for Lambda's that we unref the server.
 // Otherwise, the Lambda will not exit when requests are made.
 // It will hang until the timeout.
@@ -30,9 +30,9 @@ if (!process.env.ENTRYPOINT) {
 }
 
 // We must unref here, otherwise the Lambda will stay running.
-const { handler: agent } = await startAgentServer(
+const agent = await startAgentServer(
   resolve(process.env.ENTRYPOINT),
-  0,
+  port + 1,
   true
 );
 

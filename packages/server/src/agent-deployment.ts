@@ -8,6 +8,7 @@ import {
 } from "@blink.so/runtime/types";
 import { spawn } from "child_process";
 import { mkdir, writeFile } from "fs/promises";
+import { createServer } from "net";
 import { tmpdir } from "os";
 import { join } from "path";
 import { getDockerNetworkingConfig } from "./check-docker-networking";
@@ -25,9 +26,6 @@ interface DockerDeployOptions {
     size: number;
   }>;
 }
-
-const PORT_BIND_EXTERNAL_PORT = 3000;
-const PORT_BIND_INTERNAL_API_PORT = 3001;
 
 /**
  * Janky Docker-based agent deployment for self-hosted
@@ -111,10 +109,9 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
       networkConfig.recommended === "host" ||
       networkConfig.recommended === "both";
 
-    const containerExternalPort = useHostNetwork ? 0 : PORT_BIND_EXTERNAL_PORT;
-    const containerInternalAPIPort = useHostNetwork
-      ? 0
-      : PORT_BIND_INTERNAL_API_PORT;
+    // Find free ports for this agent (one for external access, one for internal API)
+    const externalPort = await findFreePort();
+    const internalAPIPort = await findFreePort();
 
     // Calculate the URL the container should use to reach the host
     let containerBaseUrl = baseUrl;
@@ -131,7 +128,7 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
     dockerEnvArgs.push("-e", `ENTRYPOINT=./${originalEntrypoint}`);
     dockerEnvArgs.push(
       "-e",
-      `${InternalAPIServerListenPortEnvironmentVariable}=${containerInternalAPIPort}`
+      `${InternalAPIServerListenPortEnvironmentVariable}=${internalAPIPort}`
     );
     dockerEnvArgs.push(
       "-e",
@@ -140,7 +137,7 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
     // Agent configuration
     dockerEnvArgs.push("-e", `BLINK_REQUEST_URL=${containerBaseUrl}`);
     dockerEnvArgs.push("-e", `BLINK_REQUEST_ID=${target?.request_id}`);
-    dockerEnvArgs.push("-e", `PORT=${containerExternalPort}`);
+    dockerEnvArgs.push("-e", `PORT=${externalPort}`);
     dockerEnvArgs.push("-e", `BLINK_USE_STRUCTURED_LOGGING=1`);
     // User-defined environment variables
     for (const envVar of envs) {
@@ -183,7 +180,12 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
       "unless-stopped",
       ...(useHostNetwork
         ? ["--network", "host"]
-        : ["-p", `0:${containerExternalPort}`]),
+        : [
+            "-p",
+            `${externalPort}:${externalPort}`,
+            "-p",
+            `${internalAPIPort}:${internalAPIPort}`,
+          ]),
       "-v",
       `${deploymentDir}:/app`,
       "-w",
@@ -200,12 +202,6 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
     const containerId = await runCommand("docker", dockerArgs);
 
     console.log(`Container started: ${containerId}`);
-
-    const { externalPort: loggedExternalPort } =
-      await getPortFromContainerLogs(containerName);
-    const externalPort = useHostNetwork
-      ? loggedExternalPort
-      : await getPortFromDockerPort(containerName, loggedExternalPort);
 
     // Update deployment status and set as active if target is production
     await querier.tx(async (tx) => {
@@ -271,53 +267,21 @@ function runCommand(command: string, args: string[]): Promise<string> {
   });
 }
 
-async function getPortFromContainerLogs(
-  containerName: string,
-  maxAttempts: number = 20,
-  delayMs: number = 300
-): Promise<{ externalPort: number }> {
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      const stdout = await runCommand("docker", ["logs", containerName]);
-      const externalMatch = stdout.match(/BLINK_EXTERNAL_PORT:(\d+)/);
-      if (externalMatch?.[1]) {
-        return {
-          externalPort: parseInt(externalMatch[1], 10),
-        };
+function findFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.listen(0, () => {
+      const address = server.address();
+      if (address && typeof address !== "string") {
+        const port = address.port;
+        server.close(() => {
+          resolve(port);
+        });
+      } else {
+        server.close();
+        reject(new Error("Failed to get port"));
       }
-    } catch {}
-    await sleep(delayMs);
-  }
-  throw new Error(
-    `Failed to read ports from container logs for ${containerName}`
-  );
-}
-
-async function getPortFromDockerPort(
-  containerName: string,
-  containerPort: number,
-  maxAttempts: number = 10,
-  delayMs: number = 300
-): Promise<number> {
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      const stdout = await runCommand("docker", [
-        "port",
-        containerName,
-        String(containerPort),
-      ]);
-      const match = stdout.match(/:(\d+)\s*$/m);
-      if (match?.[1]) {
-        return parseInt(match[1], 10);
-      }
-    } catch {}
-    await sleep(delayMs);
-  }
-  throw new Error(
-    `Failed to read mapped port for ${containerName}:${containerPort}`
-  );
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+    });
+    server.on("error", reject);
+  });
 }

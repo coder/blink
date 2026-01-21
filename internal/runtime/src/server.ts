@@ -63,11 +63,11 @@ export function patchFetchWithAuth(internalAPIOrigin: string): void {
  *
  * @returns The server and port information.
  */
-export async function startInternalAPIServer() {
+export function startInternalAPIServer() {
   // Start the API server that routes internal Blink APIs to use
   // the Blink Cloud API server.
   const port = process.env[InternalAPIServerListenPortEnvironmentVariable]
-    ? parseInt(process.env[InternalAPIServerListenPortEnvironmentVariable], 10)
+    ? parseInt(process.env[InternalAPIServerListenPortEnvironmentVariable])
     : 12345;
 
   const server = createServer(
@@ -166,27 +166,13 @@ export async function startInternalAPIServer() {
     })
   );
 
-  const actualPort = await new Promise<number>((resolve, reject) => {
-    const onError = (err: Error) => reject(err);
-    server.once("error", onError);
-    server.listen(port, "127.0.0.1", () => {
-      server.off("error", onError);
-      const address = server.address();
-      if (address && typeof address !== "string") {
-        resolve(address.port);
-      } else {
-        resolve(port);
-      }
-    });
-  });
-
+  server.listen(port, "127.0.0.1");
   // This is for the agents to know where to send requests to.
-  process.env[APIServerURLEnvironmentVariable] =
-    `http://127.0.0.1:${actualPort}`;
+  process.env[APIServerURLEnvironmentVariable] = `http://127.0.0.1:${port}`;
 
   return {
     server,
-    port: actualPort,
+    port,
   };
 }
 
@@ -199,25 +185,12 @@ export async function startAgentServer(
   process.env.PORT = port.toString();
 
   const originalListen = Server.prototype.listen;
-  let restored = false;
-  const restoreListen = () => {
-    if (!restored) {
-      Server.prototype.listen = originalListen;
-      restored = true;
-    }
-  };
-
-  const listeningPromise = new Promise<number>((resolve, reject) => {
+  const listeningPromise = new Promise<void>((resolve, reject) => {
     Server.prototype.listen = function (...args) {
-      this.once("listening", () => {
-        const address = this.address();
-        const resolvedPort =
-          address && typeof address !== "string" ? address.port : port;
-        restoreListen();
-        resolve(resolvedPort);
+      this.on("listening", () => {
+        resolve(undefined);
       });
-      this.once("error", (err) => {
-        restoreListen();
+      this.on("error", (err) => {
         reject(err);
       });
       if (unref) {
@@ -229,17 +202,10 @@ export async function startAgentServer(
   });
 
   // The server starts immediately, so we don't need to wait for it.
-  try {
-    await import(entrypoint);
-  } catch (error) {
-    restoreListen();
-    throw error;
-  } finally {
-    process.env.PORT = priorEnvPort;
-  }
+  await import(entrypoint);
+  process.env.PORT = priorEnvPort;
 
-  const actualPort = await listeningPromise;
-  const agentUrl = `http://127.0.0.1:${actualPort}`;
+  const agentUrl = `http://127.0.0.1:${port}`;
   const handler = createServerAdapter((request) => {
     const reqURL = new URL(request.url);
     const newURL = new URL(agentUrl);
@@ -262,5 +228,6 @@ export async function startAgentServer(
       duplex: "half",
     });
   });
-  return { handler, port: actualPort };
+  await listeningPromise;
+  return handler;
 }
