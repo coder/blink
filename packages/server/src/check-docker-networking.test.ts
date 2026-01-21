@@ -20,12 +20,8 @@ describe("checkDockerNetworking", async () => {
   test.skipIf(!dockerAvailable)(
     "should detect networking capabilities",
     async () => {
-      const result = await checkDockerNetworking();
-
-      // If host networking works both ways, hostAddress should be set
-      if (result.hostNetwork.containerToHost) {
-        expect(result.hostNetwork.hostAddress).not.toBeNull();
-      }
+      const accessUrl = process.env.BLINK_ACCESS_URL ?? "https://example.com";
+      const result = await checkDockerNetworking(accessUrl);
 
       // If port-bind works both ways, hostAddress should be set
       if (result.portBind.containerToHost) {
@@ -33,17 +29,11 @@ describe("checkDockerNetworking", async () => {
       }
 
       // Verify recommendation is consistent with results
-      const hostWorks =
-        result.hostNetwork.hostToContainer &&
-        result.hostNetwork.containerToHost;
-      const bridgeWorks =
-        result.portBind.hostToContainer && result.portBind.containerToHost;
+      const portBindWorks =
+        result.portBind.hostToContainer &&
+        (result.portBind.containerToHost || result.accessUrl.reachable);
 
-      if (hostWorks && bridgeWorks) {
-        expect(result.recommended).toBe("both");
-      } else if (hostWorks) {
-        expect(result.recommended).toBe("host");
-      } else if (bridgeWorks) {
+      if (portBindWorks) {
         expect(result.recommended).toBe("port-bind");
       } else {
         expect(result.recommended).toBe("none");

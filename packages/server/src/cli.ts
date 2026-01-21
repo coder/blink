@@ -82,6 +82,12 @@ async function runServer(options: {
     tunnelCleanup = tunnel[Symbol.dispose];
   }
 
+  if (!/^https?:\/\//.test(accessUrl)) {
+    throw new Error(
+      `Invalid access URL: ${accessUrl}. Must start with http:// or https://`
+    );
+  }
+
   const cleanup = () => {
     tunnelCleanup?.();
     process.exit(0);

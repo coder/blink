@@ -265,6 +265,7 @@ export async function startServer(options: ServerOptions) {
                 deployment,
                 querier,
                 baseUrl,
+                accessUrl,
                 authSecret,
                 downloadFile: async (id: string) => {
                   const file = await querier.selectFileByID(id);
