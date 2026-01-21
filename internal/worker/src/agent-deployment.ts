@@ -1,5 +1,7 @@
+import { generateAgentDeploymentToken } from "@blink.so/api/agents/me/server";
 import type Querier from "@blink.so/database/querier";
 import type { AgentDeployment as DBAgentDeployment } from "@blink.so/database/schema";
+import { BlinkDeploymentTokenEnvironmentVariable } from "@blink.so/runtime/types";
 import { deploy as deployLambda } from "@blink.so/runtime/lambda";
 import type { FileUpload } from "@daytonaio/sdk/src/FileSystem";
 import { DurableObject } from "cloudflare:workers";
@@ -100,6 +102,16 @@ export class AgentDeployment extends DurableObject<Cloudflare.Env> {
     if (!deployment.output_files) {
       throw new Error("No output files provided");
     }
+
+    const deploymentToken = await generateAgentDeploymentToken(
+      this.env.AUTH_SECRET,
+      {
+        agent_id: deployment.agent_id,
+        agent_deployment_id: deployment.id,
+        agent_deployment_target_id: deployment.target_id,
+      }
+    );
+    lambdaEnv[BlinkDeploymentTokenEnvironmentVariable] = deploymentToken;
 
     await db.updateAgentDeployment({
       id: deployment.id,
