@@ -217,7 +217,7 @@
     },
     "packages/blink": {
       "name": "blink",
-      "version": "1.1.37",
+      "version": "1.1.38",
       "bin": {
         "blink": "./dist/cli/index.js",
       },
@@ -234,7 +234,7 @@
         "@ai-sdk/xai": "^2.0.16",
         "@blink-sdk/compute": "^0.0.15",
         "@blink-sdk/events": "workspace:*",
-        "@blink.so/api": "^1.1.0",
+        "@blink.so/api": "^1.1.1",
         "@clack/prompts": "^0.11.0",
         "@hono/node-server": "^1.19.3",
         "@jaaydenh/gemini-cli": "0.11.0-nightly-20251022-2",
@@ -4669,7 +4669,7 @@
 
     "bl/readable-stream": ["readable-stream@3.6.2", "", { "dependencies": { "inherits": "^2.0.3", "string_decoder": "^1.1.1", "util-deprecate": "^1.0.1" } }, "sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA=="],
 
-    "blink/@blink.so/api": ["@blink.so/api@1.1.0", "", { "optionalDependencies": { "@blink-sdk/compute-protocol": ">= 0.0.2" }, "peerDependencies": { "ai": ">= 5", "react": ">= 18", "zod": ">= 4" }, "optionalPeers": ["react"] }, "sha512-NWXGYpZfn/guvjyuEpPWKeVU3a63cTL6sHJkItsW9iWl27QuiXHMM9LnPCzcbL4VZuEhQ0rs1J2xuvrvVSUi7g=="],
+    "blink/@blink.so/api": ["@blink.so/api@1.1.1", "", { "optionalDependencies": { "@blink-sdk/compute-protocol": ">= 0.0.2" }, "peerDependencies": { "ai": ">= 5", "react": ">= 18", "zod": ">= 4" }, "optionalPeers": ["react"] }, "sha512-O5Rcah2UnCnzFiFUUt/sRHRhK8rTEIT0o3xv5mLb/zN6UxjrkhGfSPx8sUJwLNcLXX9KzFVyMlL7hxllkP25QA=="],
 
     "blink/@types/node": ["@types/node@22.18.8", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-pAZSHMiagDR7cARo/cch1f3rXy0AEXwsVsVH09FcyeJVAzCnGgmYis7P3JidtTUjyadhTeSo8TgRPswstghDaw=="],
 
