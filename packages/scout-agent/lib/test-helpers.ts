@@ -134,8 +134,80 @@ export const noopLogger = {
   error: () => {},
 };
 
-// Port counter to avoid port collisions between tests
-let testPortCounter = 35000;
+const getServerPort = (server: http.Server): number => {
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("Server did not report a port");
+  }
+  return address.port;
+};
+
+export const startAgentServer = async <MESSAGE extends UIMessage>(
+  agent: blink.Agent<MESSAGE>
+): Promise<{ server: http.Server; baseUrl: string }> => {
+  const server = http.createServer(
+    createServerAdapter((req) => agent.fetch(req))
+  );
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  const port = getServerPort(server);
+  return { server, baseUrl: `http://127.0.0.1:${port}` };
+};
+
+export const closeAgentServer = async (server: http.Server): Promise<void> => {
+  if (!server.listening) {
+    return;
+  }
+  const isServerNotRunningError = (err: unknown): boolean => {
+    if (!err || typeof err !== "object") {
+      return false;
+    }
+    const code = (err as { code?: string }).code;
+    if (code === "ERR_SERVER_NOT_RUNNING") {
+      return true;
+    }
+    const message = (err as { message?: string }).message;
+    return (
+      typeof message === "string" && message.includes("Server is not running")
+    );
+  };
+  if (typeof server.closeAllConnections === "function") {
+    try {
+      server.closeAllConnections();
+    } catch (err) {
+      if (!isServerNotRunningError(err)) {
+        throw err;
+      }
+    }
+  }
+  const asyncDispose = (
+    server as { [Symbol.asyncDispose]?: () => Promise<void> | void }
+  )[Symbol.asyncDispose];
+  if (asyncDispose) {
+    try {
+      await asyncDispose.call(server);
+    } catch (err) {
+      if (!isServerNotRunningError(err)) {
+        throw err;
+      }
+    }
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    server.close((err) => {
+      if (err && !isServerNotRunningError(err)) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
+};
 
 export interface RunChatTurnResult {
   chunks: UIMessageChunk[];
@@ -174,21 +246,20 @@ export interface CreateAgentTestHelperOptions {
  *
  * Usage:
  * ```ts
- * await using helper = createAgentTestHelper(agent, {
+ * await using helper = await createAgentTestHelper(agent, {
  *   initialMessages: [{ id: "1", role: "user", parts: [{ type: "text", text: "Hello" }] }]
  * });
  * const result = await helper.runChatTurn();
  * // Assistant message is automatically added to helper.messages
  * ```
  */
-export function createAgentTestHelper(
+export async function createAgentTestHelper(
   agent: blink.Agent<UIMessage>,
   options?: CreateAgentTestHelperOptions
-): AgentTestHelper {
-  const port = testPortCounter++;
-  const server = agent.serve({ port });
+): Promise<AgentTestHelper> {
+  const { server, baseUrl } = await startAgentServer(agent);
   const client = new Client({
-    baseUrl: `http://localhost:${port}`,
+    baseUrl,
   });
 
   const messages: UIMessage[] = options?.initialMessages
@@ -246,9 +317,7 @@ export function createAgentTestHelper(
     addUserMessage: (text: string) => addMessage("user", text),
     runChatTurn,
     [Symbol.asyncDispose]: async () => {
-      const closed = server[Symbol.asyncDispose]();
-      server.closeAllConnections();
-      await closed;
+      await closeAgentServer(server);
     },
   };
 }

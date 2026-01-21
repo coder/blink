@@ -20,8 +20,10 @@ import {
 } from "./compute/test-utils";
 import { type Message, Scout } from "./index";
 import {
+  closeAgentServer,
   createAgentTestHelper,
   createMockBlinkApiServer,
+  startAgentServer,
   withBlinkApiUrl,
 } from "./test-helpers";
 
@@ -112,29 +114,18 @@ const newAgent = (options: {
   return agent;
 };
 
-let portCounter = 34000;
-
 const setup = async (options: Parameters<typeof newAgent>[0]) => {
   const agent = newAgent(options);
-  // For a reason I don't understand, the cleanup of the server is not working correctly.
-  // If 2 tests reuse the same port, a test will see the previous test's server still running.
-  // This is a workaround to use a different port for each test.
-  // TODO: Figure out why the cleanup is not working correctly and fix it.
-  const port = portCounter++;
-  const server = agent.serve({
-    port,
-  });
+  const { server, baseUrl } = await startAgentServer(agent);
   const client = new Client({
-    baseUrl: `http://localhost:${port}`,
+    baseUrl,
   });
   return {
     agent,
     server,
     client,
     [Symbol.asyncDispose]: async () => {
-      const closed = server[Symbol.asyncDispose]();
-      server.closeAllConnections();
-      await closed;
+      await closeAgentServer(server);
     },
   };
 };
@@ -1279,7 +1270,7 @@ describe("compaction", () => {
 
     const { agent, scout, chatID } = setupCompactionTest(model);
 
-    await using helper = createAgentTestHelper(agent, {
+    await using helper = await createAgentTestHelper(agent, {
       initialMessages: [
         {
           id: "msg-1",
@@ -1349,7 +1340,7 @@ describe("compaction", () => {
 
     const { agent, scout, chatID } = setupCompactionTest(model);
 
-    await using helper = createAgentTestHelper(agent, {
+    await using helper = await createAgentTestHelper(agent, {
       initialMessages: [
         {
           id: "msg-1",
@@ -1441,7 +1432,7 @@ describe("compaction", () => {
 
     const { agent, scout, chatID } = setupCompactionTest(model);
 
-    await using helper = createAgentTestHelper(agent, {
+    await using helper = await createAgentTestHelper(agent, {
       initialMessages: [
         {
           id: "msg-1",
@@ -1509,7 +1500,7 @@ describe("compaction", () => {
 
     const { agent } = setupCompactionTest(model);
 
-    await using helper = createAgentTestHelper(agent, {
+    await using helper = await createAgentTestHelper(agent, {
       initialMessages: [
         {
           id: "msg-1",
@@ -1566,7 +1557,7 @@ describe("compaction", () => {
 
     const { agent } = setupCompactionTest(model);
 
-    await using helper = createAgentTestHelper(agent, {
+    await using helper = await createAgentTestHelper(agent, {
       initialMessages: [
         {
           id: "msg-1",
@@ -1642,7 +1633,7 @@ describe("compaction", () => {
 
     const { agent, scout, chatID } = setupCompactionTest(model);
 
-    await using helper = createAgentTestHelper(agent, {
+    await using helper = await createAgentTestHelper(agent, {
       initialMessages: [
         {
           id: "msg-1",
@@ -1731,7 +1722,7 @@ describe("compaction", () => {
     const { agent, scout, chatID } = setupCompactionTest(model);
 
     // With 1 marker (retryCount=0), 1 message will be excluded (most recent)
-    await using helper = createAgentTestHelper(agent, {
+    await using helper = await createAgentTestHelper(agent, {
       initialMessages: [
         {
           id: "summarized-1",
