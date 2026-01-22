@@ -176,17 +176,16 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
     }
 
     const portBindingExternalPort = await findFreePort();
-    const dockerArgs = [
-      "run",
-      "-d",
+
+    // Create container without starting it (no volume mount for portability)
+    const dockerCreateArgs = [
+      "create",
       "--name",
       containerName,
       "--restart",
       "unless-stopped",
       "-p",
       `${portBindingExternalPort}:${CONTAINER_EXTERNAL_API_PORT}`,
-      "-v",
-      `${deploymentDir}:/app`,
       "-w",
       "/app",
       ...dockerEnvArgs,
@@ -197,8 +196,19 @@ export async function deployAgentWithDocker(opts: DockerDeployOptions) {
       `/opt/otel/start-collector.sh && node ${wrapperEntrypoint} 2>&1 | tee /var/log/agent/agent.pipe`,
     ];
 
-    console.log(`Running: docker ${dockerArgs.join(" ")}`);
-    const containerId = await runCommand("docker", dockerArgs);
+    console.log(`Running: docker create`);
+    const containerId = await runCommand("docker", dockerCreateArgs);
+
+    // Copy files into the container
+    console.log(`Copying files to container ${containerName}`);
+    await runCommand("docker", [
+      "cp",
+      `${deploymentDir}/.`,
+      `${containerName}:/app`,
+    ]);
+
+    // Start the container
+    await runCommand("docker", ["start", containerName]);
 
     console.log(`Container started: ${containerId}`);
 
