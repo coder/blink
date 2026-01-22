@@ -1,0 +1,140 @@
+name: Build and publish the server Docker image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/blink-server
+
+jobs:
+  build-package:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build packages
+        run: bun run build
+
+      - name: Build server package with site
+        run: |
+          cd packages/server
+          BUILD_SITE=1 bun run build
+
+      - name: Pack server package
+        run: |
+          cd packages/server
+          npm pack
+          mv blink-server-*.tgz server.tgz
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: server-package
+          path: packages/server/server.tgz
+          retention-days: 1
+
+  build-image:
+    needs: build-package
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            depot_runner: depot-ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            depot_runner: depot-ubuntu-24.04-arm
+    runs-on: ${{ github.repository_owner == 'coder' && matrix.depot_runner || matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Download package artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: server-package
+          path: packages/server/docker/server
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          context: packages/server/docker/server
+          file: packages/server/docker/server/Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          provenance: false
+
+      - name: Upload digest
+        run: |
+          mkdir -p /tmp/digests
+          platform="${{ matrix.platform }}"
+          echo "${{ steps.build.outputs.digest }}" > "/tmp/digests/${platform//\//-}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: digest-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  create-manifest:
+    needs: build-image
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push manifest
+        run: |
+          SHORT_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$(echo ${{ github.sha }} | cut -c1-7)"
+          DIGESTS=$(for digest in /tmp/digests/*; do echo "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@$(cat $digest)"; done)
+
+          docker manifest create $SHORT_TAG $DIGESTS
+          docker manifest push $SHORT_TAG
+
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            CANARY_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:canary"
+            docker manifest create $CANARY_TAG $DIGESTS
+            docker manifest push $CANARY_TAG
+          fi
