@@ -1,25 +1,13 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { serve } from "@blink.so/api/test";
+import { afterAll, describe, expect, test } from "bun:test";
+import Client from "@blink.so/api";
 import { createDevhookSupport } from "./devhook";
+import { serve } from "./test";
 
-describe("devhook integration tests", () => {
-  let server: Awaited<ReturnType<typeof serve>>;
-  let devhookSupport: ReturnType<typeof createDevhookSupport>;
+describe("devhook integration tests", async () => {
+  const server = await serve();
 
-  beforeAll(async () => {
-    server = await serve();
-
-    // Create devhook support with the test server's database
-    const querier = await server.bindings.database();
-    devhookSupport = createDevhookSupport({
-      accessUrl: server.url.toString(),
-      wildcardAccessUrl: `*.${server.url.host}`,
-      querier,
-    });
-  });
-
-  afterAll(() => {
-    server.stop();
+  afterAll(async () => {
+    await server[Symbol.asyncDispose]();
   });
 
   describe("UUID validation", () => {
@@ -51,34 +39,116 @@ describe("devhook integration tests", () => {
     });
   });
 
-  describe("handleRequest", () => {
-    test("rejects WebSocket upgrade requests before proxying", async () => {
-      const id = crypto.randomUUID();
-
-      // Use the real createDevhookSupport handleRequest
-      const req = new Request("http://localhost/test", {
-        headers: {
-          Upgrade: "websocket",
-          Connection: "Upgrade",
-        },
-      });
-
-      const response = await devhookSupport.handleRequest(id, req);
-
-      expect(response.status).toBe(501);
-      const body = await response.json();
-      expect(body.message).toBe("WebSocket proxying not supported");
+  describe("createDevhookSupport", async () => {
+    const devhookSupport = createDevhookSupport({
+      accessUrl: server.url.toString(),
+      wildcardAccessUrl: `*.${server.url.host}`,
+      querier: await server.bindings.database(),
     });
 
-    test("returns 503 when devhook not connected", async () => {
+    describe("handleRequest", () => {
+      test("rejects WebSocket upgrade requests before proxying", async () => {
+        const id = crypto.randomUUID();
+
+        // Use the real createDevhookSupport handleRequest
+        const req = new Request("http://localhost/test", {
+          headers: {
+            Upgrade: "websocket",
+            Connection: "Upgrade",
+          },
+        });
+
+        const response = await devhookSupport.handleRequest(id, req);
+
+        expect(response.status).toBe(501);
+        const body = await response.json();
+        expect(body.message).toBe("WebSocket proxying not supported");
+      });
+
+      test("returns 503 when devhook not connected", async () => {
+        const id = crypto.randomUUID();
+        const req = new Request("http://localhost/test");
+
+        const response = await devhookSupport.handleRequest(id, req);
+
+        expect(response.status).toBe(503);
+        const body = await response.json();
+        expect(body.message).toBe("Devhook not connected");
+      });
+    });
+
+    describe("matchRequestHost", () => {
+      test("extracts UUID from wildcard hostname", () => {
+        const id = crypto.randomUUID();
+        const host = `${id}.${server.url.host}`;
+
+        const matched = devhookSupport.matchRequestHost?.(host);
+        expect(matched).toBe(id);
+      });
+
+      test("returns undefined for base host", () => {
+        const matched = devhookSupport.matchRequestHost?.(server.url.host);
+        expect(matched).toBeUndefined();
+      });
+
+      test("returns undefined for invalid UUID subdomain", () => {
+        const host = `not-a-uuid.${server.url.host}`;
+        const matched = devhookSupport.matchRequestHost?.(host);
+        expect(matched).toBeUndefined();
+      });
+
+      test("returns undefined for unrelated host", () => {
+        const matched = devhookSupport.matchRequestHost?.("example.com");
+        expect(matched).toBeUndefined();
+      });
+    });
+  });
+
+  describe("authentication", () => {
+    test("requires auth for devhook listen", async () => {
       const id = crypto.randomUUID();
-      const req = new Request("http://localhost/test");
+      const client = new Client({ baseURL: server.url.toString() });
+      let connected = false;
+      let errorEvent: unknown;
 
-      const response = await devhookSupport.handleRequest(id, req);
+      const outcome = await new Promise<"error" | "disconnect">(
+        (resolve, reject) => {
+          const timer = setTimeout(() => {
+            reject(new Error("Timed out waiting for devhook auth failure"));
+          }, 5000);
 
-      expect(response.status).toBe(503);
+          let disposable: { dispose: () => void } | undefined;
+          disposable = client.devhook.listen({
+            id,
+            onRequest: async () => new Response("ok"),
+            onConnect: () => {
+              connected = true;
+            },
+            onDisconnect: () => {
+              clearTimeout(timer);
+              disposable?.dispose();
+              resolve("disconnect");
+            },
+            onError: (err) => {
+              errorEvent = err;
+              clearTimeout(timer);
+              disposable?.dispose();
+              resolve("error");
+            },
+          });
+        }
+      );
+
+      expect(outcome).toBe("error");
+      expect(connected).toBe(false);
+      expect(errorEvent).toBeDefined();
+
+      // Assert the actual auth error message via HTTP since WebSocket errors
+      // do not expose the handshake response body.
+      const response = await client.request("GET", `/api/devhook/${id}/url`);
+      expect(response.status).toBe(401);
       const body = await response.json();
-      expect(body.message).toBe("Devhook not connected");
+      expect(body.message).toBe("Unauthorized");
     });
   });
 
@@ -157,32 +227,6 @@ describe("devhook integration tests", () => {
 
       expect(response.status).toBe(200);
       expect(receivedBody).toBe('{"test":"data"}');
-    });
-  });
-
-  describe("matchRequestHost", () => {
-    test("extracts UUID from wildcard hostname", () => {
-      const id = crypto.randomUUID();
-      const host = `${id}.${server.url.host}`;
-
-      const matched = devhookSupport.matchRequestHost?.(host);
-      expect(matched).toBe(id);
-    });
-
-    test("returns undefined for base host", () => {
-      const matched = devhookSupport.matchRequestHost?.(server.url.host);
-      expect(matched).toBeUndefined();
-    });
-
-    test("returns undefined for invalid UUID subdomain", () => {
-      const host = `not-a-uuid.${server.url.host}`;
-      const matched = devhookSupport.matchRequestHost?.(host);
-      expect(matched).toBeUndefined();
-    });
-
-    test("returns undefined for unrelated host", () => {
-      const matched = devhookSupport.matchRequestHost?.("example.com");
-      expect(matched).toBeUndefined();
     });
   });
 });

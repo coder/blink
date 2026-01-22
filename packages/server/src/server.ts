@@ -1,4 +1,4 @@
-import api from "@blink.so/api/server";
+import api, { type Bindings } from "@blink.so/api/server";
 import connectToPostgres from "@blink.so/database/postgres";
 import Querier from "@blink.so/database/querier";
 import pkg from "../package.json" with { type: "json" };
@@ -10,6 +10,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
+import type { ExecutionContext } from "hono";
 import module from "module";
 import path, { join } from "path";
 import { parse } from "url";
@@ -20,7 +21,7 @@ import { createDevhookSupport } from "./devhook";
 
 type WSData = { type: "token"; id: string } | { type: "chat"; chatID: string };
 
-interface ServerOptions {
+export interface ServerOptions {
   port: number;
   postgresUrl: string;
   authSecret: string;
@@ -32,7 +33,13 @@ interface ServerOptions {
 
 // Files are now stored in the database instead of in-memory
 
-export async function startServer(options: ServerOptions) {
+export type StartedServer = ReturnType<typeof createServer> & {
+  bindings: Bindings;
+};
+
+export async function startServer(
+  options: ServerOptions
+): Promise<StartedServer> {
   const {
     port,
     postgresUrl,
@@ -130,248 +137,246 @@ export async function startServer(options: ServerOptions) {
     });
   };
 
+  const bindings: Bindings = {
+    AUTH_SECRET: authSecret,
+    NODE_ENV: "development",
+    autoJoinOrganizations: true,
+    serverVersion: pkg.version,
+    ONBOARDING_AGENT_BUNDLE_URL:
+      "https://artifacts.blink.host/starter-agent/bundle.tar.gz",
+    agentStore: (deploymentTargetID) => {
+      return {
+        delete: async (key) => {
+          await querier.deleteAgentStorageKV({
+            deployment_target_id: deploymentTargetID,
+            key,
+          });
+        },
+        get: async (key) => {
+          const value = await querier.selectAgentStorageKV({
+            deployment_target_id: deploymentTargetID,
+            key,
+          });
+          if (!value) {
+            return undefined;
+          }
+          return value.value;
+        },
+        set: async (key, value) => {
+          const target =
+            await querier.selectAgentDeploymentTargetByID(deploymentTargetID);
+          if (!target) {
+            throw new Error("Deployment target not found");
+          }
+          await querier.upsertAgentStorageKV({
+            agent_deployment_target_id: target.id,
+            agent_id: target.agent_id,
+            key: key,
+            value: value,
+          });
+        },
+        list: async (prefix, options) => {
+          const values = await querier.selectAgentStorageKVByPrefix({
+            deployment_target_id: deploymentTargetID,
+            prefix: prefix ?? "",
+            limit: options?.limit ?? 100,
+            cursor: options?.cursor,
+          });
+          return {
+            entries: values.items.map((value) => ({
+              key: value.key,
+              value: value.value,
+            })),
+            cursor: values.next_cursor ? values.next_cursor : undefined,
+          };
+        },
+      };
+    },
+    database: async () => {
+      return querier;
+    },
+    apiBaseURL: new URL(baseUrl),
+    accessUrl: new URL(accessUrl),
+    matchRequestHost,
+    createRequestURL,
+    auth: {
+      handleWebSocketTokenRequest: async (id, request) => {
+        // WebSocket upgrades are handled in the 'upgrade' event
+        return new Response(null, { status: 101 });
+      },
+      sendTokenToWebSocket: async (id, token) => {
+        wss.clients.forEach((client) => {
+          const data = wsDataMap.get(client);
+          if (
+            client.readyState === WebSocket.OPEN &&
+            data?.type === "token" &&
+            data.id === id
+          ) {
+            client.send(token);
+            client.close();
+          }
+        });
+      },
+    },
+    devhook: {
+      handleListen: devhook.handleListen,
+      handleRequest: devhook.handleRequest,
+      disableAuth: process.env.BLINK_DEVHOOK_DISABLE_AUTH !== undefined,
+    },
+    chat: {
+      async handleMessagesChanged(event, id, messages) {
+        await chatManagerRef.current?.handleMessagesChanged(
+          event,
+          id,
+          messages
+        );
+      },
+      handleStart: async (opts) => {
+        await chatManagerRef.current?.handleStart(opts);
+      },
+      handleStop: async (id) => {
+        await chatManagerRef.current?.handleStop(id);
+      },
+      handleStream: async (id, req) => {
+        if (!chatManagerRef.current) {
+          return new Response("Server not ready", { status: 503 });
+        }
+        // WebSocket upgrades are handled in the 'upgrade' event
+        if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+          return new Response(null, { status: 101 });
+        }
+        return await chatManagerRef.current.handleStream(id, req);
+      },
+      generateTitle: async (opts) => {
+        // noop
+      },
+    },
+    deployAgent: async (deployment) => {
+      await deployAgentWithDocker({
+        image:
+          process.env.BLINK_AGENT_IMAGE ?? "ghcr.io/coder/blink-agent:latest",
+        deployment,
+        querier,
+        baseUrl,
+        accessUrl,
+        authSecret,
+        downloadFile: async (id: string) => {
+          const file = await querier.selectFileByID(id);
+          if (!file || !file.content) {
+            throw new Error("File not found");
+          }
+
+          // Convert buffer back to ReadableStream
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(file.content);
+              controller.close();
+            },
+          });
+
+          return {
+            stream,
+            type: file.content_type,
+            name: file.name,
+            size: file.byte_length,
+          };
+        },
+      });
+    },
+    files: {
+      upload: async (opts) => {
+        const id = crypto.randomUUID();
+
+        // Read file content into buffer
+        const arrayBuffer = await opts.file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        // Store file in database
+        await querier.insertFile({
+          id,
+          name: opts.file.name,
+          message_id: null,
+          user_id: null,
+          organization_id: null,
+          content_type: opts.file.type,
+          byte_length: opts.file.size,
+          pdf_page_count: null,
+          content: buffer,
+        });
+
+        return {
+          id,
+          url: `${baseUrl}/api/files/${id}`,
+        };
+      },
+      download: async (id) => {
+        const file = await querier.selectFileByID(id);
+        if (!file || !file.content) {
+          throw new Error("File not found");
+        }
+
+        // Convert buffer back to ReadableStream
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(file.content);
+            controller.close();
+          },
+        });
+
+        return {
+          stream,
+          type: file.content_type,
+          name: file.name,
+          size: file.byte_length,
+        };
+      },
+    },
+    logs: {
+      get: async (opts) => {
+        return querier.getAgentLogs(opts);
+      },
+      write: async (opts) => {
+        await querier.writeAgentLog(opts);
+      },
+    },
+    traces: {
+      write: async (spans) => {
+        await querier.writeAgentTraces(spans);
+      },
+      read: async (opts) => {
+        return querier.readAgentTraces(opts);
+      },
+    },
+    runtime: {
+      usage: async (opts) => {
+        // noop
+        throw new Error("Not implemented");
+      },
+    },
+  };
+
+  const executionCtx: ExecutionContext = {
+    waitUntil: async (_promise) => {
+      // noop
+    },
+    passThroughOnException: () => {
+      // noop
+    },
+    props: {},
+  };
+
   // Create HTTP server
   const server = createServer(async (nodeReq, nodeRes) => {
     try {
-      const url = new URL(
-        nodeReq.url || "/",
-        `http://${nodeReq.headers.host || `localhost:${port}`}`
-      );
+      const hostHeader = nodeReq.headers.host || `localhost:${port}`;
+      const url = new URL(nodeReq.url || "/", `http://${hostHeader}`);
+      const isSubdomainRequest = matchRequestHost
+        ? Boolean(matchRequestHost(hostHeader))
+        : false;
 
-      if (url.pathname.startsWith("/api")) {
+      if (url.pathname.startsWith("/api") || isSubdomainRequest) {
         const req = toFetchRequest(nodeReq);
-        const response = await api.fetch(
-          req,
-          {
-            AUTH_SECRET: authSecret,
-            NODE_ENV: "development",
-            autoJoinOrganizations: true,
-            serverVersion: pkg.version,
-            ONBOARDING_AGENT_BUNDLE_URL:
-              "https://artifacts.blink.host/starter-agent/bundle.tar.gz",
-            agentStore: (deploymentTargetID) => {
-              return {
-                delete: async (key) => {
-                  await querier.deleteAgentStorageKV({
-                    deployment_target_id: deploymentTargetID,
-                    key,
-                  });
-                },
-                get: async (key) => {
-                  const value = await querier.selectAgentStorageKV({
-                    deployment_target_id: deploymentTargetID,
-                    key,
-                  });
-                  if (!value) {
-                    return undefined;
-                  }
-                  return value.value;
-                },
-                set: async (key, value) => {
-                  const target =
-                    await querier.selectAgentDeploymentTargetByID(
-                      deploymentTargetID
-                    );
-                  if (!target) {
-                    throw new Error("Deployment target not found");
-                  }
-                  await querier.upsertAgentStorageKV({
-                    agent_deployment_target_id: target.id,
-                    agent_id: target.agent_id,
-                    key: key,
-                    value: value,
-                  });
-                },
-                list: async (prefix, options) => {
-                  const values = await querier.selectAgentStorageKVByPrefix({
-                    deployment_target_id: deploymentTargetID,
-                    prefix: prefix ?? "",
-                    limit: options?.limit ?? 100,
-                    cursor: options?.cursor,
-                  });
-                  return {
-                    entries: values.items.map((value) => ({
-                      key: value.key,
-                      value: value.value,
-                    })),
-                    cursor: values.next_cursor ? values.next_cursor : undefined,
-                  };
-                },
-              };
-            },
-            database: async () => {
-              return querier;
-            },
-            apiBaseURL: url,
-            accessUrl: new URL(accessUrl),
-            matchRequestHost,
-            createRequestURL,
-            auth: {
-              handleWebSocketTokenRequest: async (id, request) => {
-                // WebSocket upgrades are handled in the 'upgrade' event
-                return new Response(null, { status: 101 });
-              },
-              sendTokenToWebSocket: async (id, token) => {
-                wss.clients.forEach((client) => {
-                  const data = wsDataMap.get(client);
-                  if (
-                    client.readyState === WebSocket.OPEN &&
-                    data?.type === "token" &&
-                    data.id === id
-                  ) {
-                    client.send(token);
-                    client.close();
-                  }
-                });
-              },
-            },
-            devhook: {
-              handleListen: devhook.handleListen,
-              handleRequest: devhook.handleRequest,
-              disableAuth: process.env.BLINK_DEVHOOK_DISABLE_AUTH !== undefined,
-            },
-            chat: {
-              async handleMessagesChanged(event, id, messages) {
-                await chatManagerRef.current?.handleMessagesChanged(
-                  event,
-                  id,
-                  messages
-                );
-              },
-              handleStart: async (opts) => {
-                await chatManagerRef.current?.handleStart(opts);
-              },
-              handleStop: async (id) => {
-                await chatManagerRef.current?.handleStop(id);
-              },
-              handleStream: async (id, req) => {
-                if (!chatManagerRef.current) {
-                  return new Response("Server not ready", { status: 503 });
-                }
-                // WebSocket upgrades are handled in the 'upgrade' event
-                if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
-                  return new Response(null, { status: 101 });
-                }
-                return await chatManagerRef.current.handleStream(id, req);
-              },
-              generateTitle: async (opts) => {
-                // noop
-              },
-            },
-            deployAgent: async (deployment) => {
-              await deployAgentWithDocker({
-                image:
-                  process.env.BLINK_AGENT_IMAGE ??
-                  "ghcr.io/coder/blink-agent:latest",
-                deployment,
-                querier,
-                baseUrl,
-                accessUrl,
-                authSecret,
-                downloadFile: async (id: string) => {
-                  const file = await querier.selectFileByID(id);
-                  if (!file || !file.content) {
-                    throw new Error("File not found");
-                  }
-
-                  // Convert buffer back to ReadableStream
-                  const stream = new ReadableStream({
-                    start(controller) {
-                      controller.enqueue(file.content);
-                      controller.close();
-                    },
-                  });
-
-                  return {
-                    stream,
-                    type: file.content_type,
-                    name: file.name,
-                    size: file.byte_length,
-                  };
-                },
-              });
-            },
-            files: {
-              upload: async (opts) => {
-                const id = crypto.randomUUID();
-
-                // Read file content into buffer
-                const arrayBuffer = await opts.file.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
-
-                // Store file in database
-                await querier.insertFile({
-                  id,
-                  name: opts.file.name,
-                  message_id: null,
-                  user_id: null,
-                  organization_id: null,
-                  content_type: opts.file.type,
-                  byte_length: opts.file.size,
-                  pdf_page_count: null,
-                  content: buffer,
-                });
-
-                return {
-                  id,
-                  url: `${baseUrl}/api/files/${id}`,
-                };
-              },
-              download: async (id) => {
-                const file = await querier.selectFileByID(id);
-                if (!file || !file.content) {
-                  throw new Error("File not found");
-                }
-
-                // Convert buffer back to ReadableStream
-                const stream = new ReadableStream({
-                  start(controller) {
-                    controller.enqueue(file.content);
-                    controller.close();
-                  },
-                });
-
-                return {
-                  stream,
-                  type: file.content_type,
-                  name: file.name,
-                  size: file.byte_length,
-                };
-              },
-            },
-            logs: {
-              get: async (opts) => {
-                return querier.getAgentLogs(opts);
-              },
-              write: async (opts) => {
-                await querier.writeAgentLog(opts);
-              },
-            },
-            traces: {
-              write: async (spans) => {
-                await querier.writeAgentTraces(spans);
-              },
-              read: async (opts) => {
-                return querier.readAgentTraces(opts);
-              },
-            },
-            runtime: {
-              usage: async (opts) => {
-                // noop
-                throw new Error("Not implemented");
-              },
-            },
-          },
-          {
-            waitUntil: async (promise) => {
-              // noop
-            },
-            passThroughOnException: () => {
-              // noop
-            },
-            props: {},
-          }
-        );
+        const response = await api.fetch(req, bindings, executionCtx);
 
         // Write Fetch Response to Node.js response
         const headersObj: Record<string, string | string[]> = {};
@@ -450,10 +455,47 @@ export async function startServer(options: ServerOptions) {
     const devhookMatch = pathname?.match(/^\/api\/devhook\/([^/]+)\/?$/);
     if (devhookMatch?.[1]) {
       const id = decodeURIComponent(devhookMatch[1]);
-      void devhook.handleUpgrade(id, request, socket, head).catch((error) => {
-        console.error("Devhook upgrade error:", error);
+      if (!request.url) {
         socket.destroy();
-      });
+        return;
+      }
+      (async () => {
+        try {
+          // this is a janky hack to authorize the listen request. it's difficult
+          // to access hono's auth middleware in websocket upgrades, so instead
+          // we make a request to the /devhook/:id/url endpoint which requires auth.
+          const authHeader = Array.isArray(request.headers.authorization)
+            ? request.headers.authorization[0]
+            : request.headers.authorization;
+          const authRequest = new Request(
+            new URL(`/api/devhook/${id}/url`, baseUrl).toString(),
+            {
+              method: "GET",
+              headers: {
+                ...(authHeader ? { Authorization: authHeader } : {}),
+                "Content-Type": "application/json",
+              },
+            }
+          );
+          const response = await api.fetch(authRequest, bindings, executionCtx);
+          if (!response.ok) {
+            socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+            socket.destroy();
+            return;
+          }
+        } catch (error) {
+          console.error("Unexpected error during Devhook auth:", error);
+          socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+          socket.destroy();
+          return;
+        }
+        await devhook
+          .handleUpgrade(id, request, socket, head)
+          .catch((error) => {
+            console.error("Devhook upgrade error:", error);
+            socket.destroy();
+          });
+      })();
       return;
     }
 
@@ -503,9 +545,10 @@ export async function startServer(options: ServerOptions) {
     process.env as Record<string, string>
   );
 
+  (server as StartedServer).bindings = bindings;
   server.listen(port);
 
-  return server;
+  return server as StartedServer;
 }
 
 /**

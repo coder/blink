@@ -87,8 +87,11 @@ test.each([
     },
   });
 
+  // Ensure connection works.
   await connectPromise;
 
+  // Test wildcard hostname routing.
+  // We need to make the request go through the test server with the correct Host header.
   const devhookURL = bindings.createRequestURL!(id);
   const response = await fetch(url, { headers: { Host: devhookURL.host } });
   expect(response.status).toBe(200);
