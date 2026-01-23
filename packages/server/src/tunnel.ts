@@ -1,11 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { TunnelClient } from "@blink-sdk/tunnel";
-import xdg from "xdg-portable";
-
-function getBlinkServerConfigDir(): string {
-  return join(xdg.config(), "blink-server");
-}
+import { getBlinkServerConfigDir } from "./config";
 
 function getTunnelSecretPath(): string {
   return join(getBlinkServerConfigDir(), "tunnel-secret.txt");

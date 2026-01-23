@@ -4,10 +4,11 @@ import boxen from "boxen";
 import chalk from "chalk";
 import { Command } from "commander";
 import { version } from "../package.json";
-import { startTunnelProxy } from "./tunnel";
+import { getOrGenerateAuthSecret } from "./config";
 import * as logger from "./logger";
 import { ensurePostgres } from "./postgres";
 import { startServer } from "./server";
+import { startTunnelProxy } from "./tunnel";
 
 const program = new Command();
 
@@ -55,11 +56,7 @@ async function runServer(options: {
     postgresUrl = await ensurePostgres();
   }
 
-  // Generate or use existing AUTH_SECRET
-  if (!process.env.AUTH_SECRET) {
-    process.env.AUTH_SECRET = "fake-random-string-should-be-in-db";
-  }
-  const authSecret = process.env.AUTH_SECRET;
+  const authSecret = getOrGenerateAuthSecret();
 
   const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
 
