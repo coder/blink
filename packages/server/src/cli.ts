@@ -3,7 +3,7 @@
 import boxen from "boxen";
 import chalk from "chalk";
 import { Command } from "commander";
-import { version } from "../package.json";
+import { version as packageVersion } from "../package.json";
 import {
   CLI_OPTION_DEFINITIONS,
   getOrGenerateAuthSecret,
@@ -19,6 +19,10 @@ import * as logger from "./logger";
 import { ensurePostgres } from "./postgres";
 import { startServer } from "./server";
 import { startTunnelProxy } from "./tunnel";
+
+declare const __GIT_SHA__: string | undefined;
+const versionSuffix = typeof __GIT_SHA__ !== "undefined" ? __GIT_SHA__ : "dev";
+const version = `${packageVersion}+${versionSuffix}`;
 
 const program = new Command();
 

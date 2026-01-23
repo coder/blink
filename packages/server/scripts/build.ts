@@ -10,12 +10,17 @@ const repoRoot = join(import.meta.dirname, "..", "..", "..");
  * buildServer builds the CLI for the server.
  */
 async function buildServer() {
+  const gitSha = execSync("git rev-parse --short HEAD").toString().trim();
+
   await build({
     entrypoints: [join(__dirname, "..", "src", "cli.ts")],
     outdir: "dist",
     target: "node",
     format: "esm",
     minify: true,
+    define: {
+      __GIT_SHA__: JSON.stringify(gitSha),
+    },
   });
 }
 
