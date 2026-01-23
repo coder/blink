@@ -1,5 +1,6 @@
-import { spawn } from "child_process";
-import { createServer } from "net";
+import { spawn } from "node:child_process";
+import { createServer } from "node:net";
+import { CLI_OPTION_DEFINITIONS } from "./config";
 import * as logger from "./logger";
 
 const CONTAINER_NAME = "blink-server-postgres";
@@ -99,7 +100,7 @@ async function createAndStartContainer(): Promise<void> {
   const portAvailable = await isPortAvailable(POSTGRES_PORT);
   if (!portAvailable) {
     throw new Error(
-      `Port ${POSTGRES_PORT} is already in use. Please free the port or set POSTGRES_URL manually.`
+      `Port ${POSTGRES_PORT} is already in use. Please free the port or set ${CLI_OPTION_DEFINITIONS.postgresUrl.env} manually.`
     );
   }
 
@@ -183,7 +184,7 @@ export async function ensurePostgres(): Promise<string> {
   const dockerRunning = await isDockerRunning();
   if (!dockerRunning) {
     throw new Error(
-      "Docker is not running. Please start Docker or set POSTGRES_URL manually."
+      `Docker is not running. Please start Docker or set ${CLI_OPTION_DEFINITIONS.postgresUrl.env} manually.`
     );
   }
 
@@ -191,7 +192,7 @@ export async function ensurePostgres(): Promise<string> {
 
   if (status === "running") {
     logger.info(
-      `Using Docker PostgreSQL '${CONTAINER_NAME}' because POSTGRES_URL is not set`
+      `Using Docker PostgreSQL '${CONTAINER_NAME}' because ${CLI_OPTION_DEFINITIONS.postgresUrl.env} is not set`
     );
     return getConnectionString();
   }
@@ -199,7 +200,7 @@ export async function ensurePostgres(): Promise<string> {
   if (status === "stopped") {
     await startExistingContainer();
     logger.info(
-      `Using Docker PostgreSQL '${CONTAINER_NAME}' because POSTGRES_URL is not set`
+      `Using Docker PostgreSQL '${CONTAINER_NAME}' because ${CLI_OPTION_DEFINITIONS.postgresUrl.env} is not set`
     );
     return getConnectionString();
   }
@@ -211,13 +212,13 @@ export async function ensurePostgres(): Promise<string> {
 
   if (!shouldCreate) {
     throw new Error(
-      "PostgreSQL is required. Please set POSTGRES_URL manually."
+      `PostgreSQL is required. Please set ${CLI_OPTION_DEFINITIONS.postgresUrl.env} manually.`
     );
   }
 
   await createAndStartContainer();
   logger.info(
-    `Using Docker PostgreSQL '${CONTAINER_NAME}' because POSTGRES_URL is not set`
+    `Using Docker PostgreSQL '${CONTAINER_NAME}' because ${CLI_OPTION_DEFINITIONS.postgresUrl.env} is not set`
   );
   return getConnectionString();
 }

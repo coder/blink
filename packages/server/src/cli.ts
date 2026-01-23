@@ -4,7 +4,17 @@ import boxen from "boxen";
 import chalk from "chalk";
 import { Command } from "commander";
 import { version } from "../package.json";
-import { getOrGenerateAuthSecret } from "./config";
+import {
+  CLI_OPTION_DEFINITIONS,
+  getOrGenerateAuthSecret,
+  type ResolvedCliOptions,
+} from "./config";
+import {
+  buildOptionDescription,
+  optionKeys,
+  type RawCliOptions,
+  resolveOptions,
+} from "./config/cli-parser";
 import * as logger from "./logger";
 import { ensurePostgres } from "./postgres";
 import { startServer } from "./server";
@@ -14,67 +24,55 @@ const program = new Command();
 
 program
   .name("blink-server")
-  .description("Self-hosted Blink server")
-  .version(version)
-  .option("-p, --port <port>", "Port to run the server on", "3005")
-  .option(
-    "-d, --dev [host]",
-    "Proxy frontend requests to Next.js dev server (default: localhost:3000)"
-  )
-  .option(
-    "--wildcard-access-url <host>",
-    'Wildcard access URL for subdomain routing (e.g. "*.blink.example.com")'
-  )
-  .action(async (options) => {
-    try {
-      await runServer(options);
-    } catch (error) {
-      console.error(error, error instanceof Error ? error.stack : undefined);
-      logger.error(
-        error instanceof Error ? error.message : "An unknown error occurred"
-      );
-      process.exit(1);
-    }
-  });
+  .description(`Blink Server v${version}`)
+  .version(version);
 
-async function runServer(options: {
-  port: string;
-  dev?: boolean | string;
-  wildcardAccessUrl?: string;
-}) {
-  const port = parseInt(options.port, 10);
-  if (Number.isNaN(port) || port < 1 || port > 65535) {
-    throw new Error(`Invalid port: ${options.port}`);
+for (const key of optionKeys) {
+  const spec = CLI_OPTION_DEFINITIONS[key];
+  const option = program.createOption(spec.flags, buildOptionDescription(spec));
+  if ("hidden" in spec && spec.hidden) {
+    option.hideHelp();
   }
+  program.addOption(option);
+}
 
+program.action(async (options) => {
+  try {
+    await runServer(resolveOptions(options as RawCliOptions));
+  } catch (error) {
+    logger.error(
+      error instanceof Error ? error.message : "An unknown error occurred"
+    );
+    process.exit(1);
+  }
+});
+
+async function runServer(options: ResolvedCliOptions) {
   console.log(chalk.bold("blink■"), version, chalk.gray("agents as a service"));
 
-  // Check and setup environment variables
-  let postgresUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+  // Resolve configuration.
+  let postgresUrl = options.postgresUrl;
 
   if (!postgresUrl) {
     postgresUrl = await ensurePostgres();
   }
 
-  const authSecret = getOrGenerateAuthSecret();
+  const authSecret = options.authSecret ?? getOrGenerateAuthSecret();
 
-  const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
+  const baseUrlHost = options.host === "0.0.0.0" ? "localhost" : options.host;
+  const baseUrl = `http://${baseUrlHost}:${options.port}`;
 
-  const devProxy = options.dev
-    ? options.dev === true
-      ? "localhost:3000"
-      : options.dev
-    : undefined;
+  const devProxy = options.dev;
 
-  // Determine access URL - use BLINK_ACCESS_URL if set, otherwise create devhook
+  // Determine access URL - use configured access URL if set, otherwise create devhook.
   let accessUrl: string;
   let tunnelCleanup: (() => void) | undefined;
-  const tunnelServerUrl =
-    process.env.TUNNEL_SERVER_URL ?? "https://try.blink.host";
-  if (process.env.BLINK_ACCESS_URL) {
-    accessUrl = process.env.BLINK_ACCESS_URL;
+  const tunnelServerUrl = options.tunnelServerUrl;
+  const accessUrlOverride = options.accessUrl;
+  if (accessUrlOverride) {
+    accessUrl = accessUrlOverride;
   } else {
-    const tunnel = await startTunnelProxy(tunnelServerUrl, port);
+    const tunnel = await startTunnelProxy(tunnelServerUrl, options.port);
     accessUrl = tunnel.accessUrl;
     tunnelCleanup = tunnel[Symbol.dispose];
   }
@@ -94,13 +92,16 @@ async function runServer(options: {
 
   // Start the server
   const _srv = await startServer({
-    port,
+    host: options.host,
+    port: options.port,
     postgresUrl,
     authSecret,
     baseUrl,
     devProxy,
     accessUrl,
     wildcardAccessUrl: options.wildcardAccessUrl,
+    agentImage: options.agentImage,
+    devhookDisableAuth: options.devhookDisableAuth,
   });
 
   const box = boxen(

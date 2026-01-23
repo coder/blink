@@ -22,6 +22,7 @@ import { createDevhookSupport } from "./devhook";
 type WSData = { type: "token"; id: string } | { type: "chat"; chatID: string };
 
 export interface ServerOptions {
+  host: string;
   port: number;
   postgresUrl: string;
   authSecret: string;
@@ -29,6 +30,8 @@ export interface ServerOptions {
   devProxy?: string; // e.g. "localhost:3000"
   accessUrl: string;
   wildcardAccessUrl?: string;
+  agentImage: string;
+  devhookDisableAuth: boolean;
 }
 
 // Files are now stored in the database instead of in-memory
@@ -41,6 +44,7 @@ export async function startServer(
   options: ServerOptions
 ): Promise<StartedServer> {
   const {
+    host,
     port,
     postgresUrl,
     authSecret,
@@ -48,6 +52,8 @@ export async function startServer(
     accessUrl,
     devProxy,
     wildcardAccessUrl,
+    agentImage,
+    devhookDisableAuth,
   } = options;
 
   const db = await connectToPostgres(postgresUrl);
@@ -221,7 +227,7 @@ export async function startServer(
     devhook: {
       handleListen: devhook.handleListen,
       handleRequest: devhook.handleRequest,
-      disableAuth: process.env.BLINK_DEVHOOK_DISABLE_AUTH !== undefined,
+      disableAuth: devhookDisableAuth,
     },
     chat: {
       async handleMessagesChanged(event, id, messages) {
@@ -253,8 +259,7 @@ export async function startServer(
     },
     deployAgent: async (deployment) => {
       await deployAgentWithDocker({
-        image:
-          process.env.BLINK_AGENT_IMAGE ?? "ghcr.io/coder/blink-agent:latest",
+        image: agentImage,
         deployment,
         querier,
         baseUrl,
@@ -546,7 +551,7 @@ export async function startServer(
   );
 
   (server as StartedServer).bindings = bindings;
-  server.listen(port);
+  server.listen(port, host);
 
   return server as StartedServer;
 }

@@ -4,6 +4,7 @@ import Client from "@blink.so/api";
 import type { User } from "@blink.so/database/schema";
 import { createPostgresURL, createTestUser } from "@blink.so/database/test";
 import { encode } from "next-auth/jwt";
+import { CLI_OPTION_DEFINITIONS } from "./config";
 import { startServer } from "./server";
 
 export interface ServeOptions {
@@ -179,6 +180,7 @@ export const serve = async (options?: ServeOptions) => {
     : () => {};
 
   const server = await startServer({
+    host: "0.0.0.0",
     port,
     postgresUrl,
     authSecret,
@@ -186,6 +188,8 @@ export const serve = async (options?: ServeOptions) => {
     accessUrl,
     devProxy,
     wildcardAccessUrl,
+    agentImage: CLI_OPTION_DEFINITIONS.agentImage.defaultValue,
+    devhookDisableAuth: false,
   });
 
   await waitForListening(server);
