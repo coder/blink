@@ -152,9 +152,13 @@ export const parseCliOptionValue = <K extends CliOptionKey>(
 
 export const getCliEnvValue = <K extends CliOptionKey>(
   key: K
-): CliOptionValue<K> => {
+): CliOptionValue<K> | undefined => {
   const spec = CLI_OPTION_DEFINITIONS[key];
-  return parseCliOptionValue(key, process.env[spec.env], "env");
+  const rawValue = process.env[spec.env];
+  if (rawValue === undefined) {
+    return undefined;
+  }
+  return parseCliOptionValue(key, rawValue, "env");
 };
 
 export function getBlinkServerConfigDir(): string {
