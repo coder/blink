@@ -1007,6 +1007,532 @@ test("POST /resend-password-reset fails without cookie", async () => {
   expect(data.error).toContain("No reset session");
 });
 
+// ============================================================================
+// OIDC Tests
+// ============================================================================
+
+// Mock OIDC discovery response
+const mockOIDCDiscovery = {
+  issuer: "https://issuer.example.com",
+  authorization_endpoint: "https://issuer.example.com/authorize",
+  token_endpoint: "https://issuer.example.com/token",
+  userinfo_endpoint: "https://issuer.example.com/userinfo",
+};
+
+// Mock OIDC userinfo response
+const mockOIDCProfile = {
+  sub: "oidc-user-123",
+  email: "oidc@example.com",
+  name: "OIDC User",
+  preferred_username: "oidcuser",
+  picture: "https://issuer.example.com/avatar.jpg",
+  email_verified: true,
+};
+
+const mockOIDCTokenResponse = {
+  access_token: "mock-oidc-access-token",
+  token_type: "Bearer",
+  expires_in: 3600,
+  refresh_token: "mock-oidc-refresh-token",
+  id_token: "mock-oidc-id-token",
+  scope: "openid profile email",
+};
+
+test("GET /providers does not include OIDC when not configured", async () => {
+  const { url } = await serve();
+  const res = await fetch(`${url}/api/auth/providers`);
+  expect(res.status).toBe(200);
+
+  const data = await res.json();
+  expect(data.oidc).toBeUndefined();
+});
+
+test("GET /providers includes OIDC when configured", async () => {
+  const { url } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+    },
+  });
+  const res = await fetch(`${url}/api/auth/providers`);
+  expect(res.status).toBe(200);
+
+  const data = await res.json();
+  expect(data.oidc).toEqual({
+    id: "oidc",
+    name: "OpenID Connect",
+    type: "oidc",
+    signInText: undefined,
+    iconUrl: undefined,
+  });
+});
+
+test("GET /providers includes customized OIDC name and icon", async () => {
+  const { url } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+      OIDC_SIGN_IN_TEXT: "Sign in with Okta",
+      OIDC_ICON_URL: "https://okta.example.com/icon.svg",
+    },
+  });
+  const res = await fetch(`${url}/api/auth/providers`);
+  expect(res.status).toBe(200);
+
+  const data = await res.json();
+  expect(data.oidc).toEqual({
+    id: "oidc",
+    name: "Sign in with Okta",
+    type: "oidc",
+    signInText: "Sign in with Okta",
+    iconUrl: "https://okta.example.com/icon.svg",
+  });
+});
+
+test("GET /signin/oidc redirects to OIDC authorization endpoint", async () => {
+  // Mock OIDC discovery
+  mswServer.use(
+    http.get(
+      "https://issuer.example.com/.well-known/openid-configuration",
+      () => {
+        return HttpResponse.json(mockOIDCDiscovery);
+      }
+    )
+  );
+
+  const { url } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+    },
+  });
+
+  const res = await fetch(`${url}/api/auth/signin/oidc`, {
+    redirect: "manual",
+  });
+
+  expect(res.status).toBe(302);
+  const location = res.headers.get("Location");
+  expect(location).toStartWith("https://issuer.example.com/authorize");
+  expect(location).toContain("client_id=test-oidc-client-id");
+  expect(location).toContain("scope=openid+profile+email");
+  expect(location).toContain("state=");
+  expect(location).toContain("response_type=code");
+});
+
+test("GET /signin/oidc uses custom scopes when configured", async () => {
+  mswServer.use(
+    http.get(
+      "https://issuer.example.com/.well-known/openid-configuration",
+      () => {
+        return HttpResponse.json(mockOIDCDiscovery);
+      }
+    )
+  );
+
+  const { url } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+      OIDC_SCOPES: "openid email groups",
+    },
+  });
+
+  const res = await fetch(`${url}/api/auth/signin/oidc`, {
+    redirect: "manual",
+  });
+
+  expect(res.status).toBe(302);
+  const location = res.headers.get("Location");
+  expect(location).toContain("scope=openid+email+groups");
+});
+
+test("GET /signin/oidc applies extra auth URL params", async () => {
+  mswServer.use(
+    http.get(
+      "https://issuer.example.com/.well-known/openid-configuration",
+      () => {
+        return HttpResponse.json(mockOIDCDiscovery);
+      }
+    )
+  );
+
+  const { url } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+      OIDC_AUTH_URL_PARAMS: JSON.stringify({
+        prompt: "login",
+        acr_values: "urn:okta:loa:1fa:any",
+      }),
+    },
+  });
+
+  const res = await fetch(`${url}/api/auth/signin/oidc`, {
+    redirect: "manual",
+  });
+
+  expect(res.status).toBe(302);
+  const location = res.headers.get("Location");
+  expect(location).toContain("prompt=login");
+  expect(location).toContain("acr_values=urn%3Aokta%3Aloa%3A1fa%3Aany");
+});
+
+test("GET /signin/oidc without configuration redirects with error", async () => {
+  const { url } = await serve();
+
+  const res = await fetch(`${url}/api/auth/signin/oidc`, {
+    redirect: "manual",
+  });
+
+  expect(res.status).toBe(302);
+  const location = res.headers.get("Location");
+  expect(location).toContain("/login?error=oidc_not_configured");
+});
+
+test("GET /callback/oidc with missing code returns error", async () => {
+  const { url, bindings } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+    },
+  });
+
+  // Generate valid state
+  const { encode } = await import("next-auth/jwt");
+  const state = await encode({
+    secret: bindings.AUTH_SECRET,
+    salt: "oauth-state",
+    token: {
+      provider: "oidc",
+      nonce: "test-nonce",
+      callbackUrl: `${url}/api/auth/callback/oidc`,
+    },
+  });
+
+  const res = await fetch(`${url}/api/auth/callback/oidc?state=${state}`, {
+    redirect: "manual",
+  });
+
+  expect(res.status).toBe(302);
+  const location = res.headers.get("Location");
+  expect(location).toContain("/login?error=missing_params");
+});
+
+test("GET /callback/oidc with invalid state returns error", async () => {
+  const { url } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+    },
+  });
+
+  const res = await fetch(
+    `${url}/api/auth/callback/oidc?code=test-code&state=invalid-state`,
+    {
+      redirect: "manual",
+    }
+  );
+
+  expect(res.status).toBe(302);
+  const location = res.headers.get("Location");
+  expect(location).toContain("/login?error=invalid_state");
+});
+
+test("GET /callback/oidc creates new user on successful authentication", async () => {
+  const { url, bindings } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+    },
+  });
+
+  // Mock OIDC endpoints
+  mswServer.use(
+    http.get(
+      "https://issuer.example.com/.well-known/openid-configuration",
+      () => {
+        return HttpResponse.json(mockOIDCDiscovery);
+      }
+    ),
+    http.post("https://issuer.example.com/token", () => {
+      return HttpResponse.json(mockOIDCTokenResponse);
+    }),
+    http.get("https://issuer.example.com/userinfo", () => {
+      return HttpResponse.json(mockOIDCProfile);
+    })
+  );
+
+  const { encode } = await import("next-auth/jwt");
+  const state = await encode({
+    secret: bindings.AUTH_SECRET,
+    salt: "oauth-state",
+    token: {
+      provider: "oidc",
+      nonce: "test-nonce",
+      callbackUrl: `${url}/api/auth/callback/oidc`,
+    },
+  });
+
+  const res = await fetch(
+    `${url}/api/auth/callback/oidc?code=test-code&state=${state}`,
+    {
+      redirect: "manual",
+    }
+  );
+
+  expect(res.status).toBe(302);
+  const location = res.headers.get("Location");
+  expect(location).toBe("/chat");
+
+  // Check session cookie was set
+  const cookies = res.headers.get("Set-Cookie");
+  expect(cookies).toContain("blink_session_token=");
+  expect(cookies).toContain("last_login_provider=oidc");
+});
+
+test("GET /callback/oidc uses custom email claim field", async () => {
+  const customProfile = {
+    sub: "oidc-custom-user",
+    custom_email: "custom@example.com",
+    name: "Custom User",
+    email_verified: true,
+  };
+
+  const { url, bindings } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+      OIDC_EMAIL_FIELD: "custom_email",
+    },
+  });
+
+  mswServer.use(
+    http.get(
+      "https://issuer.example.com/.well-known/openid-configuration",
+      () => {
+        return HttpResponse.json(mockOIDCDiscovery);
+      }
+    ),
+    http.post("https://issuer.example.com/token", () => {
+      return HttpResponse.json(mockOIDCTokenResponse);
+    }),
+    http.get("https://issuer.example.com/userinfo", () => {
+      return HttpResponse.json(customProfile);
+    })
+  );
+
+  const { encode } = await import("next-auth/jwt");
+  const state = await encode({
+    secret: bindings.AUTH_SECRET,
+    salt: "oauth-state",
+    token: {
+      provider: "oidc",
+      nonce: "test-nonce",
+      callbackUrl: `${url}/api/auth/callback/oidc`,
+    },
+  });
+
+  const res = await fetch(
+    `${url}/api/auth/callback/oidc?code=test-code&state=${state}`,
+    {
+      redirect: "manual",
+    }
+  );
+
+  expect(res.status).toBe(302);
+  expect(res.headers.get("Location")).toBe("/chat");
+});
+
+test("GET /callback/oidc rejects unverified email by default", async () => {
+  const unverifiedProfile = {
+    ...mockOIDCProfile,
+    email_verified: false,
+  };
+
+  const { url, bindings } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+    },
+  });
+
+  mswServer.use(
+    http.get(
+      "https://issuer.example.com/.well-known/openid-configuration",
+      () => {
+        return HttpResponse.json(mockOIDCDiscovery);
+      }
+    ),
+    http.post("https://issuer.example.com/token", () => {
+      return HttpResponse.json(mockOIDCTokenResponse);
+    }),
+    http.get("https://issuer.example.com/userinfo", () => {
+      return HttpResponse.json(unverifiedProfile);
+    })
+  );
+
+  const { encode } = await import("next-auth/jwt");
+  const state = await encode({
+    secret: bindings.AUTH_SECRET,
+    salt: "oauth-state",
+    token: {
+      provider: "oidc",
+      nonce: "test-nonce",
+      callbackUrl: `${url}/api/auth/callback/oidc`,
+    },
+  });
+
+  const res = await fetch(
+    `${url}/api/auth/callback/oidc?code=test-code&state=${state}`,
+    {
+      redirect: "manual",
+    }
+  );
+
+  expect(res.status).toBe(302);
+  const location = res.headers.get("Location");
+  expect(location).toContain("/login?error=email_not_verified");
+});
+
+test("GET /callback/oidc accepts unverified email when OIDC_IGNORE_EMAIL_VERIFIED=true", async () => {
+  const unverifiedProfile = {
+    ...mockOIDCProfile,
+    sub: "oidc-unverified-user",
+    email: "unverified@example.com",
+    email_verified: false,
+  };
+
+  const { url, bindings } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+      OIDC_IGNORE_EMAIL_VERIFIED: true,
+    },
+  });
+
+  mswServer.use(
+    http.get(
+      "https://issuer.example.com/.well-known/openid-configuration",
+      () => {
+        return HttpResponse.json(mockOIDCDiscovery);
+      }
+    ),
+    http.post("https://issuer.example.com/token", () => {
+      return HttpResponse.json(mockOIDCTokenResponse);
+    }),
+    http.get("https://issuer.example.com/userinfo", () => {
+      return HttpResponse.json(unverifiedProfile);
+    })
+  );
+
+  const { encode } = await import("next-auth/jwt");
+  const state = await encode({
+    secret: bindings.AUTH_SECRET,
+    salt: "oauth-state",
+    token: {
+      provider: "oidc",
+      nonce: "test-nonce",
+      callbackUrl: `${url}/api/auth/callback/oidc`,
+    },
+  });
+
+  const res = await fetch(
+    `${url}/api/auth/callback/oidc?code=test-code&state=${state}`,
+    {
+      redirect: "manual",
+    }
+  );
+
+  expect(res.status).toBe(302);
+  expect(res.headers.get("Location")).toBe("/chat");
+});
+
+test("GET /callback/oidc returns existing user if already registered", async () => {
+  const { url, bindings, helpers } = await serve({
+    bindings: {
+      OIDC_ISSUER_URL: "https://issuer.example.com",
+      OIDC_CLIENT_ID: "test-oidc-client-id",
+      OIDC_CLIENT_SECRET: "test-oidc-client-secret",
+    },
+  });
+
+  // Create existing user with OIDC provider
+  const { user } = await helpers.createUser({
+    email: "existing-oidc@example.com",
+    display_name: "Existing OIDC User",
+  });
+
+  const db = await bindings.database();
+  await db.upsertUserAccount({
+    user_id: user.id,
+    type: "oauth",
+    provider: "oidc",
+    provider_account_id: "oidc-existing-user",
+    access_token: "old-token",
+    refresh_token: null,
+    expires_at: null,
+    token_type: null,
+    scope: null,
+    id_token: null,
+    session_state: "",
+  });
+
+  const existingProfile = {
+    sub: "oidc-existing-user",
+    email: "existing-oidc@example.com",
+    name: "Existing OIDC User",
+    email_verified: true,
+  };
+
+  mswServer.use(
+    http.get(
+      "https://issuer.example.com/.well-known/openid-configuration",
+      () => {
+        return HttpResponse.json(mockOIDCDiscovery);
+      }
+    ),
+    http.post("https://issuer.example.com/token", () => {
+      return HttpResponse.json(mockOIDCTokenResponse);
+    }),
+    http.get("https://issuer.example.com/userinfo", () => {
+      return HttpResponse.json(existingProfile);
+    })
+  );
+
+  const { encode } = await import("next-auth/jwt");
+  const state = await encode({
+    secret: bindings.AUTH_SECRET,
+    salt: "oauth-state",
+    token: {
+      provider: "oidc",
+      nonce: "test-nonce",
+      callbackUrl: `${url}/api/auth/callback/oidc`,
+    },
+  });
+
+  const res = await fetch(
+    `${url}/api/auth/callback/oidc?code=test-code&state=${state}`,
+    {
+      redirect: "manual",
+    }
+  );
+
+  expect(res.status).toBe(302);
+  expect(res.headers.get("Location")).toBe("/chat");
+});
+
 test("POST /resend-password-reset fails for non-existent user", async () => {
   const { url, bindings } = await serve();
 

@@ -149,6 +149,19 @@ export async function startServer(options: ServerOptions) {
             serverVersion: pkg.version,
             ONBOARDING_AGENT_BUNDLE_URL:
               "https://artifacts.blink.host/starter-agent/bundle.tar.gz",
+
+            // OIDC provider configuration (from environment)
+            OIDC_ISSUER_URL: process.env.OIDC_ISSUER_URL,
+            OIDC_CLIENT_ID: process.env.OIDC_CLIENT_ID,
+            OIDC_CLIENT_SECRET: process.env.OIDC_CLIENT_SECRET,
+            OIDC_SCOPES: process.env.OIDC_SCOPES,
+            OIDC_EMAIL_FIELD: process.env.OIDC_EMAIL_FIELD,
+            OIDC_USERNAME_FIELD: process.env.OIDC_USERNAME_FIELD,
+            OIDC_AUTH_URL_PARAMS: process.env.OIDC_AUTH_URL_PARAMS,
+            OIDC_IGNORE_EMAIL_VERIFIED:
+              process.env.OIDC_IGNORE_EMAIL_VERIFIED === "true",
+            OIDC_SIGN_IN_TEXT: process.env.OIDC_SIGN_IN_TEXT,
+            OIDC_ICON_URL: process.env.OIDC_ICON_URL,
             agentStore: (deploymentTargetID) => {
               return {
                 delete: async (key) => {

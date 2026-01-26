@@ -47,7 +47,105 @@ const providers = {
     userUrl: "https://www.googleapis.com/oauth2/v2/userinfo",
     scope: "openid email profile",
   },
+  // OIDC provider is dynamically configured via environment variables
+  oidc: {
+    id: "oidc",
+    name: "OpenID Connect",
+    type: "oidc" as const,
+  },
 };
+
+// ============================================================================
+// OIDC Discovery
+// ============================================================================
+
+/**
+ * OIDC discovery configuration cache.
+ * Cached per issuer URL to avoid repeated discovery requests.
+ */
+const oidcDiscoveryCache = new Map<
+  string,
+  {
+    config: OIDCDiscoveryConfig;
+    expiresAt: number;
+  }
+>();
+
+interface OIDCDiscoveryConfig {
+  authorization_endpoint: string;
+  token_endpoint: string;
+  userinfo_endpoint: string;
+  issuer: string;
+}
+
+/**
+ * Fetch and cache OIDC discovery configuration from the issuer's
+ * .well-known/openid-configuration endpoint.
+ */
+async function discoverOIDCEndpoints(
+  issuerUrl: string
+): Promise<OIDCDiscoveryConfig> {
+  // Check cache first (cache for 1 hour)
+  const cached = oidcDiscoveryCache.get(issuerUrl);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.config;
+  }
+
+  // Normalize issuer URL (remove trailing slash)
+  const normalizedIssuer = issuerUrl.replace(/\/$/, "");
+  const discoveryUrl = `${normalizedIssuer}/.well-known/openid-configuration`;
+
+  const res = await fetch(discoveryUrl, {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      `OIDC discovery failed: ${res.status} ${res.statusText} from ${discoveryUrl}`
+    );
+  }
+
+  const config = (await res.json()) as OIDCDiscoveryConfig;
+
+  // Validate required fields
+  if (
+    !config.authorization_endpoint ||
+    !config.token_endpoint ||
+    !config.userinfo_endpoint
+  ) {
+    throw new Error("OIDC discovery response missing required endpoints");
+  }
+
+  // Cache the result for 1 hour
+  oidcDiscoveryCache.set(issuerUrl, {
+    config,
+    expiresAt: Date.now() + 60 * 60 * 1000,
+  });
+
+  return config;
+}
+
+/**
+ * Extract a claim value from OIDC userinfo response using a field path.
+ * Supports nested fields with dot notation (e.g., "profile.email").
+ */
+function extractOIDCClaim(
+  profile: Record<string, unknown>,
+  field: string
+): string | undefined {
+  const parts = field.split(".");
+  let value: unknown = profile;
+  for (const part of parts) {
+    if (value && typeof value === "object") {
+      value = (value as Record<string, unknown>)[part];
+    } else {
+      return undefined;
+    }
+  }
+  return typeof value === "string" ? value : undefined;
+}
 
 // ============================================================================
 // Helpers
@@ -411,6 +509,396 @@ async function handleOAuthCallback(
 }
 
 // ============================================================================
+// OIDC Flow
+// ============================================================================
+
+async function initiateOIDCFlow(c: Context<{ Bindings: Bindings }>) {
+  const issuerUrl = c.env.OIDC_ISSUER_URL;
+  const clientId = c.env.OIDC_CLIENT_ID;
+
+  if (!issuerUrl || !clientId) {
+    return c.redirect("/login?error=oidc_not_configured");
+  }
+
+  // Discover OIDC endpoints
+  let discovery: OIDCDiscoveryConfig;
+  try {
+    discovery = await discoverOIDCEndpoints(issuerUrl);
+  } catch (err) {
+    console.error("OIDC discovery failed:", err);
+    return c.redirect("/login?error=oidc_discovery_failed");
+  }
+
+  const callbackUrl = new URL(`/api/auth/callback/oidc`, c.env.apiBaseURL);
+
+  // Generate state with encoded redirect info
+  const state = await encode({
+    secret: c.env.AUTH_SECRET,
+    salt: "oauth-state",
+    token: {
+      provider: "oidc",
+      nonce: crypto.randomUUID(),
+      callbackUrl: callbackUrl.toString(),
+    },
+  });
+
+  const authUrl = new URL(discovery.authorization_endpoint);
+  const scopes = c.env.OIDC_SCOPES || "openid profile email";
+
+  authUrl.searchParams.set("client_id", clientId);
+  authUrl.searchParams.set("redirect_uri", callbackUrl.toString());
+  authUrl.searchParams.set("scope", scopes);
+  authUrl.searchParams.set("state", state);
+  authUrl.searchParams.set("response_type", "code");
+
+  // Apply any extra auth URL parameters
+  if (c.env.OIDC_AUTH_URL_PARAMS) {
+    try {
+      const extraParams = JSON.parse(c.env.OIDC_AUTH_URL_PARAMS) as Record<
+        string,
+        string
+      >;
+      for (const [key, value] of Object.entries(extraParams)) {
+        authUrl.searchParams.set(key, value);
+      }
+    } catch {
+      console.error("Failed to parse OIDC_AUTH_URL_PARAMS");
+    }
+  }
+
+  return c.redirect(authUrl.toString());
+}
+
+async function handleOIDCCallback(c: Context<{ Bindings: Bindings }>) {
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+
+  if (!code || !state) {
+    return c.redirect("/login?error=missing_params");
+  }
+
+  const issuerUrl = c.env.OIDC_ISSUER_URL;
+  const clientId = c.env.OIDC_CLIENT_ID;
+  const clientSecret = c.env.OIDC_CLIENT_SECRET;
+
+  if (!issuerUrl || !clientId || !clientSecret) {
+    return c.redirect("/login?error=oidc_not_configured");
+  }
+
+  // Verify state
+  try {
+    const decoded = await decode({
+      token: state,
+      secret: c.env.AUTH_SECRET,
+      salt: "oauth-state",
+    });
+
+    if (!decoded || decoded.provider !== "oidc") {
+      return c.redirect("/login?error=invalid_state");
+    }
+  } catch {
+    return c.redirect("/login?error=invalid_state");
+  }
+
+  // Discover OIDC endpoints
+  let discovery: OIDCDiscoveryConfig;
+  try {
+    discovery = await discoverOIDCEndpoints(issuerUrl);
+  } catch (err) {
+    console.error("OIDC discovery failed:", err);
+    return c.redirect("/login?error=oidc_discovery_failed");
+  }
+
+  const callbackUrl = new URL(`/api/auth/callback/oidc`, c.env.apiBaseURL);
+
+  // Exchange code for token
+  const tokenResponse = await fetch(discovery.token_endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: callbackUrl.toString(),
+      grant_type: "authorization_code",
+    }),
+  });
+
+  const tokenData = (await tokenResponse.json()) as any;
+  const accessToken = tokenData.access_token;
+
+  if (!accessToken) {
+    console.error("OIDC token exchange failed:", tokenData);
+    return c.redirect("/login?error=no_access_token");
+  }
+
+  // Fetch user profile from userinfo endpoint
+  const userResponse = await fetch(discovery.userinfo_endpoint, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  if (!userResponse.ok) {
+    const responseText = await userResponse.text();
+    console.error("Failed to fetch OIDC user profile", responseText);
+    return c.redirect("/login?error=failed_to_fetch_user_profile");
+  }
+
+  const profile = (await userResponse.json()) as Record<string, unknown>;
+
+  // Extract user info using configurable claim fields
+  const emailField = c.env.OIDC_EMAIL_FIELD || "email";
+  const usernameField = c.env.OIDC_USERNAME_FIELD || "preferred_username";
+
+  const email = extractOIDCClaim(profile, emailField);
+  const username =
+    extractOIDCClaim(profile, usernameField) ||
+    extractOIDCClaim(profile, "name") ||
+    extractOIDCClaim(profile, "nickname");
+
+  // Get subject identifier - required by OIDC spec
+  const sub = profile.sub as string;
+  if (!sub) {
+    console.error("OIDC profile missing sub claim:", profile);
+    return c.redirect("/login?error=invalid_oidc_profile");
+  }
+
+  // Check email verification unless explicitly ignored
+  if (!c.env.OIDC_IGNORE_EMAIL_VERIFIED) {
+    const emailVerified = profile.email_verified;
+    if (emailVerified === false) {
+      return c.redirect("/login?error=email_not_verified");
+    }
+  }
+
+  const userProfile = {
+    id: sub,
+    email: email || null,
+    name: username || null,
+    image: extractOIDCClaim(profile, "picture") || null,
+  };
+
+  const db = await c.env.database();
+  const inviteCookie = getCookie(c, INVITE_COOKIE);
+
+  // Check if user is already authenticated (for account linking)
+  const existingSessionToken = getCookie(c, SESSION_COOKIE_NAME);
+  let authenticatedUserId: string | null = null;
+
+  if (existingSessionToken) {
+    try {
+      const decoded = await decode({
+        token: existingSessionToken,
+        secret: c.env.AUTH_SECRET,
+        salt: SESSION_COOKIE_NAME,
+      });
+      if (decoded?.id) {
+        authenticatedUserId = decoded.id as string;
+      }
+    } catch {
+      // Invalid token, ignore
+    }
+  }
+
+  // Get or create user
+  const existingAccount = await db.selectUserAccountByProviderAccountID(
+    "oidc" as UserAccount["provider"],
+    userProfile.id
+  );
+
+  let user: User;
+  let isLinking = false;
+
+  if (existingAccount?.user) {
+    user = existingAccount.user;
+  } else if (authenticatedUserId) {
+    isLinking = true;
+    // User is already logged in - link this provider to their account
+    const existingUser = await db.selectUserByID(authenticatedUserId);
+    if (!existingUser) {
+      return c.redirect("/login?error=invalid_session");
+    }
+
+    // Check if this provider account is already linked to a different user
+    const conflictingAccount = await db.selectUserAccountByProviderAccountID(
+      "oidc" as UserAccount["provider"],
+      userProfile.id
+    );
+    if (
+      conflictingAccount &&
+      conflictingAccount.user.id !== authenticatedUserId
+    ) {
+      return c.redirect("/login?error=provider_already_linked&provider=oidc");
+    }
+
+    // Link the provider account to the existing user
+    await db.upsertUserAccount({
+      user_id: authenticatedUserId,
+      type: "oauth",
+      provider: "oidc" as UserAccount["provider"],
+      provider_account_id: userProfile.id,
+      access_token: accessToken,
+      refresh_token: tokenData.refresh_token ?? null,
+      expires_at: tokenData.expires_in
+        ? Math.floor(Date.now() / 1000) + tokenData.expires_in
+        : null,
+      token_type: tokenData.token_type ?? null,
+      scope: tokenData.scope ?? null,
+      id_token: tokenData.id_token ?? null,
+      session_state: "",
+    });
+
+    user = existingUser;
+  } else {
+    // Check if email is already in use by another account
+    if (userProfile.email) {
+      const existingUserByEmail = await db.selectUserByEmail(userProfile.email);
+      if (existingUserByEmail) {
+        return c.redirect(
+          "/login?error=email_already_in_use&email=" +
+            encodeURIComponent(userProfile.email)
+        );
+      }
+    }
+    // Create new user
+    let usedInviteId: string | null = null;
+
+    if (inviteCookie) {
+      // marker is the invite token itself, re-validate before using
+      const inviteData =
+        await db.selectOrganizationInviteWithOrganizationByToken(inviteCookie);
+      if (inviteData) {
+        const invite = inviteData.organization_invite;
+        if (
+          !(invite.expires_at && new Date() > invite.expires_at) &&
+          (invite.reusable || !invite.last_accepted_at)
+        ) {
+          usedInviteId = invite.id;
+        }
+      }
+    }
+
+    user = await db.insertUser({
+      email: userProfile.email,
+      email_verified: new Date(),
+      display_name: userProfile.name,
+      password: null,
+    });
+
+    // Auto-join team organizations (self-hosted mode)
+    if (c.env.autoJoinOrganizations) {
+      const teamOrgs = await db.selectTeamOrganizations();
+      if (teamOrgs.length === 0) {
+        // First user: create default org, make them owner
+        await db.insertOrganizationWithMembership({
+          name: "default",
+          kind: "organization",
+          created_by: user.id,
+        });
+      } else {
+        // Subsequent users: add as member to all existing team orgs
+        for (const org of teamOrgs) {
+          await db.insertOrganizationMembership({
+            organization_id: org.id,
+            user_id: user.id,
+            role: "member",
+          });
+        }
+      }
+    }
+
+    // consume single-use invite (mark accepted)
+    if (usedInviteId) {
+      try {
+        await db.updateOrganizationInviteLastAcceptedAtByID(usedInviteId);
+      } catch {}
+    }
+
+    // Link account
+    await db.upsertUserAccount({
+      user_id: user.id,
+      type: "oauth",
+      provider: "oidc" as UserAccount["provider"],
+      provider_account_id: userProfile.id,
+      access_token: accessToken,
+      refresh_token: tokenData.refresh_token ?? null,
+      expires_at: tokenData.expires_in
+        ? Math.floor(Date.now() / 1000) + tokenData.expires_in
+        : null,
+      token_type: tokenData.token_type ?? null,
+      scope: tokenData.scope ?? null,
+      id_token: tokenData.id_token ?? null,
+      session_state: "",
+    });
+
+    // Sync OAuth user to telemetry system (async, don't block)
+    if (c.env.sendTelemetryEvent && user.email) {
+      c.env
+        .sendTelemetryEvent({
+          type: "user.oauth_registered",
+          userId: user.id,
+          email: user.email,
+          name: user.display_name,
+          provider: "oidc",
+        })
+        .then(() => {
+          // Attempt to merge any existing invited user record
+          if (user!.email && c.env.sendTelemetryEvent) {
+            return c.env.sendTelemetryEvent({
+              type: "user.merged",
+              primaryUserId: user!.id,
+              secondaryUserId: user!.email,
+            });
+          }
+        })
+        .catch(() => {
+          // Ignore errors to avoid breaking OAuth flow
+        });
+    }
+  }
+
+  const token = await encode({
+    secret: c.env.AUTH_SECRET,
+    token: {
+      sub: user.id,
+      id: user.id,
+      email: user.email,
+      name: user.display_name,
+    },
+    salt: SESSION_COOKIE_NAME,
+  });
+
+  // Set cookies and redirect using Hono's setCookie helper
+  setCookie(c, SESSION_COOKIE_NAME, token, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: SESSION_SECURE,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  });
+
+  setCookie(c, "last_login_provider", "oidc", {
+    path: "/",
+    httpOnly: true,
+    sameSite: "Lax",
+    secure: SESSION_SECURE,
+    maxAge: 60 * 60 * 24 * 180, // 180 days
+  });
+
+  // If linking an existing account, redirect back with success message
+  if (isLinking) {
+    return c.redirect("/chat?linked=oidc");
+  }
+
+  return c.redirect("/chat");
+}
+
+// ============================================================================
 // Routes
 // ============================================================================
 
@@ -509,16 +997,34 @@ export default function mountAuth(server: APIServer) {
   // GET /providers - List available providers
   server.get("/providers", (c) => {
     // Return only public fields (id, name, type) for each provider
-    const publicProviders = Object.fromEntries(
-      Object.entries(providers).map(([key, provider]) => [
-        key,
-        {
+    const publicProviders: Record<
+      string,
+      { id: string; name: string; type: string; signInText?: string; iconUrl?: string }
+    > = {};
+
+    for (const [key, provider] of Object.entries(providers)) {
+      // Skip OIDC if not configured
+      if (key === "oidc") {
+        if (!c.env.OIDC_ISSUER_URL || !c.env.OIDC_CLIENT_ID) {
+          continue;
+        }
+        // Use customized name/icon for OIDC if configured
+        publicProviders[key] = {
+          id: provider.id,
+          name: c.env.OIDC_SIGN_IN_TEXT || provider.name,
+          type: provider.type,
+          signInText: c.env.OIDC_SIGN_IN_TEXT,
+          iconUrl: c.env.OIDC_ICON_URL,
+        };
+      } else {
+        publicProviders[key] = {
           id: provider.id,
           name: provider.name,
           type: provider.type,
-        },
-      ])
-    );
+        };
+      }
+    }
+
     return c.json(publicProviders);
   });
 
@@ -688,6 +1194,16 @@ export default function mountAuth(server: APIServer) {
   // GET /callback/google - Handle Google OAuth callback
   server.get("/callback/google", async (c) => {
     return handleOAuthCallback(c, "google");
+  });
+
+  // GET /signin/oidc - Initiate generic OIDC OAuth
+  server.get("/signin/oidc", async (c) => {
+    return initiateOIDCFlow(c);
+  });
+
+  // GET /callback/oidc - Handle generic OIDC callback
+  server.get("/callback/oidc", async (c) => {
+    return handleOIDCCallback(c);
   });
 
   // POST /signout - Clear session

@@ -151,7 +151,7 @@ export const user_account = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     type: text("type").notNull(),
-    provider: text("provider").$type<"github" | "google" | "slack">().notNull(),
+    provider: text("provider").$type<"github" | "google" | "slack" | "oidc">().notNull(),
     provider_account_id: text("provider_account_id").notNull(),
     refresh_token: text("refresh_token"),
     access_token: text("access_token"),

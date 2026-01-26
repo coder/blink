@@ -234,6 +234,18 @@ export interface Bindings {
   readonly GOOGLE_CLIENT_ID?: string;
   readonly GOOGLE_CLIENT_SECRET?: string;
 
+  // Generic OIDC provider settings
+  readonly OIDC_ISSUER_URL?: string;
+  readonly OIDC_CLIENT_ID?: string;
+  readonly OIDC_CLIENT_SECRET?: string;
+  readonly OIDC_SCOPES?: string; // Default: "openid profile email"
+  readonly OIDC_EMAIL_FIELD?: string; // Default: "email"
+  readonly OIDC_USERNAME_FIELD?: string; // Default: "preferred_username"
+  readonly OIDC_AUTH_URL_PARAMS?: string; // JSON string for extra params
+  readonly OIDC_IGNORE_EMAIL_VERIFIED?: boolean;
+  readonly OIDC_SIGN_IN_TEXT?: string; // Button text
+  readonly OIDC_ICON_URL?: string; // Button icon
+
   readonly serverVersion: string;
 
   /** When true, auto-add new users to all existing team organizations (self-hosted mode) */
