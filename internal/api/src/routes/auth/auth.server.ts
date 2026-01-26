@@ -748,10 +748,10 @@ async function handleOIDCCallback(c: Context<{ Bindings: Bindings }>) {
     extractOIDCClaim(profile, "name") ||
     extractOIDCClaim(profile, "nickname");
 
-  // Get subject identifier - required by OIDC spec
-  const sub = profile.sub as string;
+  // Get subject identifier - OIDC uses "sub", but some OAuth2 providers use "id"
+  const sub = (profile.sub || profile.id) as string;
   if (!sub) {
-    console.error("OIDC profile missing sub claim:", profile);
+    console.error("OIDC profile missing sub/id claim:", profile);
     return c.redirect("/login?error=invalid_oidc_profile");
   }
 
