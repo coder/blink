@@ -21,6 +21,28 @@ interface LoginPageProps {
   }>;
 }
 
+interface OIDCProvider {
+  id: string;
+  name: string;
+  type: string;
+  signInText?: string;
+  iconUrl?: string;
+}
+
+async function getOIDCProvider(): Promise<OIDCProvider | null> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    const res = await fetch(`${baseUrl}/api/auth/providers`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const providers = await res.json();
+    return providers.oidc || null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const {
     error,
@@ -37,7 +59,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     | "credentials"
     | "github"
     | "google"
+    | "oidc"
     | undefined;
+  const oidcProvider = await getOIDCProvider();
   return (
     <div className="flex items-center justify-center p-4">
       <div
@@ -148,6 +172,46 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               </Button>
             </Link>
 
+            {/* OIDC Sign In - only shown when configured */}
+            {oidcProvider && (
+              <Link
+                href={`/api/auth/signin/oidc${redirectTarget ? `?redirect=${encodeURIComponent(redirectTarget)}` : ""}`}
+              >
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="w-full h-12 text-base font-medium group"
+                >
+                  <div className="flex items-center justify-center gap-3">
+                    {oidcProvider.iconUrl ? (
+                      <img
+                        src={oidcProvider.iconUrl}
+                        alt=""
+                        className="w-5 h-5"
+                      />
+                    ) : (
+                      <svg
+                        className="w-5 h-5"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+                      </svg>
+                    )}
+                    <span>
+                      {oidcProvider.signInText ||
+                        `Continue with ${oidcProvider.name}`}
+                    </span>
+                    {lastProvider === "oidc" ? (
+                      <Badge variant="secondary" className="ml-2">
+                        Last
+                      </Badge>
+                    ) : null}
+                  </div>
+                </Button>
+              </Link>
+            )}
+
             {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
@@ -210,6 +274,24 @@ function mapErrorToMessage(
       return "Sign-in is temporarily unavailable. Please try again later.";
     case "Verification":
       return "The verification link is invalid or has expired.";
+    case "oidc_not_configured":
+      return "OIDC authentication is not configured. Please contact your administrator.";
+    case "oidc_discovery_failed":
+      return "Failed to connect to the identity provider. Please try again later.";
+    case "email_not_verified":
+      return "Your email address has not been verified with the identity provider.";
+    case "invalid_oidc_profile":
+      return "Could not retrieve your profile from the identity provider.";
+    case "missing_params":
+      return "Authentication failed. Please try again.";
+    case "invalid_state":
+      return "Authentication session expired. Please try again.";
+    case "no_access_token":
+      return "Failed to authenticate with the identity provider.";
+    case "email_already_in_use":
+      return "This email is already associated with another account.";
+    case "provider_already_linked":
+      return "This identity provider account is already linked to another user.";
     default:
       return "Sign-in failed. Please try again.";
   }
