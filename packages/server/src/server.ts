@@ -547,7 +547,9 @@ export async function startServer(
     async () => {
       return querier;
     },
-    process.env as Record<string, string>
+    {
+      AUTH_SECRET: authSecret,
+    }
   );
 
   (server as StartedServer).bindings = bindings;

@@ -1,9 +1,11 @@
 import type { StreamChatEvent } from "@blink.so/api";
-import { runChat } from "@blink.so/api/util/chat";
+import { runChat, type RunChatOptions } from "@blink.so/api/util/chat";
 import type Querier from "@blink.so/database/querier";
 import type { DBMessage } from "@blink.so/database/schema";
 import type { WebSocketServer } from "ws";
 import { WebSocket } from "ws";
+
+type RunChatEnv = RunChatOptions["env"];
 
 class ChatSession {
   private sseStreams: Set<WritableStreamDefaultWriter<string>> = new Set();
@@ -65,7 +67,7 @@ class ChatSession {
   async start(opts: {
     interrupt: boolean;
     db: Querier;
-    env: Record<string, string>;
+    env: RunChatEnv;
     wss: WebSocketServer;
     wsDataMap: WeakMap<
       WebSocket,
@@ -91,7 +93,7 @@ class ChatSession {
 
   private async executeChat(opts: {
     db: Querier;
-    env: Record<string, string>;
+    env: RunChatEnv;
     wss: WebSocketServer;
     wsDataMap: WeakMap<
       WebSocket,
@@ -115,7 +117,7 @@ class ChatSession {
           // In Node/Bun we can just let it run
           promise.catch(console.error);
         },
-        env: opts.env as any,
+        env: opts.env,
         writePlatformLog: async () => {
           // No-op for now
         },
@@ -193,7 +195,7 @@ export class ChatManager {
       { type: "token"; id: string } | { type: "chat"; chatID: string }
     >,
     private getDB: () => Promise<Querier>,
-    private env: Record<string, string>
+    private env: RunChatEnv
   ) {}
 
   private getSession(id: string): ChatSession {
