@@ -268,9 +268,27 @@ const api = new Hono<{
 
 api.use(async (c, next) => {
   await next();
-  if (c.res.headers.get("Content-Type")?.startsWith("application/json")) {
-    const obj = await c.res.json();
+  const contentType = c.res.headers.get("Content-Type") ?? "";
+  if (!contentType.startsWith("application/json")) {
+    return;
+  }
+  if (c.res.status === 204 || c.res.status === 205 || c.res.status === 304) {
+    return;
+  }
+  const contentLength = c.res.headers.get("Content-Length");
+  if (contentLength === "0" || !c.res.body) {
+    return;
+  }
+  try {
+    const obj = await c.res.clone().json();
     c.res = new Response(JSON.stringify(obj, null, 2), c.res);
+  } catch (error) {
+    console.error("API JSON pretty-print parse error", {
+      status: c.res.status,
+      contentType,
+      contentLength,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 api.get("/", async (c) => {
