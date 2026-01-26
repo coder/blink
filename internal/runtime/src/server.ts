@@ -22,6 +22,63 @@ import {
  */
 export const InternalAuthHeader = "x-blink-internal-auth";
 
+const HOP_BY_HOP_HEADERS = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "proxy-connection",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+]);
+
+const stripHopByHopHeaders = (headers: Headers): Headers => {
+  const connectionTokens = new Set<string>();
+  for (const [key, value] of headers) {
+    if (key.toLowerCase() !== "connection") {
+      continue;
+    }
+    for (const token of value.split(",")) {
+      const trimmed = token.trim().toLowerCase();
+      if (trimmed) {
+        connectionTokens.add(trimmed);
+      }
+    }
+  }
+
+  const sanitized = new Headers();
+  for (const [key, value] of headers) {
+    const lowerKey = key.toLowerCase();
+    if (HOP_BY_HOP_HEADERS.has(lowerKey) || connectionTokens.has(lowerKey)) {
+      continue;
+    }
+    sanitized.set(key, value);
+  }
+  return sanitized;
+};
+
+const serializeError = (err: unknown) => {
+  if (!(err instanceof Error)) {
+    return { message: String(err) };
+  }
+  const cause = (err as { cause?: unknown }).cause;
+  return {
+    name: err.name,
+    message: err.message,
+    stack: err.stack,
+    cause:
+      cause instanceof Error
+        ? {
+            name: cause.name,
+            message: cause.message,
+            code: (cause as { code?: string }).code,
+          }
+        : cause,
+  };
+};
+
 /**
  * Patches globalThis.fetch to automatically add the auth token header
  * for requests to the internal API server. This allows the auth token
@@ -219,13 +276,22 @@ export async function startAgentServer(
     if (authToken) {
       headers.set(InternalAuthHeader, authToken);
     }
+    const sanitizedHeaders = stripHopByHopHeaders(headers);
 
     return fetch(newURL.toString(), {
       method: request.method,
-      headers,
+      headers: sanitizedHeaders,
       body: request.body,
       // @ts-ignore - duplex is needed for streaming bodies
       duplex: "half",
+    }).catch((err) => {
+      console.error(
+        JSON.stringify({
+          event: "blink.runtime.fetch_failed",
+          error: serializeError(err),
+        })
+      );
+      throw err;
     });
   });
   await listeningPromise;
