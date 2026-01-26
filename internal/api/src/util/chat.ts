@@ -94,9 +94,9 @@ export async function runChat({
     };
   }
 
+  // always use the active deployment
   const deployment = await db.selectAgentDeploymentByIDOrActive({
     agentID: run.agent_id,
-    id: run.agent_deployment_id,
   });
   if (!deployment) {
     throw new Error("Agent has no active deployment!");
