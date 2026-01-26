@@ -17,6 +17,10 @@ export interface SlackManifest {
       messages_tab_enabled?: boolean;
       messages_tab_read_only_enabled?: boolean;
     };
+    assistant_view: {
+      assistant_description: string;
+      suggested_prompts: string[];
+    };
   };
   oauth_config: {
     scopes: {
@@ -73,6 +77,10 @@ export function createAgentSlackManifest(
         home_tab_enabled: false,
         messages_tab_enabled: true,
         messages_tab_read_only_enabled: false,
+      },
+      assistant_view: {
+        assistant_description: `A helpful assistant powered by Blink`,
+        suggested_prompts: [],
       },
     },
     oauth_config: {
