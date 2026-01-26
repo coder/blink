@@ -246,6 +246,11 @@ export interface Bindings {
   readonly OIDC_SIGN_IN_TEXT?: string; // Button text
   readonly OIDC_ICON_URL?: string; // Button icon
 
+  // Manual endpoint configuration (overrides discovery)
+  readonly OIDC_AUTH_ENDPOINT?: string; // Authorization endpoint URL
+  readonly OIDC_TOKEN_ENDPOINT?: string; // Token endpoint URL
+  readonly OIDC_USERINFO_ENDPOINT?: string; // Userinfo endpoint URL
+
   readonly serverVersion: string;
 
   /** When true, auto-add new users to all existing team organizations (self-hosted mode) */

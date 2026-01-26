@@ -79,11 +79,26 @@ interface OIDCDiscoveryConfig {
 }
 
 /**
+ * OAuth2 Authorization Server Metadata (RFC 8414).
+ * Used as fallback when OIDC discovery is not available.
+ */
+interface OAuth2ASMetadata {
+  issuer: string;
+  authorization_endpoint: string;
+  token_endpoint: string;
+  userinfo_endpoint?: string; // Not in RFC 8414 but some servers include it
+}
+
+/**
  * Fetch and cache OIDC discovery configuration from the issuer's
  * .well-known/openid-configuration endpoint.
+ *
+ * Falls back to OAuth2 Authorization Server Metadata (.well-known/oauth-authorization-server)
+ * if OIDC discovery fails.
  */
 async function discoverOIDCEndpoints(
-  issuerUrl: string
+  issuerUrl: string,
+  userinfoEndpointOverride?: string
 ): Promise<OIDCDiscoveryConfig> {
   // Check cache first (cache for 1 hour)
   const cached = oidcDiscoveryCache.get(issuerUrl);
@@ -93,21 +108,63 @@ async function discoverOIDCEndpoints(
 
   // Normalize issuer URL (remove trailing slash)
   const normalizedIssuer = issuerUrl.replace(/\/$/, "");
-  const discoveryUrl = `${normalizedIssuer}/.well-known/openid-configuration`;
 
-  const res = await fetch(discoveryUrl, {
-    headers: {
-      Accept: "application/json",
-    },
-  });
+  // Try OIDC discovery first
+  const oidcDiscoveryUrl = `${normalizedIssuer}/.well-known/openid-configuration`;
+  let config: OIDCDiscoveryConfig | null = null;
 
-  if (!res.ok) {
-    throw new Error(
-      `OIDC discovery failed: ${res.status} ${res.statusText} from ${discoveryUrl}`
-    );
+  try {
+    const res = await fetch(oidcDiscoveryUrl, {
+      headers: { Accept: "application/json" },
+    });
+
+    if (res.ok) {
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const json = (await res.json()) as OIDCDiscoveryConfig;
+        if (json.authorization_endpoint && json.token_endpoint) {
+          config = json;
+        }
+      }
+    }
+  } catch {
+    // OIDC discovery failed, will try OAuth2 AS metadata next
   }
 
-  const config = (await res.json()) as OIDCDiscoveryConfig;
+  // Fallback to OAuth2 Authorization Server Metadata (RFC 8414)
+  if (!config) {
+    const oauth2AsUrl = `${normalizedIssuer}/.well-known/oauth-authorization-server`;
+    try {
+      const res = await fetch(oauth2AsUrl, {
+        headers: { Accept: "application/json" },
+      });
+
+      if (res.ok) {
+        const json = (await res.json()) as OAuth2ASMetadata;
+        if (json.authorization_endpoint && json.token_endpoint) {
+          // OAuth2 AS metadata doesn't require userinfo_endpoint
+          // Use override if provided, otherwise try common paths
+          config = {
+            issuer: json.issuer,
+            authorization_endpoint: json.authorization_endpoint,
+            token_endpoint: json.token_endpoint,
+            userinfo_endpoint:
+              userinfoEndpointOverride ||
+              json.userinfo_endpoint ||
+              `${normalizedIssuer}/api/v2/users/me`, // Common fallback for Coder-like servers
+          };
+        }
+      }
+    } catch {
+      // OAuth2 AS metadata also failed
+    }
+  }
+
+  if (!config) {
+    throw new Error(
+      `OIDC/OAuth2 discovery failed: Could not fetch configuration from ${normalizedIssuer}`
+    );
+  }
 
   // Validate required fields
   if (
@@ -520,13 +577,28 @@ async function initiateOIDCFlow(c: Context<{ Bindings: Bindings }>) {
     return c.redirect("/login?error=oidc_not_configured");
   }
 
-  // Discover OIDC endpoints
+  // Check for manual endpoint configuration first
   let discovery: OIDCDiscoveryConfig;
-  try {
-    discovery = await discoverOIDCEndpoints(issuerUrl);
-  } catch (err) {
-    console.error("OIDC discovery failed:", err);
-    return c.redirect("/login?error=oidc_discovery_failed");
+  if (c.env.OIDC_AUTH_ENDPOINT && c.env.OIDC_TOKEN_ENDPOINT) {
+    // Manual endpoint configuration - bypass discovery
+    discovery = {
+      issuer: issuerUrl,
+      authorization_endpoint: c.env.OIDC_AUTH_ENDPOINT,
+      token_endpoint: c.env.OIDC_TOKEN_ENDPOINT,
+      userinfo_endpoint:
+        c.env.OIDC_USERINFO_ENDPOINT || `${issuerUrl}/userinfo`,
+    };
+  } else {
+    // Auto-discover OIDC endpoints
+    try {
+      discovery = await discoverOIDCEndpoints(
+        issuerUrl,
+        c.env.OIDC_USERINFO_ENDPOINT
+      );
+    } catch (err) {
+      console.error("OIDC discovery failed:", err);
+      return c.redirect("/login?error=oidc_discovery_failed");
+    }
   }
 
   const callbackUrl = new URL(`/api/auth/callback/oidc`, c.env.apiBaseURL);
@@ -600,13 +672,28 @@ async function handleOIDCCallback(c: Context<{ Bindings: Bindings }>) {
     return c.redirect("/login?error=invalid_state");
   }
 
-  // Discover OIDC endpoints
+  // Check for manual endpoint configuration first
   let discovery: OIDCDiscoveryConfig;
-  try {
-    discovery = await discoverOIDCEndpoints(issuerUrl);
-  } catch (err) {
-    console.error("OIDC discovery failed:", err);
-    return c.redirect("/login?error=oidc_discovery_failed");
+  if (c.env.OIDC_AUTH_ENDPOINT && c.env.OIDC_TOKEN_ENDPOINT) {
+    // Manual endpoint configuration - bypass discovery
+    discovery = {
+      issuer: issuerUrl,
+      authorization_endpoint: c.env.OIDC_AUTH_ENDPOINT,
+      token_endpoint: c.env.OIDC_TOKEN_ENDPOINT,
+      userinfo_endpoint:
+        c.env.OIDC_USERINFO_ENDPOINT || `${issuerUrl}/userinfo`,
+    };
+  } else {
+    // Auto-discover OIDC endpoints
+    try {
+      discovery = await discoverOIDCEndpoints(
+        issuerUrl,
+        c.env.OIDC_USERINFO_ENDPOINT
+      );
+    } catch (err) {
+      console.error("OIDC discovery failed:", err);
+      return c.redirect("/login?error=oidc_discovery_failed");
+    }
   }
 
   const callbackUrl = new URL(`/api/auth/callback/oidc`, c.env.apiBaseURL);

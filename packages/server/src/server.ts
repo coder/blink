@@ -162,6 +162,11 @@ export async function startServer(options: ServerOptions) {
               process.env.OIDC_IGNORE_EMAIL_VERIFIED === "true",
             OIDC_SIGN_IN_TEXT: process.env.OIDC_SIGN_IN_TEXT,
             OIDC_ICON_URL: process.env.OIDC_ICON_URL,
+
+            // Manual endpoint configuration (overrides discovery)
+            OIDC_AUTH_ENDPOINT: process.env.OIDC_AUTH_ENDPOINT,
+            OIDC_TOKEN_ENDPOINT: process.env.OIDC_TOKEN_ENDPOINT,
+            OIDC_USERINFO_ENDPOINT: process.env.OIDC_USERINFO_ENDPOINT,
             agentStore: (deploymentTargetID) => {
               return {
                 delete: async (key) => {
