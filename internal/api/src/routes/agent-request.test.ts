@@ -408,6 +408,51 @@ describe("webhook requests (/api/webhook/:id)", () => {
     );
     expect(response.headers.get("x-frame-options")).toBe("DENY");
   });
+
+  test("proxies chunked webhook bodies to the agent", async () => {
+    const payload = JSON.stringify({
+      type: "event_callback",
+      event: { type: "message", text: "streamed hello" },
+    });
+    const splitIndex = Math.ceil(payload.length / 2);
+    const chunks = [payload.slice(0, splitIndex), payload.slice(splitIndex)];
+    const encoder = new TextEncoder();
+    let chunkIndex = 0;
+
+    const bodyStream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (chunkIndex >= chunks.length) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(encoder.encode(chunks[chunkIndex]));
+        chunkIndex += 1;
+      },
+    });
+
+    let receivedBody: string | undefined;
+
+    using agent = await setupAgent({
+      name: "slack-streaming",
+      handler: async (req) => {
+        receivedBody = await req.text();
+        return new Response("OK");
+      },
+    });
+
+    const response = await fetch(agent.getWebhookUrl("/"), {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: bodyStream,
+    });
+
+    const responseText = await response.text();
+    expect(response.status).toBe(200);
+    expect(responseText).toBe("OK");
+    expect(receivedBody).toBe(payload);
+  });
 });
 
 describe("Slack request Content-Length handling", () => {

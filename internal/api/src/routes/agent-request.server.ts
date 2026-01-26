@@ -6,6 +6,43 @@ import { detectRequestLocation } from "../server-helper";
 import { generateAgentInvocationToken } from "./agents/me/me.server";
 import { handleSlackWebhook, isSlackRequest } from "./agents/slack-webhook";
 
+const HOP_BY_HOP_HEADERS = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "proxy-connection",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+]);
+
+const stripHopByHopHeaders = (headers: Headers): Headers => {
+  const connectionTokens = new Set<string>();
+  headers.forEach((value, key) => {
+    if (key.toLowerCase() !== "connection") {
+      return;
+    }
+    for (const token of value.split(",")) {
+      const trimmed = token.trim().toLowerCase();
+      if (trimmed) {
+        connectionTokens.add(trimmed);
+      }
+    }
+  });
+
+  const sanitized = new Headers();
+  headers.forEach((value, key) => {
+    const lowerKey = key.toLowerCase();
+    if (HOP_BY_HOP_HEADERS.has(lowerKey) || connectionTokens.has(lowerKey)) {
+      return;
+    }
+    sanitized.set(key, value);
+  });
+  return sanitized;
+};
+
 export type AgentRequestRouting =
   | { mode: "webhook"; subpath?: string }
   | { mode: "subdomain" };
@@ -67,6 +104,10 @@ export default async function handleAgentRequest(
   }
   // Ensure we preserve the search params.
   url.search = incomingUrl.search;
+  // Ensure protocol is http/https for fetch.
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    url.protocol = "http:";
+  }
 
   let contentLength: number | undefined;
   const contentLengthRaw = c.req.raw.headers.get("content-length");
@@ -176,19 +217,26 @@ export default async function handleAgentRequest(
       agent_deployment_target_id: query.agent_deployment.target_id,
     })
   );
+  const sanitizedHeaders = stripHopByHopHeaders(headers);
 
   let response: Response | undefined;
   let error: string | undefined;
   try {
     // Use the body we already read if it's a Slack request, otherwise use the stream
+    const hasBody =
+      c.req.raw.method !== "GET" &&
+      c.req.raw.method !== "HEAD" &&
+      c.req.raw.method !== "OPTIONS";
     const bodyToSend =
       requestBodyText !== undefined ? requestBodyText : c.req.raw.body;
-    response = await fetch(url, {
-      body: bodyToSend,
+    const request = new Request(url.toString(), {
       method: c.req.raw.method,
-      signal,
-      headers,
+      headers: sanitizedHeaders,
+      body: hasBody ? bodyToSend : undefined,
+      // @ts-expect-error - Required for Node.js streaming.
+      duplex: hasBody ? "half" : undefined,
     });
+    response = await fetch(request, { signal, redirect: "manual" });
   } catch (err) {
     error = err instanceof Error ? err.message : JSON.stringify(err);
   }
