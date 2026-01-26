@@ -98,7 +98,7 @@ export function AgentDeleteForm({
               </DialogHeader>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-3">
+                <div className="space-y-3 flex flex-col">
                   <label
                     htmlFor="agent-name-confirm"
                     className="text-sm font-medium"

@@ -102,7 +102,7 @@ export function WizardContent({
       }
     }
     const redirectName = agentInfo?.name ?? agentName;
-    router.push(`/${organizationName}/${redirectName}`);
+    router.push(`/${organizationName}/${redirectName}/chats`);
   }, [agentInfo, client, router, organizationName, agentName, state]);
 
   const handleAgentCreated = useCallback((agent: AgentInfo) => {
