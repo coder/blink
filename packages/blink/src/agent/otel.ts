@@ -56,7 +56,7 @@ const patchGlobalConsole = () => {
         payload = { message: util.inspect(args[0]) };
       }
     } else {
-      payload = { message: util.inspect(args) };
+      payload = { message: util.format(...args) };
     }
 
     let safePayload: Record<string | number, unknown>;
