@@ -299,10 +299,22 @@ IMPORTANT: This MUST be text, not an emoji.`),
                   }
                 : file.result,
           })),
+          imageBlocks: msg.metadata.imageBlocks.map((imageBlock) => ({
+            image_url: imageBlock.image_url,
+            alt_text: imageBlock.alt_text,
+            title: imageBlock.title,
+            result:
+              imageBlock.result.type === "downloaded"
+                ? {
+                    type: "downloaded",
+                    base64: imageBlock.result.content.toString("base64"),
+                  }
+                : imageBlock.result,
+          })),
         };
       },
       toModelOutput(output) {
-        const { message, files } = output;
+        const { message, files, imageBlocks } = output;
         const parts: Extract<
           LanguageModelV2ToolResultOutput,
           { type: "content" }
@@ -318,6 +330,21 @@ IMPORTANT: This MUST be text, not an emoji.`),
             parts.push({
               type: "text",
               text: `The user attached file ${file.name}, but it was not downloaded: ${JSON.stringify(file.result)}`,
+            });
+          }
+        }
+        // Add image blocks (inline images from block kit)
+        for (const imageBlock of imageBlocks) {
+          if (imageBlock.result.type === "downloaded") {
+            parts.push({
+              type: "media",
+              data: imageBlock.result.base64,
+              mediaType: "image/png", // Default to PNG for external images
+            });
+          } else {
+            parts.push({
+              type: "text",
+              text: `The message contains an image block (${imageBlock.alt_text}), but it could not be downloaded: ${JSON.stringify(imageBlock.result)}`,
             });
           }
         }
