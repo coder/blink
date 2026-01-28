@@ -41,7 +41,7 @@ Open the Blink web UI in your browser and create your first agent. Alternatively
 
 ## What's a Blink agent?
 
-This is a minimal, functional Blink agent:
+Agents are HTTP servers that respond to events. The Blink Server deploys them as Docker containers, routes messages from Slack/GitHub/web UI, and manages conversation state - your agent just defines how to respond.
 
 ```typescript
 import { convertToModelMessages, streamText } from "ai";
@@ -60,7 +60,7 @@ agent.on("chat", async ({ messages }) => {
 agent.serve();
 ```
 
-Whenever the user sends a message, the agent will use the `on("chat")` event handler to respond.
+The `on("chat")` handler processes incoming messages. For tool calls, the server automatically loops back to your agent until the response is complete.
 
 For a closer look at Blink agents, visit [blink.coder.com/docs](https://blink.coder.com/docs).
 
