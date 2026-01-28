@@ -184,7 +184,7 @@ export default function EnvManager({
               htmlFor="new-secret"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
-              Store as secret (value will be encrypted and hidden)
+              Store as secret (value will be hidden)
             </label>
           </div>
 
