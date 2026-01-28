@@ -36,7 +36,7 @@ npm install -g blink-server
 blink-server
 ```
 
-Open the Blink web UI in your browser and create your first agent. Alternatively, you may run the server [with Docker](https://blink.coder.com/docs/server/docker) (TODO: correct link).
+Open the Blink web UI in your browser and create your first agent. Alternatively, you may run the server [with Docker](https://blink.coder.com/docs/server/docker-deployment).
 
 ## Documentation
 
