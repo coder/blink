@@ -7,8 +7,9 @@
 
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://discord.gg/coder)
 ![NPM Version](https://img.shields.io/npm/v/blink)
+[![Documentation](https://img.shields.io/badge/documentation-blink.coder.com-blue)](https://blink.coder.com/docs)
 
-Blink is a self-hosted platform for building and running custom, in-house AI agents. They respond in Slack, GitHub, and a browser-based UI. They can search the web, run code in isolated environments, and securely access company data - all under your full control.
+Blink is a self-hosted platform for building and running custom, in-house AI agents. They respond via Slack, GitHub, and a browser-based UI. They are powerful chatbots that can search the web, run code in isolated environments, and securely access company data - all under your full control.
 
 ![Blink Demo](https://github.com/user-attachments/assets/7f272246-f4e3-4e94-9619-a91d2013db4a)
 
@@ -38,9 +39,30 @@ blink-server
 
 Open the Blink web UI in your browser and create your first agent. Alternatively, you may run the server [with Docker](https://blink.coder.com/docs/server/docker-deployment).
 
-## Documentation
+## What's a Blink agent?
 
-For a closer look at Blink, visit [blink.coder.com/docs](https://blink.coder.com/docs).
+This is a minimal, functional Blink agent:
+
+```typescript
+import { convertToModelMessages, streamText } from "ai";
+import * as blink from "blink";
+
+const agent = new blink.Agent();
+
+agent.on("chat", async ({ messages }) => {
+  return streamText({
+    model: "anthropic/claude-opus-4.5",
+    messages: convertToModelMessages(messages),
+    system: "You are a helpful assistant.",
+  });
+});
+
+agent.serve();
+```
+
+Whenever the user sends a message, the agent will use the `on("chat")` event handler to respond.
+
+For a closer look at Blink agents, visit [blink.coder.com/docs](https://blink.coder.com/docs).
 
 ## Current State of the Project
 
