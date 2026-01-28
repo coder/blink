@@ -33,8 +33,6 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import useSWR from "swr";
 
-type Target = "preview" | "production";
-
 type AgentEnvironmentVariable = {
   id: string;
   created_at: Date;
@@ -60,10 +58,6 @@ export default function EnvManager({
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
   const [newSecret, setNewSecret] = useState(false);
-  const [newTargets, setNewTargets] = useState<Target[]>([
-    "preview",
-    "production",
-  ]);
   const [saving, setSaving] = useState(false);
 
   const fetchEnvs = async () => {
@@ -95,10 +89,6 @@ export default function EnvManager({
       toast.error("Value is required for non-secret variables");
       return;
     }
-    if (newTargets.length === 0) {
-      toast.error("At least one environment is required");
-      return;
-    }
     setSaving(true);
     try {
       await client.agents.env.create({
@@ -106,12 +96,11 @@ export default function EnvManager({
         key: newKey.trim(),
         value: newValue,
         secret: newSecret,
-        target: newTargets,
+        target: ["preview", "production"],
       });
       setNewKey("");
       setNewValue("");
       setNewSecret(false);
-      setNewTargets(["preview", "production"]);
       await fetchEnvs();
       toast.success("Environment variable created");
     } catch (err) {
@@ -185,52 +174,6 @@ export default function EnvManager({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Environments</Label>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="new-preview"
-                  checked={newTargets.includes("preview")}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setNewTargets([...newTargets, "preview"]);
-                    } else {
-                      setNewTargets(newTargets.filter((t) => t !== "preview"));
-                    }
-                  }}
-                />
-                <label
-                  htmlFor="new-preview"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Preview
-                </label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="new-production"
-                  checked={newTargets.includes("production")}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setNewTargets([...newTargets, "production"]);
-                    } else {
-                      setNewTargets(
-                        newTargets.filter((t) => t !== "production")
-                      );
-                    }
-                  }}
-                />
-                <label
-                  htmlFor="new-production"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Production
-                </label>
-              </div>
-            </div>
-          </div>
-
           <div className="flex items-center space-x-2">
             <Checkbox
               id="new-secret"
@@ -297,9 +240,6 @@ function EnvRow({
   const [editValue, setEditValue] = useState(
     env.secret ? "" : (env.value ?? "")
   );
-  const [editTargets, setEditTargets] = useState<Target[]>(
-    env.target as Target[]
-  );
   const [saving, setSaving] = useState(false);
   const client = useMemo(() => new Client(), []);
 
@@ -312,10 +252,6 @@ function EnvRow({
       toast.error("Value is required for non-secret variables");
       return;
     }
-    if (editTargets.length === 0) {
-      toast.error("At least one environment is required");
-      return;
-    }
 
     setSaving(true);
     try {
@@ -325,7 +261,7 @@ function EnvRow({
         key: editKey.trim(),
         value: env.secret && !editValue ? undefined : editValue,
         secret: env.secret,
-        target: editTargets,
+        target: ["preview", "production"],
       });
       setIsEditing(false);
       await onUpdate();
@@ -359,13 +295,6 @@ function EnvRow({
     return new Date(date).toLocaleDateString();
   };
 
-  const formatEnvironments = (targets: Target[]) => {
-    if (targets.length === 2) return "Preview and Production";
-    if (targets.length === 1)
-      return targets[0].charAt(0).toUpperCase() + targets[0].slice(1);
-    return "None";
-  };
-
   const isUpdated = new Date(env.updated_at) > new Date(env.created_at);
   const displayDate = isUpdated ? env.updated_at : env.created_at;
   const displayVerb = isUpdated ? "Updated" : "Added";
@@ -375,9 +304,9 @@ function EnvRow({
     <>
       <Card>
         <CardContent className="p-4">
-          <div className="flex items-start gap-4">
+          <div className="flex items-center gap-4">
             {/* Icon */}
-            <div className="flex-shrink-0 mt-1">
+            <div className="flex-shrink-0">
               {env.secret ? (
                 <Lock className="w-5 h-5 text-muted-foreground" />
               ) : (
@@ -387,16 +316,13 @@ function EnvRow({
 
             {/* Main content */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2">
                 <span className="font-mono font-medium">{env.key}</span>
                 {env.secret && (
                   <Badge variant="secondary" className="text-xs">
                     Secret
                   </Badge>
                 )}
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {formatEnvironments(env.target as Target[])}
               </div>
             </div>
 
@@ -415,7 +341,7 @@ function EnvRow({
 
             {/* Metadata */}
             <div className="flex-shrink-0 flex items-center gap-3">
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">
                   {displayVerb} {formatTimeAgo(displayDate)}
                 </span>
@@ -492,54 +418,6 @@ function EnvRow({
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Environments</Label>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`edit-preview-${env.id}`}
-                      checked={editTargets.includes("preview")}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setEditTargets([...editTargets, "preview"]);
-                        } else {
-                          setEditTargets(
-                            editTargets.filter((t) => t !== "preview")
-                          );
-                        }
-                      }}
-                    />
-                    <label
-                      htmlFor={`edit-preview-${env.id}`}
-                      className="text-sm font-medium"
-                    >
-                      Preview
-                    </label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`edit-production-${env.id}`}
-                      checked={editTargets.includes("production")}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setEditTargets([...editTargets, "production"]);
-                        } else {
-                          setEditTargets(
-                            editTargets.filter((t) => t !== "production")
-                          );
-                        }
-                      }}
-                    />
-                    <label
-                      htmlFor={`edit-production-${env.id}`}
-                      className="text-sm font-medium"
-                    >
-                      Production
-                    </label>
-                  </div>
-                </div>
-              </div>
-
               <div className="flex gap-2">
                 <Button onClick={handleSave} disabled={saving}>
                   Save Changes
@@ -550,7 +428,6 @@ function EnvRow({
                     setIsEditing(false);
                     setEditKey(env.key);
                     setEditValue(env.secret ? "" : (env.value ?? ""));
-                    setEditTargets(env.target as Target[]);
                   }}
                   disabled={saving}
                 >
