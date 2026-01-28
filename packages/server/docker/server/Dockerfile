@@ -12,4 +12,9 @@ WORKDIR /home/server/app
 
 RUN --mount=type=bind,source=server.tgz,target=/tmp/server.tgz npm install /tmp/server.tgz
 
+RUN mkdir -p /home/server/.config/blink-server \
+    && chown server:server /home/server/.config/blink-server
+
+VOLUME /home/server/.config/blink-server
+
 CMD ["npx", "blink-server"]
