@@ -11,7 +11,7 @@
 
 Blink is a self-hosted platform for building and running custom, in-house AI agents. They respond via Slack, GitHub, and a browser-based UI. They are powerful chatbots that can search the web, run code in isolated environments, and securely access company data - all under your full control.
 
-![Blink Demo](https://github.com/user-attachments/assets/7f272246-f4e3-4e94-9619-a91d2013db4a)
+![Blink Demo](https://docs-resources.blink.so/blink-demo.gif)
 
 ## Features
 
