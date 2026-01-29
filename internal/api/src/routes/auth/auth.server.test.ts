@@ -834,6 +834,43 @@ test("POST /signup validates password length", async () => {
   expect(res.status).toBe(400);
 });
 
+test("POST /signup without email verification creates session and redirects to chat", async () => {
+  const { url, bindings } = await serve({
+    bindings: {
+      sendEmail: undefined, // Disable email verification
+    },
+  });
+  const email = "noeverify@example.com";
+  const password = "securepassword123";
+
+  const res = await fetch(`${url}/api/auth/signup`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  expect(res.status).toBe(200);
+  const data = await res.json();
+  expect(data.ok).toBe(true);
+  expect(data.redirect_url).toBe("/chat");
+
+  // Verify user was created
+  const db = await bindings.database();
+  const user = await db.selectUserByEmail(email);
+  expect(user).toBeDefined();
+  expect(user?.email).toBe(email);
+
+  // Verify session cookie was set (auto-login)
+  const cookies = res.headers.getSetCookie?.() || [
+    res.headers.get("Set-Cookie") || "",
+  ];
+  const cookieString = cookies.join("; ");
+  expect(cookieString).toContain("blink_session_token=");
+  expect(cookieString).toContain("last_login_provider=credentials");
+});
+
 test("POST /resend-email-verification regenerates token", async () => {
   const { url, helpers, bindings } = await serve();
   const { user } = await helpers.createUser({

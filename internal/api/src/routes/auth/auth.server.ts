@@ -1045,7 +1045,34 @@ export default function mountAuth(server: APIServer) {
 
         return c.json({ ok: true, redirect_url: redirectUrl });
       } else {
-        // No email verification needed - redirect directly to chat
+        // No email verification needed - create session and redirect to chat
+        const sessionToken = await encode({
+          secret: c.env.AUTH_SECRET,
+          token: {
+            sub: user.id,
+            id: user.id,
+            email: user.email,
+            name: user.display_name,
+          },
+          salt: SESSION_COOKIE_NAME,
+        });
+
+        setCookie(c, SESSION_COOKIE_NAME, sessionToken, {
+          path: "/",
+          httpOnly: true,
+          sameSite: "Lax",
+          secure: SESSION_SECURE,
+          maxAge: 30 * 24 * 60 * 60, // 30 days
+        });
+
+        setCookie(c, "last_login_provider", "credentials", {
+          path: "/",
+          httpOnly: true,
+          sameSite: "Lax",
+          secure: SESSION_SECURE,
+          maxAge: 60 * 60 * 24 * 180, // 180 days
+        });
+
         return c.json({ ok: true, redirect_url: "/chat" });
       }
     }

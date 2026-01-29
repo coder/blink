@@ -271,11 +271,12 @@ export const serve = async (options?: ServeOptions) => {
       ...options?.bindings?.runtime,
     },
     sendEmail:
-      options?.bindings?.sendEmail ??
-      (async (email) => {
-        // Mock email service for tests - just log
-        console.log("Mock email sent:", email.type, email.email);
-      }),
+      options?.bindings && "sendEmail" in options.bindings
+        ? options.bindings.sendEmail
+        : async (email) => {
+            // Mock email service for tests - just log
+            console.log("Mock email sent:", email.type, email.email);
+          },
     sendTelemetryEvent:
       options?.bindings?.sendTelemetryEvent ??
       (async (event) => {
