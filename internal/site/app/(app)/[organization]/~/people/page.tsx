@@ -29,7 +29,9 @@ export default async function Page({
     getUser(session.user.id),
   ]);
 
-  const isAdmin = organization.membership?.role === "admin";
+  const isAdmin =
+    organization.membership?.role === "admin" ||
+    organization.membership?.role === "owner";
   const isPersonal = organization.id === user.organization_id;
 
   return (
