@@ -16,12 +16,18 @@ export function SignupForm({ redirect }: { redirect?: string }) {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [touched, setTouched] = useState<{ email: boolean; password: boolean }>(
-    {
-      email: false,
-      password: false,
+
+  const clearEmailError = () => {
+    if (fieldErrors.email) {
+      setFieldErrors((prev) => ({ ...prev, email: undefined }));
     }
-  );
+  };
+
+  const clearPasswordError = () => {
+    if (fieldErrors.password) {
+      setFieldErrors((prev) => ({ ...prev, password: undefined }));
+    }
+  };
 
   const validateEmail = (email: string): string | undefined => {
     if (!email) return "Email is required";
@@ -37,34 +43,6 @@ export function SignupForm({ redirect }: { redirect?: string }) {
     return undefined;
   };
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const email = e.target.value;
-    if (touched.email) {
-      const error = validateEmail(email);
-      setFieldErrors((prev) => ({ ...prev, email: error }));
-    }
-  };
-
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const password = e.target.value;
-    if (touched.password) {
-      const error = validatePassword(password);
-      setFieldErrors((prev) => ({ ...prev, password: error }));
-    }
-  };
-
-  const handleEmailBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    setTouched((prev) => ({ ...prev, email: true }));
-    const error = validateEmail(e.target.value);
-    setFieldErrors((prev) => ({ ...prev, email: error }));
-  };
-
-  const handlePasswordBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    setTouched((prev) => ({ ...prev, password: true }));
-    const error = validatePassword(e.target.value);
-    setFieldErrors((prev) => ({ ...prev, password: error }));
-  };
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setServerError(undefined);
@@ -73,7 +51,7 @@ export function SignupForm({ redirect }: { redirect?: string }) {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
-    // Validate both fields
+    // Validate all fields
     const emailError = validateEmail(email);
     const passwordError = validatePassword(password);
 
@@ -82,13 +60,17 @@ export function SignupForm({ redirect }: { redirect?: string }) {
         email: emailError,
         password: passwordError,
       });
-      setTouched({ email: true, password: true });
       return;
     }
 
+    setFieldErrors({});
     setIsSubmitting(true);
     try {
-      const result = await client.auth.signup({ email, password, redirect });
+      const result = await client.auth.signup({
+        email,
+        password,
+        redirect,
+      });
       if (result.ok && result.redirect_url) {
         window.location.href = result.redirect_url;
       }
@@ -117,14 +99,13 @@ export function SignupForm({ redirect }: { redirect?: string }) {
           placeholder="Enter your email"
           className={cn(
             "w-full",
-            fieldErrors.email && touched.email
+            fieldErrors.email
               ? "border-red-500 focus-visible:ring-red-500 dark:border-red-500 dark:focus-visible:ring-red-500"
               : ""
           )}
-          onChange={handleEmailChange}
-          onBlur={handleEmailBlur}
+          onChange={clearEmailError}
         />
-        {fieldErrors.email && touched.email && (
+        {fieldErrors.email && (
           <p className="text-sm text-red-600 dark:text-red-400 mt-1">
             {fieldErrors.email}
           </p>
@@ -145,21 +126,16 @@ export function SignupForm({ redirect }: { redirect?: string }) {
           placeholder="Enter your password"
           className={cn(
             "w-full",
-            fieldErrors.password && touched.password
+            fieldErrors.password
               ? "border-red-500 focus-visible:ring-red-500 dark:border-red-500 dark:focus-visible:ring-red-500"
               : ""
           )}
           minLength={8}
-          onChange={handlePasswordChange}
-          onBlur={handlePasswordBlur}
+          onChange={clearPasswordError}
         />
-        {fieldErrors.password && touched.password ? (
+        {fieldErrors.password && (
           <p className="text-sm text-red-600 dark:text-red-400 mt-1">
             {fieldErrors.password}
-          </p>
-        ) : (
-          <p className="text-xs text-neutral-500 mt-1">
-            Password must be at least 8 characters long
           </p>
         )}
       </div>
@@ -175,7 +151,7 @@ export function SignupForm({ redirect }: { redirect?: string }) {
       <Button
         type="submit"
         size="lg"
-        className="w-full h-12 text-base font-medium"
+        className="w-full h-12 text-base font-medium mt-4"
         disabled={isSubmitting}
       >
         {isSubmitting ? "Creating account..." : "Create Account"}

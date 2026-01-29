@@ -1,6 +1,9 @@
 import { Button } from "@/components/ui/button";
+import { getQuerier } from "@/lib/database";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
 import { SignupForm } from "./form";
 
 export const metadata: Metadata = {
@@ -23,6 +26,20 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
   const redirectQuery = redirectTarget
     ? `?redirect=${encodeURIComponent(redirectTarget)}`
     : "";
+
+  // Check if this is the first user (no team organizations exist yet)
+  const db = await getQuerier();
+  const teamOrgs = await db.selectTeamOrganizations();
+  const isFirstUser = teamOrgs.length === 0;
+
+  if (isFirstUser) {
+    const setupQuery = new URLSearchParams();
+    if (redirectTarget) setupQuery.set("redirect", redirectTarget);
+    if (error) setupQuery.set("error", error);
+    const queryString = setupQuery.toString();
+    redirect(`/setup${queryString ? `?${queryString}` : ""}`);
+  }
+
   return (
     <div className="flex items-center justify-center p-4">
       <div className="w-full max-w-md">

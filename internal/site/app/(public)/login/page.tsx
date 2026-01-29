@@ -1,8 +1,10 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { getQuerier } from "@/lib/database";
 import { LoginForm } from "./form";
 
 export const metadata: Metadata = {
@@ -22,6 +24,12 @@ interface LoginPageProps {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const db = await getQuerier();
+  const teamOrgs = await db.selectTeamOrganizations();
+  if (teamOrgs.length === 0) {
+    redirect("/setup");
+  }
+
   const {
     error,
     waitlist,
