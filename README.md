@@ -9,19 +9,27 @@
 ![NPM Version](https://img.shields.io/npm/v/blink)
 [![Documentation](https://img.shields.io/badge/documentation-blink.coder.com-blue)](https://blink.coder.com/docs)
 
-Blink is a self-hosted platform for building and running custom, in-house AI agents. They respond via Slack, GitHub, and a browser-based UI. They are powerful chatbots that can search the web, run code in isolated environments, and securely access company data - all under your full control.
+Blink is a self-hosted platform for deploying custom AI agents. It ships with a built-in agent tooled for coding tasks and deep code research.
+Work alongside Blink agents in GitHub, the web UI, or in threaded Slack conversations.
+Tailor Blink's included agent with new tools and prompts, or build new agents from scratch in TypeScript.
 
 ![Blink Demo](https://docs-resources.blink.so/blink-demo.gif)
 
+## Use Cases
+- **Understanding complex codebases** - ask questions about how a repo works, how parts connect, or where to start when the code is unfamiliar.
+- **Coding partner in Slack** - discuss ideas, sketch fixes, or handle small coding tasks directly in Slack without breaking the conversation.
+- **Investigating GitHub issues** - have Blink gather context, reproduce issues, or summarize findings before opening or updating an issue.
+- **Customer support in shared channels** - let customers ask technical questions in shared Slack channels and get answers backed by citations from your codebase and documentation.
+
 ## Features
 
-- 🖥️ **Web UI** where you can chat with agents
-- 🛠️ **Blink SDK** - a set of libraries for building agents compatible with the Blink platform
-- ⚙️ **Blink CLI** - a command-line tool for developing agents locally
-- 🔍 **Observability** - use the web UI to view logs and traces
-- 📦 **Docker-based deployment** - agents are deployed as Docker containers
-- 🔒 **User and organization management** - invite your team to use and collaborate on agents
-- 🤖 **Pre-built, fully-functional [Scout agent](./packages/scout-agent/README.md)**, which you can customize for your own use
+- **Pre-built, fully-functional [Scout agent](./packages/scout-agent/README.md)**, which you can customize for your own use
+- **Web UI** where you can chat with agents
+- **Blink SDK** - a set of libraries for building agents compatible with the Blink platform
+- **Blink CLI** - a command-line tool for developing agents locally
+- **Observability** - use the web UI to view logs and traces
+- **Docker-based deployment** - agents are deployed as Docker containers
+- **User and organization management** - invite your team to use and collaborate on agents
 
 ## Get Started
 
