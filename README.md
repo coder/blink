@@ -11,7 +11,7 @@
 
 Blink is a self-hosted platform for deploying custom AI agents. It ships with a built-in agent tooled for coding tasks and deep code research.
 Work alongside Blink agents in GitHub, the web UI, or in threaded Slack conversations.
-Tailor Blink's included agent with new tools and prompts, or build new agents from scratch in TypeScript.
+Tailor the included agent with new tools and prompts, or build new agents in TypeScript with the Blink SDK.
 
 ![Blink Demo](https://docs-resources.blink.so/blink-demo.gif)
 
