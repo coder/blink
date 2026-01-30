@@ -149,6 +149,7 @@ export default instrument(
         url.pathname.startsWith("/api/ai-gateway") ||
         url.pathname.startsWith("/api/tools") ||
         url.pathname.startsWith("/api/onboarding") ||
+        url.pathname.startsWith("/api/admin") ||
         url.host.endsWith(".blink.host") ||
         url.pathname.startsWith("/api/otlp")
       ) {
