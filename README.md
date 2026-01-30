@@ -17,7 +17,7 @@ Tailor the included agent with new tools and prompts, or build new agents in Typ
 
 ## Use Cases
 - **Understanding complex codebases** - ask questions about how a repo works, how parts connect, or where to start when the code is unfamiliar.
-- **Coding partner in Slack** - discuss ideas, sketch fixes, or handle small coding tasks directly in Slack without breaking the conversation.
+- **Coding partner in Slack** - discuss ideas, open GitHub issues, or handle small coding tasks directly in Slack without breaking the conversation.
 - **Investigating GitHub issues** - have Blink gather context, reproduce issues, or summarize findings before opening or updating an issue.
 - **Customer support in shared channels** - let customers ask technical questions in shared Slack channels and get answers backed by citations from your codebase and documentation.
 
