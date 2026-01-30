@@ -205,6 +205,29 @@ function readAuthTokenFromRequest(
 
 export const withAuth = createAuthMiddleware();
 
+/**
+ * Middleware to ensure the user is a site admin.
+ * Automatically calls withAuth first.
+ */
+export const withSiteAdmin: MiddlewareHandler<{
+  Bindings: Bindings;
+  Variables: {
+    user_id: string;
+    api_key?: ApiKey;
+    auth_type: "session" | "api_key";
+  };
+}> = async (c, next) => {
+  await withAuth(c, async () => {
+    const db = await c.env.database();
+    const userId = c.get("user_id");
+    const user = await db.selectUserByID(userId);
+    if (!user || user.site_role !== "admin") {
+      throw new HTTPException(403, { message: "Forbidden" });
+    }
+    await next();
+  });
+};
+
 export const withDevhookAuth: MiddlewareHandler<{
   Bindings: Bindings;
   Variables: {

@@ -40,6 +40,7 @@ export default async function AgentOnboardingPage({
       <OrganizationNavigation
         name={organization.name}
         isPersonal={isPersonal}
+        isSiteAdmin={user.site_role === "admin"}
       />
       <div className="flex-1 overflow-auto">
         <AgentOnboardingWizard

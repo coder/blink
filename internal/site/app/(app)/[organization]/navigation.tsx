@@ -1,14 +1,16 @@
 "use client";
 
+import { LayoutDashboard, Settings, Shield, Users } from "lucide-react";
 import { Navigation, type NavigationItem } from "@/components/ui/navigation";
-import { LayoutDashboard, Settings, Users } from "lucide-react";
 
 export function OrganizationNavigation({
   name,
   isPersonal,
+  isSiteAdmin,
 }: {
   name: string;
   isPersonal: boolean;
+  isSiteAdmin?: boolean;
 }) {
   const base = `/${name}`;
 
@@ -36,6 +38,16 @@ export function OrganizationNavigation({
       href: `${base}/~/settings`,
       icon: Settings,
     },
+    ...(isPersonal && isSiteAdmin
+      ? [
+          {
+            value: "site-settings",
+            label: "Site Settings",
+            href: `${base}/~/site-settings/users`,
+            icon: Shield,
+          } as NavigationItem,
+        ]
+      : []),
   ];
 
   return <Navigation items={items} sticky />;

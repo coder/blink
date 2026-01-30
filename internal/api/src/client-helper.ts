@@ -37,8 +37,8 @@ export const assertResponseStatus = async <T extends number>(
 };
 
 export const schemaPaginatedRequest = z.object({
-  per_page: z.number().int().positive().max(100).default(10).optional(),
-  page: z.number().int().nonnegative().default(0).optional(),
+  per_page: z.coerce.number().int().positive().max(100).default(10).optional(),
+  page: z.coerce.number().int().nonnegative().default(0).optional(),
 });
 
 /**

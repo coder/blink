@@ -23,6 +23,7 @@ import mountOrganizations from "./routes/organizations/organizations.server";
 import type { OtelSpan } from "./routes/otlp/convert";
 import mountOtlp from "./routes/otlp/otlp.server";
 import mountTools from "./routes/tools/tools.server";
+import mountAdminUsers from "./routes/admin/users.server";
 import mountUsers from "./routes/users.server";
 
 export type Email =
@@ -331,6 +332,7 @@ api.notFound((c) => {
   return c.json({ message: "Not Found" }, 404);
 });
 
+mountAdminUsers(api.basePath("/admin/users"));
 mountAgents(api.basePath("/agents"));
 mountAuth(api.basePath("/auth"));
 mountChats(api.basePath("/chats"));

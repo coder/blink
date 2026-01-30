@@ -106,10 +106,14 @@ export default class Querier {
 
   // insertUser inserts a new user into the database.
   public async insertUser(
-    newUser: Omit<User, "id" | "early_access" | "created_at" | "updated_at"> & {
+    newUser: Omit<
+      User,
+      "id" | "early_access" | "created_at" | "updated_at" | "site_role"
+    > & {
       early_access?: boolean;
       username?: string;
       avatar_url?: string | null;
+      site_role?: User["site_role"];
     }
   ): Promise<UserWithPersonalOrganization> {
     let createdUser: User;
@@ -2208,6 +2212,53 @@ export default class Querier {
         .where(and(...conditions))
         .$dynamic(),
       orderByClause,
+      params
+    );
+  }
+
+  public async selectAllUsers(
+    params: Paginated<{
+      query?: string;
+      siteRole?: "admin" | "member";
+    }>
+  ) {
+    const conditions: SQL[] = [];
+
+    if (params.query) {
+      const searchPattern = `%${params.query}%`;
+      const searchCondition = or(
+        ilike(user_with_personal_organization.username, searchPattern),
+        ilike(user_with_personal_organization.display_name, searchPattern),
+        ilike(user_with_personal_organization.email, searchPattern)
+      );
+      if (searchCondition) {
+        conditions.push(searchCondition);
+      }
+    }
+
+    if (params.siteRole) {
+      conditions.push(
+        eq(user_with_personal_organization.site_role, params.siteRole)
+      );
+    }
+
+    return withPagination(
+      this.db
+        .select({
+          id: user_with_personal_organization.id,
+          created_at: user_with_personal_organization.created_at,
+          updated_at: user_with_personal_organization.updated_at,
+          username: user_with_personal_organization.username,
+          display_name: user_with_personal_organization.display_name,
+          email: user_with_personal_organization.email,
+          avatar_url: user_with_personal_organization.avatar_url,
+          organization_id: sql<string>`"user_with_personal_organization"."organization_id"`,
+          site_role: user_with_personal_organization.site_role,
+        })
+        .from(user_with_personal_organization)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .$dynamic(),
+      sql`${user_with_personal_organization.created_at} DESC`,
       params
     );
   }

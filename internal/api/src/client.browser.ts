@@ -1,3 +1,4 @@
+import AdminUsers from "./routes/admin/users.client";
 import Agents from "./routes/agents/agents.client";
 import Auth from "./routes/auth/auth.client";
 import Chats from "./routes/chats/chats.client";
@@ -21,6 +22,9 @@ export default class Client {
   protected readonly baseURL: URL;
   private readonly fetch?: typeof globalThis.fetch;
 
+  public readonly admin = {
+    users: new AdminUsers(this),
+  };
   public readonly auth: Auth;
   public readonly chats = new Chats(this);
 
@@ -98,6 +102,7 @@ export default class Client {
   }
 }
 
+export * from "./routes/admin/users.client";
 export * from "./routes/agents/agents.client";
 export * from "./routes/agents/traces.client";
 export * from "./routes/chats/chats.client";

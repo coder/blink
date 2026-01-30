@@ -93,6 +93,7 @@ export const user = (user: UserWithPersonalOrganization): User => {
     username: user.username,
     avatar_url: user.avatar_url,
     organization_id: user.organization_id,
+    site_role: user.site_role,
   };
 };
 

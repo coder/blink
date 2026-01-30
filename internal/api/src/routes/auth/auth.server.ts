@@ -295,17 +295,27 @@ async function handleOAuthCallback(
       }
     }
 
+    // Check if this is the first user (for site admin role)
+    let isFirstUser = false;
+    let teamOrgs: Awaited<
+      ReturnType<typeof db.selectTeamOrganizations>
+    > | null = null;
+    if (c.env.autoJoinOrganizations) {
+      teamOrgs = await db.selectTeamOrganizations();
+      isFirstUser = teamOrgs.length === 0;
+    }
+
     user = await db.insertUser({
       email: userProfile.email,
       email_verified: new Date(),
       display_name: userProfile.name,
       password: null,
+      site_role: isFirstUser ? "admin" : "member",
     });
 
     // Auto-join team organizations (self-hosted mode)
-    if (c.env.autoJoinOrganizations) {
-      const teamOrgs = await db.selectTeamOrganizations();
-      if (teamOrgs.length === 0) {
+    if (c.env.autoJoinOrganizations && teamOrgs) {
+      if (isFirstUser) {
         // First user: create default org, make them owner
         await db.insertOrganizationWithMembership({
           name: "default",
@@ -941,17 +951,27 @@ export default function mountAuth(server: APIServer) {
       // If emails are not configured, verify immediately
       const emailVerified = c.env.sendEmail ? null : new Date();
 
+      // Check if this is the first user (for site admin role)
+      let isFirstUser = false;
+      let teamOrgs: Awaited<
+        ReturnType<typeof db.selectTeamOrganizations>
+      > | null = null;
+      if (c.env.autoJoinOrganizations) {
+        teamOrgs = await db.selectTeamOrganizations();
+        isFirstUser = teamOrgs.length === 0;
+      }
+
       const user = await db.insertUser({
         display_name: null,
         email,
         password: hashedPassword,
         email_verified: emailVerified,
+        site_role: isFirstUser ? "admin" : "member",
       });
 
       // Auto-join team organizations (self-hosted mode)
-      if (c.env.autoJoinOrganizations) {
-        const teamOrgs = await db.selectTeamOrganizations();
-        if (teamOrgs.length === 0) {
+      if (c.env.autoJoinOrganizations && teamOrgs) {
+        if (isFirstUser) {
           // First user: create default org, make them owner
           await db.insertOrganizationWithMembership({
             name: "default",

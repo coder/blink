@@ -6,16 +6,11 @@ import type { Agent, Organization } from "@blink.so/api";
 import Client from "@blink.so/api";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AgentPinned from "./agent-pinned";
 import CreateOrganizationModal from "./create-organization-modal";
 import Avatar from "./ui/avatar";
-
-type AgentSelectorValue = {
-  organization?: Organization | null;
-  agent?: Agent | null;
-};
 
 export interface AgentSelectorProps {
   className?: string;
@@ -29,7 +24,6 @@ export default function AgentSelector({
   selectedAgent,
 }: AgentSelectorProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const client = useMemo(() => new Client(), []);
 
   const [organizations, setOrganizations] = useState<Organization[] | null>(
@@ -165,16 +159,7 @@ export default function AgentSelector({
   }, [activeOrg?.id]);
 
   const handleClickOrg = (org: Organization) => {
-    // Preserve the path when switching organizations
-    // e.g., /oldorg/~/settings -> /neworg/~/settings
-    if (selectedOrganization && pathname) {
-      const pathAfterOrg = pathname.slice(selectedOrganization.name.length + 1);
-      if (pathAfterOrg.startsWith("/~/")) {
-        // Preserve organization-level paths like settings, people, etc.
-        router.push(`/${org.name}${pathAfterOrg}`);
-        return;
-      }
-    }
+    // Always redirect to overview page when switching organizations
     router.push(`/${org.name}`);
   };
 

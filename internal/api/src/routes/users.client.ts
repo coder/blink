@@ -16,6 +16,7 @@ export const schemaUser = z.object({
   username: z.string(),
   organization_id: z.uuid(),
   avatar_url: z.string().url().nullable(),
+  site_role: z.enum(["admin", "member"]),
 });
 
 export type User = z.infer<typeof schemaUser>;

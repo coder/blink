@@ -1069,3 +1069,185 @@ test("POST /resend-password-reset fails for non-existent user", async () => {
   const data = await res.json();
   expect(data.error).toContain("User not found");
 });
+
+// Site admin role tests
+
+test("POST /signup first user with autoJoinOrganizations gets site_role admin", async () => {
+  const { url, bindings } = await serve({
+    bindings: {
+      sendEmail: undefined, // Disable email verification for immediate login
+      autoJoinOrganizations: true,
+    },
+  });
+
+  const email = "firstuser@example.com";
+  const password = "securepassword123";
+
+  const res = await fetch(`${url}/api/auth/signup`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  expect(res.status).toBe(200);
+
+  // Verify user was created with admin role
+  const db = await bindings.database();
+  const user = await db.selectUserByEmail(email);
+  expect(user).toBeDefined();
+  expect(user?.site_role).toBe("admin");
+});
+
+test("POST /signup second user with autoJoinOrganizations gets site_role member", async () => {
+  const { url, bindings, helpers } = await serve({
+    bindings: {
+      sendEmail: undefined,
+      autoJoinOrganizations: true,
+    },
+  });
+
+  // Create first user (will be admin and create default org)
+  const { user: firstUser } = await helpers.createUser({
+    email: "admin@example.com",
+    site_role: "admin",
+  });
+
+  // Create default team organization so second user is not "first"
+  const db = await bindings.database();
+  await db.insertOrganizationWithMembership({
+    name: "default",
+    kind: "organization",
+    created_by: firstUser.id,
+  });
+
+  // Sign up second user
+  const email = "seconduser@example.com";
+  const password = "securepassword123";
+
+  const res = await fetch(`${url}/api/auth/signup`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  expect(res.status).toBe(200);
+
+  // Verify second user has member role
+  const secondUser = await db.selectUserByEmail(email);
+  expect(secondUser).toBeDefined();
+  expect(secondUser?.site_role).toBe("member");
+});
+
+test("GET /callback/github first user with autoJoinOrganizations gets site_role admin", async () => {
+  const { url, bindings } = await serve({
+    bindings: {
+      GITHUB_CLIENT_ID: "test-client-id",
+      GITHUB_CLIENT_SECRET: "test-client-secret",
+      autoJoinOrganizations: true,
+    },
+  });
+
+  // Mock GitHub OAuth
+  mswServer.use(
+    http.post("https://github.com/login/oauth/access_token", () => {
+      return HttpResponse.json(mockOAuthTokenResponse);
+    }),
+    http.get("https://api.github.com/user", () => {
+      return HttpResponse.json({
+        ...mockGitHubProfile,
+        email: "firstoauth@example.com",
+      });
+    })
+  );
+
+  const { encode } = await import("next-auth/jwt");
+  const state = await encode({
+    secret: bindings.AUTH_SECRET,
+    salt: "oauth-state",
+    token: {
+      provider: "github",
+      nonce: "test-nonce",
+      callbackUrl: `${url}/api/auth/callback/github`,
+    },
+  });
+
+  const res = await fetch(
+    `${url}/api/auth/callback/github?code=test-code&state=${state}`,
+    {
+      redirect: "manual",
+    }
+  );
+
+  expect(res.status).toBe(302);
+
+  // Verify user was created with admin role
+  const db = await bindings.database();
+  const user = await db.selectUserByEmail("firstoauth@example.com");
+  expect(user).toBeDefined();
+  expect(user?.site_role).toBe("admin");
+});
+
+test("GET /callback/github second user with autoJoinOrganizations gets site_role member", async () => {
+  const { url, bindings, helpers } = await serve({
+    bindings: {
+      GITHUB_CLIENT_ID: "test-client-id",
+      GITHUB_CLIENT_SECRET: "test-client-secret",
+      autoJoinOrganizations: true,
+    },
+  });
+
+  // Create first user and default org
+  const { user: firstUser } = await helpers.createUser({
+    email: "admin@example.com",
+    site_role: "admin",
+  });
+  const db = await bindings.database();
+  await db.insertOrganizationWithMembership({
+    name: "default",
+    kind: "organization",
+    created_by: firstUser.id,
+  });
+
+  // Mock GitHub OAuth for second user
+  mswServer.use(
+    http.post("https://github.com/login/oauth/access_token", () => {
+      return HttpResponse.json(mockOAuthTokenResponse);
+    }),
+    http.get("https://api.github.com/user", () => {
+      return HttpResponse.json({
+        ...mockGitHubProfile,
+        id: 999999,
+        email: "secondoauth@example.com",
+      });
+    })
+  );
+
+  const { encode } = await import("next-auth/jwt");
+  const state = await encode({
+    secret: bindings.AUTH_SECRET,
+    salt: "oauth-state",
+    token: {
+      provider: "github",
+      nonce: "test-nonce",
+      callbackUrl: `${url}/api/auth/callback/github`,
+    },
+  });
+
+  const res = await fetch(
+    `${url}/api/auth/callback/github?code=test-code&state=${state}`,
+    {
+      redirect: "manual",
+    }
+  );
+
+  expect(res.status).toBe(302);
+
+  // Verify second user has member role
+  const secondUser = await db.selectUserByEmail("secondoauth@example.com");
+  expect(secondUser).toBeDefined();
+  expect(secondUser?.site_role).toBe("member");
+});

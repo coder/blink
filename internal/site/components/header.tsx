@@ -173,6 +173,16 @@ export default function Header({
                   User Settings
                 </a>
               </DropdownMenuItem>
+              {user.site_role === "admin" && (
+                <DropdownMenuItem asChild>
+                  <a
+                    href={`/${user.username}/~/site-settings/users`}
+                    className="cursor-pointer"
+                  >
+                    Site Settings
+                  </a>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <a

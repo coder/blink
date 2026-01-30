@@ -1,11 +1,11 @@
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/app/(auth)/auth";
 import Header from "@/components/header";
-import { redirect } from "next/navigation";
 import { getOrganization, getUser } from "../../layout";
 import { OrganizationNavigation } from "../../navigation";
-import { OrganizationSettingsNav } from "./navigation";
+import { SiteAdminNav } from "./navigation";
 
-export default async function OrganizationSettingsLayout({
+export default async function SiteAdminLayout({
   children,
   params,
 }: {
@@ -14,7 +14,7 @@ export default async function OrganizationSettingsLayout({
 }) {
   const session = await auth();
   if (!session || !session.user?.id) {
-    redirect("/");
+    redirect("/login");
   }
 
   const { organization: organizationName } = await params;
@@ -23,21 +23,28 @@ export default async function OrganizationSettingsLayout({
     getUser(session.user.id),
   ]);
 
-  const isPersonalOrg = organization.id === user.organization_id;
+  const isPersonal = organization.id === user.organization_id;
+
+  // Only site admins can access this page
+  if (user.site_role !== "admin") {
+    notFound();
+  }
+
+  // This page is only accessible from personal organization
+  if (!isPersonal) {
+    notFound();
+  }
 
   return (
     <div className="w-full relative">
       <Header user={user} organization={organization} />
       <OrganizationNavigation
         name={organization.name}
-        isPersonal={isPersonalOrg}
-        isSiteAdmin={user.site_role === "admin"}
+        isPersonal={isPersonal}
+        isSiteAdmin
       />
       <div className="w-full p-8 max-w-6xl mx-auto space-y-6">
-        <OrganizationSettingsNav
-          organizationName={organization.name}
-          isPersonalOrg={isPersonalOrg}
-        />
+        <SiteAdminNav organizationName={organization.name} />
         {children}
       </div>
     </div>

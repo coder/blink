@@ -13,6 +13,7 @@ import {
   json,
   jsonb,
   numeric,
+  pgEnum,
   pgTable,
   pgView,
   primaryKey,
@@ -33,6 +34,9 @@ const bytea = customType<{ data: Buffer; notNull: false; default: false }>({
 
 export const ChatRunStepStalledDurationSQL = sql`INTERVAL '90 seconds'`;
 export type VisibilityType = "public" | "private" | "organization";
+
+export const siteRoleEnum = pgEnum("site_role", ["member", "admin"]);
+export type SiteRole = "member" | "admin";
 
 const organizationKind = varchar("kind", {
   enum: ["organization", "personal"],
@@ -120,6 +124,7 @@ export const user = pgTable("user", {
   email: text("email").unique(),
   email_verified: timestamp("email_verified", { mode: "date" }),
   password: text("password"),
+  site_role: siteRoleEnum().notNull().default("member"),
 });
 
 export type User = InferSelectModel<typeof user>;

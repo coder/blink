@@ -29,6 +29,13 @@
       "when": 1768923150315,
       "tag": "0003_chat_agent_cascade_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1769783319430,
+      "tag": "0004_site_role",
+      "breakpoints": true
     }
   ]
 }
