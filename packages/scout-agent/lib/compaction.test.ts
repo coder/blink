@@ -11,7 +11,6 @@ import {
   maxConsecutiveCompactionAttempts,
   createCompactionMarkerPart,
   createCompactionTool,
-  findAPICallError,
   findCompactionSummary,
   isOutOfContextError,
   MAX_CONSECUTIVE_COMPACTION_ATTEMPTS,
@@ -76,60 +75,6 @@ describe("isOutOfContextError", () => {
     expect(isOutOfContextError(createApiError("context_length_exceeded"))).toBe(
       true
     );
-  });
-
-  test("returns true for APICallError in cause chain", () => {
-    const apiError = createApiError("max_tokens_exceeded");
-    const wrapper = new Error("Gateway error");
-    (wrapper as { cause?: unknown }).cause = apiError;
-    expect(isOutOfContextError(wrapper)).toBe(true);
-  });
-
-  test("returns false for APICallError with unrelated message", () => {
-    expect(isOutOfContextError(createApiError("authentication failed"))).toBe(
-      false
-    );
-  });
-
-  test("returns false for non-APICallError even if message matches pattern", () => {
-    expect(isOutOfContextError(new Error("context_length_exceeded"))).toBe(
-      false
-    );
-    expect(isOutOfContextError("input too long")).toBe(false);
-  });
-});
-
-describe("findAPICallError", () => {
-  const createApiError = (message: string) =>
-    new APICallError({
-      message,
-      url: "https://api.example.com",
-      requestBodyValues: {},
-      statusCode: 400,
-    });
-
-  test("returns the APICallError when provided directly", () => {
-    const error = createApiError("test");
-    expect(findAPICallError(error)).toBe(error);
-  });
-
-  test("returns APICallError from single-level cause", () => {
-    const apiError = createApiError("test");
-    const wrapper = new Error("wrapper");
-    (wrapper as { cause?: unknown }).cause = apiError;
-    expect(findAPICallError(wrapper)).toBe(apiError);
-  });
-
-  test("returns APICallError from deep cause chain", () => {
-    const apiError = createApiError("test");
-    const wrapper = { cause: { cause: apiError } };
-    expect(findAPICallError(wrapper)).toBe(apiError);
-  });
-
-  test("returns null when no APICallError present", () => {
-    expect(findAPICallError(new Error("other"))).toBeNull();
-    expect(findAPICallError("string")).toBeNull();
-    expect(findAPICallError(null)).toBeNull();
   });
 });
 

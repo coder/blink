@@ -1,6 +1,5 @@
 import util from "node:util";
 import {
-  APICallError,
   type StreamTextTransform,
   type TextStreamPart,
   type Tool,
@@ -30,46 +29,31 @@ const OUT_OF_CONTEXT_PATTERNS = [
 ];
 
 /**
- * Recursively search for an APICallError in the error's cause chain.
- */
-export function findAPICallError(error: unknown): APICallError | null {
-  if (APICallError.isInstance(error)) {
-    return error;
-  }
-  if (error && typeof error === "object" && "cause" in error) {
-    const cause = (error as { cause?: unknown }).cause;
-    return findAPICallError(cause);
-  }
-  return null;
-}
-
-/**
  * Check if an error is an out-of-context error based on known patterns.
  *
  * TODO: the current patterns only really handle anthropic via the vercel
  * gateway - we need to test with other providers.
  */
 export function isOutOfContextError(error: unknown): boolean {
-  const apiError = findAPICallError(error);
-  if (!apiError) {
-    return false;
-  }
-  let textToTest = apiError.responseBody ?? "";
-  // even though typings say message is always a string, empirically it's not always a string
-  if (!textToTest && typeof apiError.message === "string") {
-    textToTest = apiError.message;
-  }
-  if (!textToTest) {
+  let textToTest = "";
+  if (typeof error === "string") {
+    textToTest = error;
+  } else if (error instanceof Error) {
+    textToTest = error.message;
+  } else {
     try {
-      textToTest = JSON.stringify(apiError);
+      textToTest = JSON.stringify(error, null, 2);
     } catch {
       // note: util.inspect returns different values in Bun and Node.js
       // in Node.js it includes the error message, in Bun it ~sometimes~ doesn't.
       // that's why it's the final fallback
-      textToTest = util.inspect(apiError, { depth: null });
+      textToTest = util.inspect(error, { depth: null });
     }
   }
-  return OUT_OF_CONTEXT_PATTERNS.some((pattern) => pattern.test(textToTest));
+  const lines = textToTest.split("\n");
+  return OUT_OF_CONTEXT_PATTERNS.some((pattern) =>
+    lines.some((line) => pattern.test(line))
+  );
 }
 
 /**
