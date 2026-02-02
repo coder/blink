@@ -688,7 +688,7 @@ export default function Home() {
               </button>
             </div>
 
-            <h1 className="text-4xl md:text-6xl text-red-500 mb-4 md:mb-6 font-laygrotesk">
+            <h1 className="text-4xl md:text-6xl text-white mb-4 md:mb-6 font-laygrotesk">
               hello world!
             </h1>
             <p className="text-lg md:text-xl text-gray-300 max-w-2xl mb-8 mx-auto">
