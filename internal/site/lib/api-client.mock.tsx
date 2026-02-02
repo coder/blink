@@ -45,16 +45,20 @@ function mockAllMethods(
     const value = (obj as any)[key];
     const newPath = path ? `${path}.${key}` : key;
 
-    if (value && typeof value === "object" && value.constructor !== Object) {
-      // Nested class instance - recurse into it and also mock its prototype methods
+    if (value && typeof value === "object") {
+      // Recurse into nested objects (both plain objects and class instances)
       mockAllMethods(value, newPath, visited);
-      for (const method of Object.getOwnPropertyNames(
-        Object.getPrototypeOf(value)
-      )) {
-        if (method !== "constructor" && typeof value[method] === "function") {
-          value[method] = fn().mockRejectedValue(
-            new Error(`${newPath}.${method} not mocked`)
-          );
+
+      // For class instances, also mock prototype methods
+      if (value.constructor !== Object) {
+        for (const method of Object.getOwnPropertyNames(
+          Object.getPrototypeOf(value)
+        )) {
+          if (method !== "constructor" && typeof value[method] === "function") {
+            value[method] = fn().mockRejectedValue(
+              new Error(`${newPath}.${method} not mocked`)
+            );
+          }
         }
       }
     }

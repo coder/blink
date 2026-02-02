@@ -1,5 +1,5 @@
 import type { User, UserAccount } from "@blink.so/database/schema";
-import { compare, hash } from "bcrypt-ts";
+import { compare } from "bcrypt-ts";
 import type { Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { validator } from "hono/validator";
@@ -7,6 +7,8 @@ import { decode, encode } from "next-auth/jwt";
 import { z } from "zod";
 import { withAuth } from "../../middleware";
 import type { APIServer, Bindings } from "../../server";
+import { hashPassword } from "../../util/password";
+import { provisionUser } from "../provision-user";
 import {
   schemaRequestEmailChangeRequest,
   schemaRequestPasswordResetRequest,
@@ -295,44 +297,16 @@ async function handleOAuthCallback(
       }
     }
 
-    // Check if this is the first user (for site admin role)
-    let isFirstUser = false;
-    let teamOrgs: Awaited<
-      ReturnType<typeof db.selectTeamOrganizations>
-    > | null = null;
-    if (c.env.autoJoinOrganizations) {
-      teamOrgs = await db.selectTeamOrganizations();
-      isFirstUser = teamOrgs.length === 0;
-    }
-
-    user = await db.insertUser({
-      email: userProfile.email,
-      email_verified: new Date(),
-      display_name: userProfile.name,
-      password: null,
-      site_role: isFirstUser ? "admin" : "member",
+    user = await provisionUser({
+      db,
+      autoJoinOrganizations: c.env.autoJoinOrganizations,
+      user: {
+        email: userProfile.email ?? null,
+        email_verified: new Date(),
+        display_name: userProfile.name ?? null,
+        password: null,
+      },
     });
-
-    // Auto-join team organizations (self-hosted mode)
-    if (c.env.autoJoinOrganizations && teamOrgs) {
-      if (isFirstUser) {
-        // First user: create default org, make them owner
-        await db.insertOrganizationWithMembership({
-          name: "default",
-          kind: "organization",
-          created_by: user.id,
-        });
-      } else {
-        // Subsequent users: add as member to all existing team orgs
-        for (const org of teamOrgs) {
-          await db.insertOrganizationMembership({
-            organization_id: org.id,
-            user_id: user.id,
-            role: "member",
-          });
-        }
-      }
-    }
 
     // consume single-use invite (mark accepted)
     if (usedInviteId) {
@@ -760,7 +734,7 @@ export default function mountAuth(server: APIServer) {
       }
 
       // Hash and update password
-      const hashedPassword = await hash(password, 12);
+      const hashedPassword = await hashPassword(password);
       await db.updateUserByID({ id: user.id, password: hashedPassword });
 
       // Clear cookies
@@ -958,49 +932,21 @@ export default function mountAuth(server: APIServer) {
       }
 
       // Hash password and create user
-      const hashedPassword = await hash(password, 12);
+      const hashedPassword = await hashPassword(password);
 
       // If emails are not configured, verify immediately
       const emailVerified = c.env.sendEmail ? null : new Date();
 
-      // Check if this is the first user (for site admin role)
-      let isFirstUser = false;
-      let teamOrgs: Awaited<
-        ReturnType<typeof db.selectTeamOrganizations>
-      > | null = null;
-      if (c.env.autoJoinOrganizations) {
-        teamOrgs = await db.selectTeamOrganizations();
-        isFirstUser = teamOrgs.length === 0;
-      }
-
-      const user = await db.insertUser({
-        display_name: null,
-        email,
-        password: hashedPassword,
-        email_verified: emailVerified,
-        site_role: isFirstUser ? "admin" : "member",
+      const user = await provisionUser({
+        db,
+        autoJoinOrganizations: c.env.autoJoinOrganizations,
+        user: {
+          display_name: null,
+          email,
+          password: hashedPassword,
+          email_verified: emailVerified,
+        },
       });
-
-      // Auto-join team organizations (self-hosted mode)
-      if (c.env.autoJoinOrganizations && teamOrgs) {
-        if (isFirstUser) {
-          // First user: create default org, make them owner
-          await db.insertOrganizationWithMembership({
-            name: "default",
-            kind: "organization",
-            created_by: user.id,
-          });
-        } else {
-          // Subsequent users: add as member to all existing team orgs
-          for (const org of teamOrgs) {
-            await db.insertOrganizationMembership({
-              organization_id: org.id,
-              user_id: user.id,
-              role: "member",
-            });
-          }
-        }
-      }
 
       // Sync user to telemetry system (async, don't block)
       if (c.env.sendTelemetryEvent) {

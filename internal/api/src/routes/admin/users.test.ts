@@ -2,6 +2,120 @@ import { expect, test } from "bun:test";
 import Client from "../../client.node";
 import { serve } from "../../test";
 
+test("POST /api/admin/users returns 403 for non-admin user", async () => {
+  const { helpers } = await serve();
+  const { client } = await helpers.createUser({ site_role: "member" });
+
+  await expect(
+    client.admin.users.create({
+      email: "newuser@example.com",
+      password: "password123",
+      authentication_type: "password",
+    })
+  ).rejects.toThrow("Forbidden");
+});
+
+test("POST /api/admin/users returns 401 for unauthenticated request", async () => {
+  const { url } = await serve();
+  const unauthClient = new Client({ baseURL: url.toString() });
+
+  await expect(
+    unauthClient.admin.users.create({
+      email: "newuser@example.com",
+      password: "password123",
+      authentication_type: "password",
+    })
+  ).rejects.toThrow("Unauthorized");
+});
+
+test("POST /api/admin/users successfully creates a user", async () => {
+  const { helpers, bindings } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+
+  const result = await adminClient.admin.users.create({
+    email: "newuser@example.com",
+    password: "password123",
+    display_name: "New User",
+    site_role: "member",
+    authentication_type: "password",
+  });
+
+  expect(result.email).toBe("newuser@example.com");
+  expect(result.display_name).toBe("New User");
+  expect(result.site_role).toBe("member");
+  expect(result.suspended).toBe(false);
+
+  // Verify user was created in database
+  const db = await bindings.database();
+  const user = await db.selectUserByEmail(result.email);
+  expect(user).toBeDefined();
+  expect(user?.email).toBe(result.email);
+  expect(user?.display_name).toBe(result.display_name);
+  expect(user?.site_role).toBe(result.site_role);
+  expect(user?.email_verified).not.toBeNull();
+  expect(user?.password).toBeDefined();
+});
+
+test("POST /api/admin/users returns 409 for duplicate email", async () => {
+  const { helpers } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+  await helpers.createUser({
+    email: "existing@example.com",
+  });
+
+  await expect(
+    adminClient.admin.users.create({
+      email: "existing@example.com",
+      password: "password123",
+      authentication_type: "password",
+    })
+  ).rejects.toThrow("User with this email already exists");
+});
+
+test("POST /api/admin/users validates password minimum length", async () => {
+  const { helpers } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+
+  await expect(
+    adminClient.admin.users.create({
+      email: "newuser@example.com",
+      password: "short",
+      authentication_type: "password",
+    })
+  ).rejects.toThrow();
+});
+
+test("POST /api/admin/users created user can login", async () => {
+  const { helpers, url } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+
+  const email = "logintest@example.com";
+  const password = "password123";
+
+  await adminClient.admin.users.create({
+    email,
+    password,
+    authentication_type: "password",
+  });
+
+  // Test that the created user can sign in
+  const newClient = new Client({ baseURL: url.toString() });
+  const loginResult = await newClient.auth.signInWithCredentials({
+    email,
+    password,
+  });
+  expect(loginResult.ok).toBe(true);
+  expect(loginResult.url).toBeDefined();
+});
+
 test("GET /api/admin/users returns 403 for non-admin user", async () => {
   const { helpers } = await serve();
   const { client } = await helpers.createUser({ site_role: "member" });
@@ -83,7 +197,7 @@ test("GET /api/admin/users includes suspended field", async () => {
   const response = await adminClient.admin.users.list();
 
   expect(response.items.length).toBeGreaterThanOrEqual(1);
-  expect(response.items[0].suspended).toBe(false);
+  expect(response.items[0]?.suspended).toBe(false);
 });
 
 test("PATCH /api/admin/users/:id/suspension returns 403 for non-admin user", async () => {

@@ -40,6 +40,16 @@ export type UpdateSuspensionRequest = z.infer<
   typeof schemaUpdateSuspensionRequest
 >;
 
+export const schemaCreateUserRequest = z.object({
+  email: z.email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  display_name: z.string().nullable().optional(),
+  site_role: schemaSiteRole.optional(),
+  authentication_type: z.literal("password"),
+});
+
+export type CreateUserRequest = z.infer<typeof schemaCreateUserRequest>;
+
 const schemaListSiteUsersResponse = schemaPaginatedResponse(schemaSiteUser);
 
 export type ListSiteUsersResponse = z.infer<typeof schemaListSiteUsersResponse>;
@@ -98,6 +108,22 @@ export default class AdminUsers {
       JSON.stringify({ suspended })
     );
     await assertResponseStatus(resp, 200);
+    return resp.json();
+  }
+
+  /**
+   * Create a new user (admin only).
+   *
+   * @param request - The create user request.
+   * @returns The created user.
+   */
+  public async create(request: CreateUserRequest): Promise<SiteUser> {
+    const resp = await this.client.request(
+      "POST",
+      "/api/admin/users",
+      JSON.stringify(request)
+    );
+    await assertResponseStatus(resp, 201);
     return resp.json();
   }
 }

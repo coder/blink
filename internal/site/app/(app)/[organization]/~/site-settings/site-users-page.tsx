@@ -1,18 +1,20 @@
 "use client";
 
 import type { SiteRole } from "@blink.so/api";
-import Client from "@blink.so/api";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import useSWR from "swr";
+import { useAPIClient } from "@/lib/api-client";
+import { CreateUserModal } from "./create-user-modal";
 import { SiteUsersLayout } from "./site-users-layout";
 import { SiteUsersTable } from "./site-users-table";
 
 export function SiteUsersPage() {
-  const client = useMemo(() => new Client(), []);
+  const client = useAPIClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
 
   // Reset to page 1 when filters or page size change
   const handleSearchChange = (query: string) => {
@@ -75,6 +77,12 @@ export function SiteUsersPage() {
         onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
         onNextPage={() => setPage((p) => p + 1)}
         onUpdateSuspension={handleUpdateSuspension}
+        onCreateUser={() => setShowCreateUserModal(true)}
+      />
+      <CreateUserModal
+        open={showCreateUserModal}
+        onClose={() => setShowCreateUserModal(false)}
+        onUserCreated={() => mutate()}
       />
     </SiteUsersLayout>
   );

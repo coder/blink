@@ -4,9 +4,12 @@ import { validator } from "hono/validator";
 import { z } from "zod";
 import { withPagination, withSiteAdmin } from "../../middleware";
 import type { APIServer } from "../../server";
+import { hashPassword } from "../../util/password";
+import { provisionUser } from "../provision-user";
 import {
   type ListSiteUsersResponse,
   type SiteUser,
+  schemaCreateUserRequest,
   schemaListSiteUsersRequest,
   schemaUpdateSuspensionRequest,
 } from "./users.client";
@@ -78,6 +81,43 @@ export default function mountAdminUsers(server: APIServer) {
       }
 
       return c.json(convertSiteUser(updatedUser));
+    }
+  );
+
+  // Create a new user (site admin only).
+  server.post(
+    "/",
+    withSiteAdmin,
+    validator("json", (value) => {
+      return schemaCreateUserRequest.parse(value);
+    }),
+    async (c) => {
+      const db = await c.env.database();
+      const { email, password, display_name, site_role } = c.req.valid("json");
+
+      // Check if user with email already exists
+      const existingUser = await db.selectUserByEmail(email);
+      if (existingUser) {
+        throw new HTTPException(409, {
+          message: "User with this email already exists",
+        });
+      }
+
+      const hashedPassword = await hashPassword(password);
+
+      const newUser = await provisionUser({
+        db,
+        autoJoinOrganizations: c.env.autoJoinOrganizations,
+        user: {
+          email,
+          password: hashedPassword,
+          display_name: display_name ?? null,
+          email_verified: new Date(), // Admin-created users are pre-verified
+          site_role,
+        },
+      });
+
+      return c.json(convertSiteUser(newUser), 201);
     }
   );
 }

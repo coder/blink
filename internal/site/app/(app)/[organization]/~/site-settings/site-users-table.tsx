@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Filter,
   MoreHorizontal,
+  Plus,
   Search,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -49,6 +50,7 @@ interface SiteUsersTableProps {
   onPreviousPage?: () => void;
   onNextPage?: () => void;
   onUpdateSuspension?: (userId: string, suspended: boolean) => Promise<void>;
+  onCreateUser?: () => void;
 }
 
 const formatRole = (role: string): string => {
@@ -82,6 +84,7 @@ export function SiteUsersTable({
   onPreviousPage,
   onNextPage,
   onUpdateSuspension,
+  onCreateUser,
 }: SiteUsersTableProps) {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -134,43 +137,50 @@ export function SiteUsersTable({
           />
         </div>
 
-        <div className="relative" ref={dropdownRef}>
-          <button
-            type="button"
-            onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-            className="flex items-center gap-2 px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors"
-          >
-            <Filter className="h-4 w-4" />
-            <span>
-              {roleFilter === "all" ? "All Roles" : formatRole(roleFilter)}
-            </span>
-          </button>
+        <div className="flex items-center gap-2">
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+              className="flex items-center gap-2 px-4 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-colors"
+            >
+              <Filter className="h-4 w-4" />
+              <span>
+                {roleFilter === "all" ? "All Roles" : formatRole(roleFilter)}
+              </span>
+            </button>
 
-          {showFilterDropdown && (
-            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg z-10">
-              {[
-                { value: "all", label: "All Roles" },
-                { value: "admin", label: "Admin" },
-                { value: "member", label: "Member" },
-              ].map((option) => (
-                <button
-                  type="button"
-                  key={option.value}
-                  onClick={() => {
-                    onRoleFilterChange(option.value);
-                    setShowFilterDropdown(false);
-                  }}
-                  className={`w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 first:rounded-t-lg last:rounded-b-lg ${
-                    roleFilter === option.value
-                      ? "bg-neutral-50 dark:bg-neutral-800 font-medium"
-                      : ""
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          )}
+            {showFilterDropdown && (
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg shadow-lg z-10">
+                {[
+                  { value: "all", label: "All Roles" },
+                  { value: "admin", label: "Admin" },
+                  { value: "member", label: "Member" },
+                ].map((option) => (
+                  <button
+                    type="button"
+                    key={option.value}
+                    onClick={() => {
+                      onRoleFilterChange(option.value);
+                      setShowFilterDropdown(false);
+                    }}
+                    className={`w-full px-4 py-2 text-left text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 first:rounded-t-lg last:rounded-b-lg ${
+                      roleFilter === option.value
+                        ? "bg-neutral-50 dark:bg-neutral-800 font-medium"
+                        : ""
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Button onClick={onCreateUser}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create user
+          </Button>
         </div>
       </div>
 
