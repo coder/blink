@@ -689,9 +689,7 @@ export default function Home() {
             </div>
 
             <h1 className="text-4xl md:text-6xl text-white mb-4 md:mb-6 font-laygrotesk">
-              Vibe your perfect agent.
-              <br />
-              Then chat with it in Slack.
+              hello world!
             </h1>
             <p className="text-lg md:text-xl text-gray-300 max-w-2xl mb-8 mx-auto">
               Chat with Blink to turn your ideas into fully functional Slack
