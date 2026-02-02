@@ -697,7 +697,7 @@ export default function Home() {
               — built on open source.
             </p>
 
-            {/* Click to Copy Command */}
+            {/* View Docs CTA */}
             <div
               className={`flex flex-col items-center w-full relative transition-all duration-500 ease-out ${
                 animationStep >= 1
@@ -706,86 +706,18 @@ export default function Home() {
               }`}
             >
               <div className="relative z-10">
-                {/* Main Copy Button with Expandable Menu */}
-                <div className="relative inline-block">
-                  <button
-                    onClick={handleCopy}
-                    className="group flex items-center gap-3 px-8 py-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:border-white/20 hover:px-9 transition-all duration-300 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]"
-                  >
-                    {/* Chevron Toggle */}
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsCommandMenuOpen(!isCommandMenuOpen);
-                      }}
-                      className="flex items-center justify-center w-5 h-5 -ml-2 rounded hover:bg-white/5 transition-colors cursor-pointer"
-                    >
-                      <ChevronDown
-                        className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
-                          isCommandMenuOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </div>
-
-                    <code className="font-mono text-[18] text-gray-100">
-                      bun i -g blink
-                    </code>
-                    {copied ? (
-                      <Check className="w-4 h-4 text-white-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-gray-400 group-hover:text-gray-300 transition-colors" />
-                    )}
-                  </button>
-
-                  {/* Expandable Command Menu */}
-                  {isCommandMenuOpen && (
-                    <>
-                      {/* Backdrop */}
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => setIsCommandMenuOpen(false)}
-                      />
-                      {/* Command List */}
-                      <div className="absolute left-0 top-full mt-2 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg shadow-xl z-20 min-w-full">
-                        {packageManagers.map((pm, index) => (
-                          <button
-                            key={pm.id}
-                            type="button"
-                            onClick={() => handlePMCopy(pm.command, index)}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors group/item"
-                          >
-                            <Image
-                              src={pm.logo}
-                              alt={pm.name}
-                              width={18}
-                              height={18}
-                              className="shrink-0"
-                            />
-                            <code className="font-mono text-sm text-gray-300 flex-1 text-left">
-                              {pm.command}
-                            </code>
-                            {copiedPMIndex === index ? (
-                              <Check className="w-4 h-4 text-green-400 shrink-0" />
-                            ) : (
-                              <Copy className="w-4 h-4 text-gray-500 opacity-0 group-hover/item:opacity-100 transition-opacity shrink-0" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
+                <a
+                  href="https://blink.coder.com/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-center gap-3 px-8 py-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:border-white/20 hover:px-9 transition-all duration-300 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]"
+                >
+                  <span className="text-[18px] text-gray-100 font-medium">
+                    View Docs
+                  </span>
+                  <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-gray-300 transition-colors" />
+                </a>
               </div>
-
-              {/* Documentation Link */}
-              <a
-                href="https://docs.blink.so"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 text-white hover:text-gray-200 transition-colors duration-200 text-sm"
-              >
-                View Documentation
-              </a>
 
               {/* Animated line extending down - layered behind button */}
               {lineAnimated && (
