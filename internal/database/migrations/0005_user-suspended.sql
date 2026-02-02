@@ -1,0 +1,3 @@
+DROP VIEW "public"."user_with_personal_organization";--> statement-breakpoint
+ALTER TABLE "user" ADD COLUMN "suspended" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE VIEW "public"."user_with_personal_organization" AS (select "user"."id", "user"."created_at", "user"."updated_at", "user"."display_name", "user"."email", "user"."email_verified", "user"."password", "user"."site_role", "user"."suspended", "organization"."id" as "organization_id", "organization"."name" as "username", "organization"."avatar_url" as "avatar_url" from "user" inner join "organization" on "user"."id" = "organization"."personal_owner_user_id");

@@ -384,6 +384,10 @@ async function handleOAuthCallback(
     }
   }
 
+  if (user.suspended) {
+    return c.redirect("/login?error=account_suspended");
+  }
+
   const token = await encode({
     secret: c.env.AUTH_SECRET,
     token: {
@@ -558,6 +562,10 @@ export default function mountAuth(server: APIServer) {
         return c.json({ error: "Invalid credentials" }, 401);
       }
 
+      if (user.suspended) {
+        return c.json({ error: "Your account has been suspended" }, 403);
+      }
+
       // Check email verified (skip if sendEmail not configured)
       if (c.env.sendEmail && !user.email_verified) {
         return c.json({ error: "Email not verified" }, 401);
@@ -639,6 +647,10 @@ export default function mountAuth(server: APIServer) {
       const user = await db.selectUserByEmail(decoded.email as string);
       if (!user) {
         return c.json({ error: "User not found" }, 404);
+      }
+
+      if (user.suspended) {
+        return c.json({ error: "Your account has been suspended" }, 403);
       }
 
       // Mark email as verified

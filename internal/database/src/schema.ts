@@ -125,6 +125,7 @@ export const user = pgTable("user", {
   email_verified: timestamp("email_verified", { mode: "date" }),
   password: text("password"),
   site_role: siteRoleEnum().notNull().default("member"),
+  suspended: boolean("suspended").notNull().default(false),
 });
 
 export type User = InferSelectModel<typeof user>;

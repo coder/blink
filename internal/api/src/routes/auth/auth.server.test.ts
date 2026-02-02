@@ -1251,3 +1251,157 @@ test("GET /callback/github second user with autoJoinOrganizations gets site_role
   expect(secondUser).toBeDefined();
   expect(secondUser?.site_role).toBe("member");
 });
+
+// Suspended user tests
+
+const oauthProviderConfigs = [
+  {
+    provider: "github" as const,
+    clientIdKey: "GITHUB_CLIENT_ID",
+    clientSecretKey: "GITHUB_CLIENT_SECRET",
+    profile: mockGitHubProfile,
+    providerAccountId: mockGitHubProfile.id.toString(),
+    scope: "user:email",
+    tokenUrl: "https://github.com/login/oauth/access_token",
+    userUrl: "https://api.github.com/user",
+  },
+  {
+    provider: "google" as const,
+    clientIdKey: "GOOGLE_CLIENT_ID",
+    clientSecretKey: "GOOGLE_CLIENT_SECRET",
+    profile: mockGoogleProfile,
+    providerAccountId: mockGoogleProfile.id,
+    scope: "openid email profile",
+    tokenUrl: "https://oauth2.googleapis.com/token",
+    userUrl: "https://www.googleapis.com/oauth2/v2/userinfo",
+  },
+];
+
+test("POST /signin/credentials rejects suspended user", async () => {
+  const { helpers, url, bindings } = await serve();
+  const password = "password123";
+  const hashedPassword = await hash(password, 10);
+
+  const db = await bindings.database();
+  const { user } = await helpers.createUser({
+    email: "suspended@example.com",
+  });
+
+  await db.updateUserByID({
+    id: user.id,
+    password: hashedPassword,
+    email_verified: new Date(),
+    suspended: true,
+  });
+
+  const res = await fetch(`${url}/api/auth/signin/credentials`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: "suspended@example.com", password }),
+  });
+
+  expect(res.status).toBe(403);
+  const data = await res.json();
+  expect(data.error).toBe("Your account has been suspended");
+});
+
+test.each(oauthProviderConfigs)(
+  "GET /callback/$provider rejects suspended user",
+  async (config) => {
+    const { url, bindings, helpers } = await serve({
+      bindings: {
+        [config.clientIdKey]: "test-client-id",
+        [config.clientSecretKey]: "test-client-secret",
+      },
+    });
+
+    const db = await bindings.database();
+    const { user } = await helpers.createUser({
+      email: config.profile.email,
+      display_name: config.profile.name,
+    });
+
+    await db.updateUserByID({ id: user.id, suspended: true });
+
+    await db.upsertUserAccount({
+      user_id: user.id,
+      type: "oauth",
+      provider: config.provider,
+      provider_account_id: config.providerAccountId,
+      access_token: "old-token",
+      refresh_token: null,
+      expires_at: null,
+      token_type: "Bearer",
+      scope: config.scope,
+      id_token: null,
+      session_state: "",
+    });
+
+    mswServer.use(
+      http.post(config.tokenUrl, () =>
+        HttpResponse.json(mockOAuthTokenResponse)
+      ),
+      http.get(config.userUrl, () => HttpResponse.json(config.profile))
+    );
+
+    const { encode } = await import("next-auth/jwt");
+    const state = await encode({
+      secret: bindings.AUTH_SECRET,
+      salt: "oauth-state",
+      token: {
+        provider: config.provider,
+        nonce: "test-nonce",
+        callbackUrl: `${url}/api/auth/callback/${config.provider}`,
+      },
+    });
+
+    const res = await fetch(
+      `${url}/api/auth/callback/${config.provider}?code=test-code&state=${state}`,
+      { redirect: "manual" }
+    );
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toContain(
+      "/login?error=account_suspended"
+    );
+  }
+);
+
+test("POST /verify-email rejects suspended user", async () => {
+  const { url, helpers, bindings } = await serve();
+
+  const db = await bindings.database();
+  const { user } = await helpers.createUser({
+    email: "suspended-verify@example.com",
+    email_verified: null,
+  });
+
+  await db.updateUserByID({ id: user.id, suspended: true });
+
+  const code = "12345678";
+  await db.insertEmailVerification({
+    email: user.email!,
+    code,
+    expiresAt: new Date(Date.now() + 1000 * 60 * 15),
+  });
+
+  const { encode } = await import("next-auth/jwt");
+  const token = await encode({
+    secret: bindings.AUTH_SECRET,
+    salt: "email-verification",
+    token: { id: crypto.randomUUID(), email: user.email },
+  });
+
+  const res = await fetch(`${url}/api/auth/verify-email`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: `email_verification_token=${token}`,
+    },
+    body: JSON.stringify({ code }),
+  });
+
+  expect(res.status).toBe(403);
+  const data = (await res.json()) as { error: string };
+  expect(data.error).toBe("Your account has been suspended");
+});

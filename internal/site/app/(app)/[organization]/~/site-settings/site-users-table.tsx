@@ -6,11 +6,28 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  MoreHorizontal,
   Search,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import Avatar from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -31,6 +48,7 @@ interface SiteUsersTableProps {
   hasMore?: boolean;
   onPreviousPage?: () => void;
   onNextPage?: () => void;
+  onUpdateSuspension?: (userId: string, suspended: boolean) => Promise<void>;
 }
 
 const formatRole = (role: string): string => {
@@ -63,9 +81,30 @@ export function SiteUsersTable({
   hasMore = false,
   onPreviousPage,
   onNextPage,
+  onUpdateSuspension,
 }: SiteUsersTableProps) {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [suspensionDialog, setSuspensionDialog] = useState<{
+    open: boolean;
+    user: SiteUser | null;
+    action: "suspend" | "unsuspend";
+  }>({ open: false, user: null, action: "suspend" });
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleSuspensionAction = async () => {
+    if (!suspensionDialog.user || !onUpdateSuspension) return;
+    setIsUpdating(true);
+    try {
+      await onUpdateSuspension(
+        suspensionDialog.user.id,
+        suspensionDialog.action === "suspend"
+      );
+    } finally {
+      setIsUpdating(false);
+      setSuspensionDialog({ open: false, user: null, action: "suspend" });
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -176,6 +215,12 @@ export function SiteUsersTable({
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider"
                 >
+                  Status
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider"
+                >
                   <button
                     type="button"
                     className="flex items-center gap-1 hover:text-foreground transition-colors"
@@ -183,6 +228,12 @@ export function SiteUsersTable({
                     Joined
                     <ArrowUpDown className="h-3 w-3" />
                   </button>
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider"
+                >
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -230,8 +281,51 @@ export function SiteUsersTable({
                       </Tooltip>
                     </TooltipProvider>
                   </td>
+                  <td className="px-6 py-4 text-sm whitespace-nowrap">
+                    {user.suspended ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                        Suspended
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        Active
+                      </span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap text-muted-foreground">
                     Joined {formatDate(user.created_at)}
+                  </td>
+                  <td className="px-6 py-4 text-sm whitespace-nowrap text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Open menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            setSuspensionDialog({
+                              open: true,
+                              user,
+                              action: user.suspended ? "unsuspend" : "suspend",
+                            })
+                          }
+                          className={
+                            user.suspended
+                              ? ""
+                              : "text-red-500 focus:text-red-500"
+                          }
+                        >
+                          {user.suspended ? "Unsuspend user" : "Suspend user"}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))}
@@ -282,6 +376,65 @@ export function SiteUsersTable({
           </Button>
         </div>
       </div>
+
+      <AlertDialog
+        open={suspensionDialog.open}
+        onOpenChange={(open) =>
+          !open &&
+          setSuspensionDialog({ open: false, user: null, action: "suspend" })
+        }
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {suspensionDialog.action === "suspend"
+                ? "Suspend user"
+                : "Unsuspend user"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {suspensionDialog.action === "suspend" ? (
+                <>
+                  Are you sure you want to suspend{" "}
+                  <strong>
+                    {suspensionDialog.user?.display_name ||
+                      suspensionDialog.user?.username}
+                  </strong>
+                  ? They will no longer be able to access the platform.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to unsuspend{" "}
+                  <strong>
+                    {suspensionDialog.user?.display_name ||
+                      suspensionDialog.user?.username}
+                  </strong>
+                  ? They will regain access to the platform.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUpdating}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleSuspensionAction}
+              disabled={isUpdating}
+              className={
+                suspensionDialog.action === "suspend"
+                  ? "bg-red-600 hover:bg-red-700 focus:ring-red-600 text-white"
+                  : ""
+              }
+            >
+              {isUpdating
+                ? suspensionDialog.action === "suspend"
+                  ? "Suspending..."
+                  : "Unsuspending..."
+                : suspensionDialog.action === "suspend"
+                  ? "Suspend"
+                  : "Unsuspend"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

@@ -108,12 +108,18 @@ export default class Querier {
   public async insertUser(
     newUser: Omit<
       User,
-      "id" | "early_access" | "created_at" | "updated_at" | "site_role"
+      | "id"
+      | "early_access"
+      | "created_at"
+      | "updated_at"
+      | "site_role"
+      | "suspended"
     > & {
       early_access?: boolean;
       username?: string;
       avatar_url?: string | null;
       site_role?: User["site_role"];
+      suspended?: User["suspended"];
     }
   ): Promise<UserWithPersonalOrganization> {
     let createdUser: User;
@@ -2254,6 +2260,7 @@ export default class Querier {
           avatar_url: user_with_personal_organization.avatar_url,
           organization_id: sql<string>`"user_with_personal_organization"."organization_id"`,
           site_role: user_with_personal_organization.site_role,
+          suspended: user_with_personal_organization.suspended,
         })
         .from(user_with_personal_organization)
         .where(conditions.length > 0 ? and(...conditions) : undefined)

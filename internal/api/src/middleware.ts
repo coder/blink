@@ -105,6 +105,14 @@ export function createAuthMiddleware(
       ) {
         throw new HTTPException(401, { message: "API key has expired" });
       }
+
+      const userForSuspensionCheck = await db.selectUserByID(apiKey.user_id);
+      if (!userForSuspensionCheck) {
+        throw new HTTPException(401, { message: "User not found" });
+      }
+      if (userForSuspensionCheck.suspended) {
+        throw new HTTPException(403, { message: "Account suspended" });
+      }
       await db.updateApiKey(apiKey.id, { last_used_at: new Date() });
 
       c.set("user_id", apiKey.user_id);
@@ -165,6 +173,16 @@ export function createAuthMiddleware(
 
     if (!token || !token.sub) {
       throw new HTTPException(401, { message: "Unauthorized" });
+    }
+
+    // Check if user is suspended
+    const db = await c.env.database();
+    const userForSuspensionCheck = await db.selectUserByID(token.sub);
+    if (!userForSuspensionCheck) {
+      throw new HTTPException(401, { message: "User not found" });
+    }
+    if (userForSuspensionCheck.suspended) {
+      throw new HTTPException(403, { message: "Account suspended" });
     }
 
     c.set("user_id", token.sub);

@@ -2,7 +2,7 @@
 
 import type { SiteRole } from "@blink.so/api";
 import Client from "@blink.so/api";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { SiteUsersLayout } from "./site-users-layout";
 import { SiteUsersTable } from "./site-users-table";
@@ -30,7 +30,11 @@ export function SiteUsersPage() {
     setPage(1);
   };
 
-  const { data: usersData, isLoading } = useSWR(
+  const {
+    data: usersData,
+    isLoading,
+    mutate,
+  } = useSWR(
     ["admin-users", page, pageSize, searchQuery, roleFilter],
     async () => {
       return client.admin.users.list({
@@ -40,6 +44,14 @@ export function SiteUsersPage() {
         site_role: roleFilter !== "all" ? (roleFilter as SiteRole) : undefined,
       });
     }
+  );
+
+  const handleUpdateSuspension = useCallback(
+    async (userId: string, suspended: boolean) => {
+      await client.admin.users.updateSuspension(userId, suspended);
+      await mutate();
+    },
+    [client, mutate]
   );
 
   // Show loading state when data hasn't loaded yet (handles initial hydration)
@@ -62,6 +74,7 @@ export function SiteUsersPage() {
         hasMore={hasMore}
         onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
         onNextPage={() => setPage((p) => p + 1)}
+        onUpdateSuspension={handleUpdateSuspension}
       />
     </SiteUsersLayout>
   );

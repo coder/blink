@@ -46,6 +46,12 @@ export async function auth() {
 
     if (!decoded?.id) return null;
 
+    const querier = await getQuerier();
+    const user = await querier.selectUserByID(decoded.id as string);
+    if (!user || user.suspended) {
+      return null;
+    }
+
     return {
       user: {
         id: decoded.id as string,

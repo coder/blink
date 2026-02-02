@@ -20,6 +20,7 @@ const schemaSiteUser = z.object({
   username: z.string(),
   organization_id: z.uuid(),
   site_role: schemaSiteRole,
+  suspended: z.boolean(),
 });
 
 export type SiteUser = z.infer<typeof schemaSiteUser>;
@@ -30,6 +31,14 @@ export const schemaListSiteUsersRequest = schemaPaginatedRequest.extend({
 });
 
 export type ListSiteUsersRequest = z.infer<typeof schemaListSiteUsersRequest>;
+
+export const schemaUpdateSuspensionRequest = z.object({
+  suspended: z.boolean(),
+});
+
+export type UpdateSuspensionRequest = z.infer<
+  typeof schemaUpdateSuspensionRequest
+>;
 
 const schemaListSiteUsersResponse = schemaPaginatedResponse(schemaSiteUser);
 
@@ -67,6 +76,26 @@ export default class AdminUsers {
     const resp = await this.client.request(
       "GET",
       `/api/admin/users?${query.toString()}`
+    );
+    await assertResponseStatus(resp, 200);
+    return resp.json();
+  }
+
+  /**
+   * Update a user's suspension status (admin only).
+   *
+   * @param userId - The user ID to update.
+   * @param suspended - Whether the user should be suspended.
+   * @returns The updated user.
+   */
+  public async updateSuspension(
+    userId: string,
+    suspended: boolean
+  ): Promise<SiteUser> {
+    const resp = await this.client.request(
+      "PATCH",
+      `/api/admin/users/${userId}/suspension`,
+      JSON.stringify({ suspended })
     );
     await assertResponseStatus(resp, 200);
     return resp.json();

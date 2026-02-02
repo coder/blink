@@ -36,6 +36,13 @@
       "when": 1769783319430,
       "tag": "0004_site_role",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1770034416740,
+      "tag": "0005_user-suspended",
+      "breakpoints": true
     }
   ]
 }

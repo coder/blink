@@ -7,12 +7,13 @@ function InteractiveSiteUsersTable({
   users: initialUsers,
   ...props
 }: React.ComponentProps<typeof SiteUsersTable>) {
+  const [users, setUsers] = useState(initialUsers);
   const [searchQuery, setSearchQuery] = useState(props.searchQuery ?? "");
   const [roleFilter, setRoleFilter] = useState(props.roleFilter ?? "all");
   const [page, setPage] = useState(props.page ?? 1);
   const [pageSize, setPageSize] = useState(props.pageSize ?? 25);
 
-  const filteredUsers = initialUsers.filter((user) => {
+  const filteredUsers = users.filter((user) => {
     const matchesSearch =
       searchQuery === "" ||
       user.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -29,6 +30,14 @@ function InteractiveSiteUsersTable({
     page * pageSize
   );
   const hasMore = page * pageSize < filteredUsers.length;
+
+  const handleUpdateSuspension = async (userId: string, suspended: boolean) => {
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    setUsers((prev) =>
+      prev.map((user) => (user.id === userId ? { ...user, suspended } : user))
+    );
+  };
 
   return (
     <SiteUsersTable
@@ -53,6 +62,7 @@ function InteractiveSiteUsersTable({
       hasMore={hasMore}
       onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
       onNextPage={() => setPage((p) => p + 1)}
+      onUpdateSuspension={handleUpdateSuspension}
     />
   );
 }
@@ -68,6 +78,7 @@ const mockUsers: SiteUser[] = [
     username: "alice",
     organization_id: "org-1",
     site_role: "admin",
+    suspended: false,
   },
   {
     id: "2",
@@ -79,6 +90,7 @@ const mockUsers: SiteUser[] = [
     username: "bob",
     organization_id: "org-2",
     site_role: "member",
+    suspended: false,
   },
   {
     id: "3",
@@ -90,6 +102,7 @@ const mockUsers: SiteUser[] = [
     username: "charlie",
     organization_id: "org-3",
     site_role: "member",
+    suspended: true,
   },
   {
     id: "4",
@@ -101,6 +114,7 @@ const mockUsers: SiteUser[] = [
     username: "diana",
     organization_id: "org-4",
     site_role: "admin",
+    suspended: false,
   },
 ];
 
@@ -151,6 +165,7 @@ export const ManyUsers: Story = {
       username: `user${i + 1}`,
       organization_id: `org-${i}`,
       site_role: i % 5 === 0 ? ("admin" as const) : ("member" as const),
+      suspended: i % 7 === 0,
     })),
   },
 };
@@ -170,6 +185,50 @@ export const Loading: Story = {
       hasMore={false}
       onPreviousPage={() => {}}
       onNextPage={() => {}}
+      onUpdateSuspension={async () => {}}
     />
   ),
+};
+
+export const WithSuspendedUsers: Story = {
+  args: {
+    users: [
+      {
+        id: "1",
+        created_at: new Date("2024-01-15"),
+        updated_at: new Date("2024-01-15"),
+        display_name: "Active Admin",
+        email: "admin@example.com",
+        avatar_url: null,
+        username: "admin",
+        organization_id: "org-1",
+        site_role: "admin",
+        suspended: false,
+      },
+      {
+        id: "2",
+        created_at: new Date("2024-02-20"),
+        updated_at: new Date("2024-02-20"),
+        display_name: "Suspended User",
+        email: "suspended@example.com",
+        avatar_url: null,
+        username: "suspended",
+        organization_id: "org-2",
+        site_role: "member",
+        suspended: true,
+      },
+      {
+        id: "3",
+        created_at: new Date("2024-03-10"),
+        updated_at: new Date("2024-03-10"),
+        display_name: "Another Suspended",
+        email: "another@example.com",
+        avatar_url: null,
+        username: "another",
+        organization_id: "org-3",
+        site_role: "member",
+        suspended: true,
+      },
+    ],
+  },
 };

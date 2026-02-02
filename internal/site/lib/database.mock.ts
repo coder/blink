@@ -98,6 +98,7 @@ export const getQuerier = fn(
       username: "test",
       organization_id: "1",
       site_role: "member" as const,
+      suspended: false,
     })),
     selectOrganizationMembersWithUserInfoByOrganizationID: fn(async () => []),
     selectOrganizationInvitesByOrganizationID: fn(async () => []),
