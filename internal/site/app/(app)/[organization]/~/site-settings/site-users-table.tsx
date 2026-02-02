@@ -50,6 +50,7 @@ interface SiteUsersTableProps {
   onPreviousPage?: () => void;
   onNextPage?: () => void;
   onUpdateSuspension?: (userId: string, suspended: boolean) => Promise<void>;
+  onChangeRole?: (user: SiteUser) => void;
   onCreateUser?: () => void;
 }
 
@@ -84,6 +85,7 @@ export function SiteUsersTable({
   onPreviousPage,
   onNextPage,
   onUpdateSuspension,
+  onChangeRole,
   onCreateUser,
 }: SiteUsersTableProps) {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -318,6 +320,9 @@ export function SiteUsersTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onChangeRole?.(user)}>
+                          Change role
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() =>
                             setSuspensionDialog({

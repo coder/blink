@@ -333,3 +333,101 @@ test("suspended user cannot authenticate with API key", async () => {
     "Account suspended"
   );
 });
+
+test("PATCH /api/admin/users/:id/role returns 403 for non-admin user", async () => {
+  const { helpers } = await serve();
+  const { client: memberClient } = await helpers.createUser({
+    site_role: "member",
+  });
+  const { user: targetUser } = await helpers.createUser({
+    site_role: "member",
+  });
+
+  await expect(
+    memberClient.admin.users.updateRole(targetUser.id, "admin")
+  ).rejects.toThrow("Forbidden");
+});
+
+test("PATCH /api/admin/users/:id/role returns 401 for unauthenticated request", async () => {
+  const { helpers, url } = await serve();
+  const { user: targetUser } = await helpers.createUser({
+    site_role: "member",
+  });
+
+  const unauthClient = new Client({ baseURL: url.toString() });
+
+  await expect(
+    unauthClient.admin.users.updateRole(targetUser.id, "admin")
+  ).rejects.toThrow("Unauthorized");
+});
+
+test("PATCH /api/admin/users/:id/role successfully promotes user to admin", async () => {
+  const { helpers, bindings } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+  const { user: targetUser } = await helpers.createUser({
+    site_role: "member",
+  });
+
+  const result = await adminClient.admin.users.updateRole(
+    targetUser.id,
+    "admin"
+  );
+
+  expect(result.id).toBe(targetUser.id);
+  expect(result.site_role).toBe("admin");
+
+  // Verify the change persisted in the database
+  const db = await bindings.database();
+  const updatedUser = await db.selectUserByID(targetUser.id);
+  expect(updatedUser?.site_role).toBe("admin");
+});
+
+test("PATCH /api/admin/users/:id/role successfully demotes admin to member", async () => {
+  const { helpers, bindings } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+  const { user: targetUser } = await helpers.createUser({
+    site_role: "admin",
+  });
+
+  const result = await adminClient.admin.users.updateRole(
+    targetUser.id,
+    "member"
+  );
+
+  expect(result.id).toBe(targetUser.id);
+  expect(result.site_role).toBe("member");
+
+  // Verify the change persisted in the database
+  const db = await bindings.database();
+  const updatedUser = await db.selectUserByID(targetUser.id);
+  expect(updatedUser?.site_role).toBe("member");
+});
+
+test("PATCH /api/admin/users/:id/role returns 400 when trying to change your own role", async () => {
+  const { helpers } = await serve();
+  const { client: adminClient, user: adminUser } = await helpers.createUser({
+    site_role: "admin",
+  });
+
+  await expect(
+    adminClient.admin.users.updateRole(adminUser.id, "member")
+  ).rejects.toThrow("Cannot change your own role");
+});
+
+test("PATCH /api/admin/users/:id/role returns 404 for non-existent user", async () => {
+  const { helpers } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+
+  await expect(
+    adminClient.admin.users.updateRole(
+      "00000000-0000-0000-0000-000000000000",
+      "admin"
+    )
+  ).rejects.toThrow("User not found");
+});

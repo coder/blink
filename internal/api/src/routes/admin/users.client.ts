@@ -40,6 +40,12 @@ export type UpdateSuspensionRequest = z.infer<
   typeof schemaUpdateSuspensionRequest
 >;
 
+export const schemaUpdateRoleRequest = z.object({
+  site_role: schemaSiteRole,
+});
+
+export type UpdateRoleRequest = z.infer<typeof schemaUpdateRoleRequest>;
+
 export const schemaCreateUserRequest = z.object({
   email: z.email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -124,6 +130,26 @@ export default class AdminUsers {
       JSON.stringify(request)
     );
     await assertResponseStatus(resp, 201);
+    return resp.json();
+  }
+
+  /**
+   * Update a user's role (admin only).
+   *
+   * @param userId - The user ID to update.
+   * @param siteRole - The new site role.
+   * @returns The updated user.
+   */
+  public async updateRole(
+    userId: string,
+    siteRole: SiteRole
+  ): Promise<SiteUser> {
+    const resp = await this.client.request(
+      "PATCH",
+      `/api/admin/users/${userId}/role`,
+      JSON.stringify({ site_role: siteRole })
+    );
+    await assertResponseStatus(resp, 200);
     return resp.json();
   }
 }

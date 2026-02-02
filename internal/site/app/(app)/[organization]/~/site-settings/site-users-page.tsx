@@ -1,9 +1,10 @@
 "use client";
 
-import type { SiteRole } from "@blink.so/api";
+import type { SiteRole, SiteUser } from "@blink.so/api";
 import { useCallback, useState } from "react";
 import useSWR from "swr";
 import { useAPIClient } from "@/lib/api-client";
+import { ChangeRoleModal } from "./change-role-modal";
 import { CreateUserModal } from "./create-user-modal";
 import { SiteUsersLayout } from "./site-users-layout";
 import { SiteUsersTable } from "./site-users-table";
@@ -15,6 +16,7 @@ export function SiteUsersPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [changeRoleUser, setChangeRoleUser] = useState<SiteUser | null>(null);
 
   // Reset to page 1 when filters or page size change
   const handleSearchChange = (query: string) => {
@@ -56,6 +58,14 @@ export function SiteUsersPage() {
     [client, mutate]
   );
 
+  const handleUpdateRole = useCallback(
+    async (userId: string, newRole: SiteRole) => {
+      await client.admin.users.updateRole(userId, newRole);
+      await mutate();
+    },
+    [client, mutate]
+  );
+
   // Show loading state when data hasn't loaded yet (handles initial hydration)
   const isLoadingUsers = isLoading || usersData === undefined;
   const users = usersData?.items || [];
@@ -77,12 +87,20 @@ export function SiteUsersPage() {
         onPreviousPage={() => setPage((p) => Math.max(1, p - 1))}
         onNextPage={() => setPage((p) => p + 1)}
         onUpdateSuspension={handleUpdateSuspension}
+        onChangeRole={(user) => setChangeRoleUser(user)}
         onCreateUser={() => setShowCreateUserModal(true)}
       />
       <CreateUserModal
         open={showCreateUserModal}
         onClose={() => setShowCreateUserModal(false)}
         onUserCreated={() => mutate()}
+      />
+      <ChangeRoleModal
+        key={changeRoleUser?.id}
+        open={changeRoleUser !== null}
+        user={changeRoleUser}
+        onClose={() => setChangeRoleUser(null)}
+        onRoleChanged={handleUpdateRole}
       />
     </SiteUsersLayout>
   );

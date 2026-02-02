@@ -11,6 +11,7 @@ import {
   type SiteUser,
   schemaCreateUserRequest,
   schemaListSiteUsersRequest,
+  schemaUpdateRoleRequest,
   schemaUpdateSuspensionRequest,
 } from "./users.client";
 
@@ -73,6 +74,48 @@ export default function mountAdminUsers(server: APIServer) {
 
       // Update user suspension status
       await db.updateUserByID({ id, suspended });
+
+      // Fetch updated user to return
+      const updatedUser = await db.selectUserByID(id);
+      if (!updatedUser) {
+        throw new HTTPException(404, { message: "User not found" });
+      }
+
+      return c.json(convertSiteUser(updatedUser));
+    }
+  );
+
+  // Update user role (site admin only).
+  server.patch(
+    "/:id/role",
+    withSiteAdmin,
+    validator("param", (value) => {
+      return z.object({ id: z.string().uuid() }).parse(value);
+    }),
+    validator("json", (value) => {
+      return schemaUpdateRoleRequest.parse(value);
+    }),
+    async (c) => {
+      const db = await c.env.database();
+      const { id } = c.req.valid("param");
+      const { site_role } = c.req.valid("json");
+      const currentUserId = c.get("user_id");
+
+      // Prevent changing own role
+      if (id === currentUserId) {
+        throw new HTTPException(400, {
+          message: "Cannot change your own role",
+        });
+      }
+
+      // Check if user exists
+      const existingUser = await db.selectUserByID(id);
+      if (!existingUser) {
+        throw new HTTPException(404, { message: "User not found" });
+      }
+
+      // Update user role
+      await db.updateUserByID({ id, site_role });
 
       // Fetch updated user to return
       const updatedUser = await db.selectUserByID(id);
