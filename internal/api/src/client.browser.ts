@@ -105,6 +105,7 @@ export default class Client {
 export * from "./routes/admin/users.client";
 export * from "./routes/agents/agents.client";
 export * from "./routes/agents/traces.client";
+export * from "./routes/auth/auth.client";
 export * from "./routes/chats/chats.client";
 export * from "./routes/invites.client";
 export * from "./routes/messages.client";

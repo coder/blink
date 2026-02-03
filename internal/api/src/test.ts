@@ -119,6 +119,7 @@ export const serve = async (options?: ServeOptions) => {
     ONBOARDING_AGENT_BUNDLE_URL:
       options?.bindings?.ONBOARDING_AGENT_BUNDLE_URL ?? "override-me-in-test",
     enableSignups: options?.bindings?.enableSignups ?? true,
+    enableOauth: options?.bindings?.enableOauth ?? true,
     ...options?.bindings,
     agentStore: (targetID) => {
       let store = agentStore.get(targetID);

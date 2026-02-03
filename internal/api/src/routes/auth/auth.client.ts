@@ -1,6 +1,6 @@
 import { z } from "zod";
+import type Client from "../../client.browser";
 import { assertResponseStatus } from "../../client-helper";
-import Client from "../../client.browser";
 
 /**
  * Cookie name for the session token.
@@ -85,6 +85,17 @@ export const schemaResendPasswordResetResponse = z.object({
   ok: z.boolean(),
 });
 
+export const schemaAuthProvider = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.enum(["credentials", "oauth"]),
+});
+
+export const schemaGetProvidersResponse = z.record(
+  z.string(),
+  schemaAuthProvider
+);
+
 export type SignInWithCredentialsRequest = z.infer<
   typeof schemaSignInWithCredentialsRequest
 >;
@@ -121,6 +132,8 @@ export type RequestPasswordResetResponse = z.infer<
 export type ResendPasswordResetResponse = z.infer<
   typeof schemaResendPasswordResetResponse
 >;
+export type AuthProvider = z.infer<typeof schemaAuthProvider>;
+export type GetProvidersResponse = z.infer<typeof schemaGetProvidersResponse>;
 
 export default class Auth {
   private readonly client: Client;
@@ -336,6 +349,18 @@ export default class Auth {
       "/api/auth/resend-password-reset",
       ""
     );
+
+    await assertResponseStatus(response, 200);
+    return response.json();
+  }
+
+  /**
+   * getProviders returns the available authentication providers.
+   *
+   * @returns A promise that resolves to the providers.
+   */
+  public async getProviders(): Promise<GetProvidersResponse> {
+    const response = await this.client.request("GET", "/api/auth/providers");
 
     await assertResponseStatus(response, 200);
     return response.json();

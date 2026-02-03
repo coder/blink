@@ -242,6 +242,8 @@ export interface Bindings {
   readonly autoJoinOrganizations?: boolean;
   /** When true, allow public signups (email/password + OAuth). */
   readonly enableSignups?: boolean;
+  /** When true, allow OAuth login/signup and provider linking. */
+  readonly enableOauth?: boolean;
 
   // Optional AWS credentials used by platform logging to CloudWatch
   readonly AWS_ACCESS_KEY_ID?: string;

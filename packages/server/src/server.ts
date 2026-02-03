@@ -33,6 +33,7 @@ export interface ServerOptions {
   agentImage: string;
   devhookDisableAuth: boolean;
   enableSignups: boolean;
+  enableOauth: boolean;
 }
 
 // Files are now stored in the database instead of in-memory
@@ -56,6 +57,7 @@ export async function startServer(
     agentImage,
     devhookDisableAuth,
     enableSignups,
+    enableOauth,
   } = options;
 
   const db = await connectToPostgres(postgresUrl);
@@ -151,6 +153,7 @@ export async function startServer(
     NODE_ENV: "development",
     autoJoinOrganizations: true,
     enableSignups,
+    enableOauth,
     serverVersion: pkg.version,
     ONBOARDING_AGENT_BUNDLE_URL:
       "https://artifacts.blink.host/starter-agent/bundle.tar.gz",

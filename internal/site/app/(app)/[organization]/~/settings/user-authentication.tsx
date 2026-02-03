@@ -1,5 +1,6 @@
 import { auth } from "@/app/(auth)/auth";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { isOauthEnabled } from "@/lib/auth-providers";
 import { getQuerier } from "@/lib/database";
 import { UserAuthenticationClient } from "./user-authentication-client";
 
@@ -13,6 +14,7 @@ export default async function UserAuthentication() {
     querier.selectUserAccountsByProviderAndUserID("google", session.user.id),
     querier.selectUserByID(session.user.id),
   ]);
+  const oauthEnabled = await isOauthEnabled();
 
   if (!user) return null;
 
@@ -39,6 +41,7 @@ export default async function UserAuthentication() {
           googleAccounts={gg}
           hasPassword={Boolean(user.password)}
           personalOrgName={personalOrg.name}
+          oauthEnabled={oauthEnabled}
         />
       </TooltipProvider>
     </section>

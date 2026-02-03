@@ -17,6 +17,7 @@ interface UserAuthenticationClientProps {
   googleAccounts: Array<{ provider_account_id: string }>;
   hasPassword: boolean;
   personalOrgName: string;
+  oauthEnabled: boolean;
 }
 
 export function UserAuthenticationClient({
@@ -24,6 +25,7 @@ export function UserAuthenticationClient({
   googleAccounts,
   hasPassword,
   personalOrgName,
+  oauthEnabled,
 }: UserAuthenticationClientProps) {
   const client = useMemo(() => new Client(), []);
   const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(
@@ -141,23 +143,25 @@ export function UserAuthenticationClient({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium mb-4">Linked providers</h3>
-        <div className="space-y-2">
-          <Row
-            name="GitHub"
-            provider="github"
-            isLinked={githubAccounts.length > 0}
-            providerAccountId={githubAccounts[0]?.provider_account_id}
-          />
-          <Row
-            name="Google"
-            provider="google"
-            isLinked={googleAccounts.length > 0}
-            providerAccountId={googleAccounts[0]?.provider_account_id}
-          />
+      {oauthEnabled ? (
+        <div>
+          <h3 className="text-lg font-medium mb-4">Linked providers</h3>
+          <div className="space-y-2">
+            <Row
+              name="GitHub"
+              provider="github"
+              isLinked={githubAccounts.length > 0}
+              providerAccountId={githubAccounts[0]?.provider_account_id}
+            />
+            <Row
+              name="Google"
+              provider="google"
+              isLinked={googleAccounts.length > 0}
+              providerAccountId={googleAccounts[0]?.provider_account_id}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div>
         <h3 className="text-lg font-medium mb-4">Password</h3>

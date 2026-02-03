@@ -13,6 +13,7 @@
     "vercel-build": "cd ../.. && bun turbo build --filter=@blink.so/site",
     "build": "next build",
     "dev": "next dev --turbopack",
+    "dev:build": "turbo build --filter=@blink.so/site^...",
     "typecheck": "tsgo --noEmit",
     "types": "wrangler types --include-runtime=false",
     "storybook": "STORYBOOK_DISABLE_TELEMETRY=1 STORYBOOK=1 storybook dev -p 6006",

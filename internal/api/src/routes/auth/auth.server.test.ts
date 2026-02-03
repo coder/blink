@@ -61,6 +61,25 @@ test("GET /providers returns available providers", async () => {
   });
 });
 
+test("GET /providers hides oauth providers when disabled", async () => {
+  const { url } = await serve({
+    bindings: {
+      enableOauth: false,
+    },
+  });
+  const res = await fetch(`${url}/api/auth/providers`);
+  expect(res.status).toBe(200);
+
+  const data = await res.json();
+  expect(data.credentials).toEqual({
+    id: "credentials",
+    name: "Credentials",
+    type: "credentials",
+  });
+  expect(data.github).toBeUndefined();
+  expect(data.google).toBeUndefined();
+});
+
 test("GET /session returns empty when no session", async () => {
   const { url } = await serve();
   const res = await fetch(`${url}/api/auth/session`);
@@ -283,6 +302,22 @@ test("GET /signin/github redirects to GitHub OAuth", async () => {
   expect(location).toContain("response_type=code");
 });
 
+test("GET /signin/github redirects to login when oauth disabled", async () => {
+  const { url } = await serve({
+    bindings: {
+      enableOauth: false,
+    },
+  });
+
+  const res = await fetch(`${url}/api/auth/signin/github`, {
+    redirect: "manual",
+  });
+
+  expect(res.status).toBe(302);
+  const location = res.headers.get("Location");
+  expect(location).toContain("/login?error=oauth_disabled");
+});
+
 test("GET /signin/google redirects to Google OAuth", async () => {
   const { url } = await serve({
     bindings: {
@@ -302,6 +337,25 @@ test("GET /signin/google redirects to Google OAuth", async () => {
   expect(location).toContain("scope=openid+email+profile");
   expect(location).toContain("access_type=offline");
   expect(location).toContain("prompt=consent");
+});
+
+test("GET /callback/github redirects to login when oauth disabled", async () => {
+  const { url } = await serve({
+    bindings: {
+      enableOauth: false,
+    },
+  });
+
+  const res = await fetch(
+    `${url}/api/auth/callback/github?code=test-code&state=disabled-state`,
+    {
+      redirect: "manual",
+    }
+  );
+
+  expect(res.status).toBe(302);
+  const location = res.headers.get("Location");
+  expect(location).toContain("/login?error=oauth_disabled");
 });
 
 test("GET /signin/unknown-provider returns 404", async () => {

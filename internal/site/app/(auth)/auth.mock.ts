@@ -85,3 +85,5 @@ export const decodePasswordResetVerifiedToken = fn(() => ({
 export const generatePasswordResetVerifiedToken = fn(
   () => "fake-reset-verified-token"
 );
+
+export const getSessionToken = fn(() => "fake-session-token");

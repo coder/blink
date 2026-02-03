@@ -58,6 +58,14 @@ const providers = {
 const INVITE_COOKIE = "blink_invite_verified";
 type Database = Awaited<ReturnType<Bindings["database"]>>;
 
+const isOauthEnabled = (c: Context<{ Bindings: Bindings }>): boolean => {
+  return c.env.enableOauth !== false;
+};
+
+const oauthDisabledResponse = (c: Context<{ Bindings: Bindings }>) => {
+  return c.redirect("/login?error=oauth_disabled");
+};
+
 const isPublicSignupAllowed = async (
   c: Context<{ Bindings: Bindings }>,
   db: Database
@@ -83,6 +91,9 @@ async function initiateOAuthFlow(
   c: Context<{ Bindings: Bindings }>,
   provider: "github" | "google"
 ) {
+  if (!isOauthEnabled(c)) {
+    return oauthDisabledResponse(c);
+  }
   const config = providers[provider];
   const callbackUrl = new URL(
     `/api/auth/callback/${provider}`,
@@ -122,6 +133,9 @@ async function handleOAuthCallback(
   c: Context<{ Bindings: Bindings }>,
   provider: "github" | "google"
 ) {
+  if (!isOauthEnabled(c)) {
+    return oauthDisabledResponse(c);
+  }
   const code = c.req.query("code");
   const state = c.req.query("state");
 
@@ -521,14 +535,18 @@ export default function mountAuth(server: APIServer) {
   server.get("/providers", (c) => {
     // Return only public fields (id, name, type) for each provider
     const publicProviders = Object.fromEntries(
-      Object.entries(providers).map(([key, provider]) => [
-        key,
-        {
-          id: provider.id,
-          name: provider.name,
-          type: provider.type,
-        },
-      ])
+      Object.entries(providers)
+        .filter(
+          ([, provider]) => provider.type !== "oauth" || isOauthEnabled(c)
+        )
+        .map(([key, provider]) => [
+          key,
+          {
+            id: provider.id,
+            name: provider.name,
+            type: provider.type,
+          },
+        ])
     );
     return c.json(publicProviders);
   });

@@ -18,6 +18,7 @@ export interface ServeOptions {
   devProxy?: string | false;
   setEnv?: boolean;
   enableSignups?: boolean;
+  enableOauth?: boolean;
 }
 
 const stripTrailingSlash = (value: string): string => {
@@ -194,6 +195,7 @@ export const serve = async (options?: ServeOptions) => {
     agentImage: CLI_OPTION_DEFINITIONS.agentImage.defaultValue,
     devhookDisableAuth: false,
     enableSignups: options?.enableSignups ?? true,
+    enableOauth: options?.enableOauth ?? true,
   });
 
   await waitForListening(server);

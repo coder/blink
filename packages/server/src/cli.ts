@@ -107,6 +107,7 @@ async function runServer(options: ResolvedCliOptions) {
     agentImage: options.agentImage,
     devhookDisableAuth: options.devhookDisableAuth,
     enableSignups: options.enableSignups,
+    enableOauth: false,
   });
 
   const box = boxen(

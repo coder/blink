@@ -42,6 +42,7 @@ export default function handleNewAPI(
     req,
     {
       enableSignups: true,
+      enableOauth: true,
       GITHUB_CLIENT_ID: env.GITHUB_CLIENT_ID,
       GITHUB_CLIENT_SECRET: env.GITHUB_CLIENT_SECRET,
       GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID,
