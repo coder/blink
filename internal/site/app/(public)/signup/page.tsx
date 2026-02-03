@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { getQuerier } from "@/lib/database";
+import { getPublicSignupStatus } from "@/lib/signups";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -26,11 +26,9 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
   const redirectQuery = redirectTarget
     ? `?redirect=${encodeURIComponent(redirectTarget)}`
     : "";
+  const loginHref = `/login${redirectQuery}`;
 
-  // Check if this is the first user (no team organizations exist yet)
-  const db = await getQuerier();
-  const teamOrgs = await db.selectTeamOrganizations();
-  const isFirstUser = teamOrgs.length === 0;
+  const { isFirstUser, enableSignups } = await getPublicSignupStatus();
 
   if (isFirstUser) {
     const setupQuery = new URLSearchParams();
@@ -38,6 +36,32 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
     if (error) setupQuery.set("error", error);
     const queryString = setupQuery.toString();
     redirect(`/setup${queryString ? `?${queryString}` : ""}`);
+  }
+
+  if (!enableSignups) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-zinc-900 dark:text-white mb-2">
+              Signups are disabled
+            </h1>
+          </div>
+
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-lg p-8 text-center space-y-4">
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              If you already have an account, you can sign in. Otherwise, please
+              contact your administrator.
+            </p>
+            <Link href={loginHref}>
+              <Button size="lg" className="w-full h-12 text-base font-medium">
+                Go to login
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

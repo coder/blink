@@ -788,7 +788,11 @@ test("POST /signup with redirect returns custom redirect URL", async () => {
 });
 
 test("POST /signup rejects duplicate email", async () => {
-  const { url, helpers } = await serve();
+  const { url, helpers } = await serve({
+    bindings: {
+      enableSignups: true,
+    },
+  });
   const email = "existing@example.com";
 
   await helpers.createUser({ email });
@@ -869,6 +873,31 @@ test("POST /signup without email verification creates session and redirects to c
   const cookieString = cookies.join("; ");
   expect(cookieString).toContain("blink_session_token=");
   expect(cookieString).toContain("last_login_provider=credentials");
+});
+
+test("POST /signup rejects when signups are disabled and not first user", async () => {
+  const { url, helpers } = await serve({
+    bindings: {
+      enableSignups: false,
+    },
+  });
+
+  await helpers.createUser({ email: "existing@example.com" });
+
+  const res = await fetch(`${url}/api/auth/signup`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: "blocked@example.com",
+      password: "password123",
+    }),
+  });
+
+  expect(res.status).toBe(403);
+  const data = await res.json();
+  expect(data.error).toBe("Signups are disabled");
 });
 
 test("POST /resend-email-verification regenerates token", async () => {
@@ -1105,6 +1134,7 @@ test("POST /signup second user with autoJoinOrganizations gets site_role member"
     bindings: {
       sendEmail: undefined,
       autoJoinOrganizations: true,
+      enableSignups: true,
     },
   });
 
@@ -1197,6 +1227,7 @@ test("GET /callback/github second user with autoJoinOrganizations gets site_role
       GITHUB_CLIENT_ID: "test-client-id",
       GITHUB_CLIENT_SECRET: "test-client-secret",
       autoJoinOrganizations: true,
+      enableSignups: true,
     },
   });
 
@@ -1250,6 +1281,65 @@ test("GET /callback/github second user with autoJoinOrganizations gets site_role
   const secondUser = await db.selectUserByEmail("secondoauth@example.com");
   expect(secondUser).toBeDefined();
   expect(secondUser?.site_role).toBe("member");
+});
+
+test("GET /callback/github blocks new user when signups are disabled", async () => {
+  const { url, bindings, helpers } = await serve({
+    bindings: {
+      GITHUB_CLIENT_ID: "test-client-id",
+      GITHUB_CLIENT_SECRET: "test-client-secret",
+      autoJoinOrganizations: true,
+      enableSignups: false,
+    },
+  });
+
+  const { user: firstUser } = await helpers.createUser({
+    email: "admin@example.com",
+    site_role: "admin",
+  });
+  const db = await bindings.database();
+  await db.insertOrganizationWithMembership({
+    name: "default",
+    kind: "organization",
+    created_by: firstUser.id,
+  });
+
+  mswServer.use(
+    http.post("https://github.com/login/oauth/access_token", () => {
+      return HttpResponse.json(mockOAuthTokenResponse);
+    }),
+    http.get("https://api.github.com/user", () => {
+      return HttpResponse.json({
+        ...mockGitHubProfile,
+        id: 999998,
+        email: "blockedoauth@example.com",
+      });
+    })
+  );
+
+  const { encode } = await import("next-auth/jwt");
+  const state = await encode({
+    secret: bindings.AUTH_SECRET,
+    salt: "oauth-state",
+    token: {
+      provider: "github",
+      nonce: "test-nonce",
+      callbackUrl: `${url}/api/auth/callback/github`,
+    },
+  });
+
+  const res = await fetch(
+    `${url}/api/auth/callback/github?code=test-code&state=${state}`,
+    {
+      redirect: "manual",
+    }
+  );
+
+  expect(res.status).toBe(302);
+  expect(res.headers.get("location")).toBe("/login?error=signups_disabled");
+
+  const blockedUser = await db.selectUserByEmail("blockedoauth@example.com");
+  expect(blockedUser).toBeUndefined();
 });
 
 // Suspended user tests

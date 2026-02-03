@@ -106,6 +106,7 @@ async function runServer(options: ResolvedCliOptions) {
     wildcardAccessUrl: options.wildcardAccessUrl,
     agentImage: options.agentImage,
     devhookDisableAuth: options.devhookDisableAuth,
+    enableSignups: options.enableSignups,
   });
 
   const box = boxen(

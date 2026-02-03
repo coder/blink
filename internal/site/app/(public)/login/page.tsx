@@ -4,7 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getQuerier } from "@/lib/database";
+import { getPublicSignupStatus } from "@/lib/signups";
 import { LoginForm } from "./form";
 
 export const metadata: Metadata = {
@@ -24,9 +24,8 @@ interface LoginPageProps {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const db = await getQuerier();
-  const teamOrgs = await db.selectTeamOrganizations();
-  if (teamOrgs.length === 0) {
+  const { isFirstUser, enableSignups } = await getPublicSignupStatus();
+  if (isFirstUser) {
     redirect("/setup");
   }
 
@@ -173,17 +172,19 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </div>
 
           {/* Footer */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-neutral-600 dark:text-neutral-400">
-              Don't have an account?{" "}
-              <a
-                href={`/signup${redirectQuery}`}
-                className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-              >
-                Sign up
-              </a>
-            </p>
-          </div>
+          {enableSignups && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                Don't have an account?{" "}
+                <a
+                  href={`/signup${redirectQuery}`}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                >
+                  Sign up
+                </a>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Terms */}
@@ -218,6 +219,8 @@ function mapErrorToMessage(
       return "Sign-in is temporarily unavailable. Please try again later.";
     case "Verification":
       return "The verification link is invalid or has expired.";
+    case "signups_disabled":
+      return "Signups are disabled on this instance. Contact your administrator.";
     default:
       return "Sign-in failed. Please try again.";
   }

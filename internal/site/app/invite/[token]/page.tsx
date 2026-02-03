@@ -2,6 +2,7 @@ import { auth } from "@/app/(auth)/auth";
 import { LogoBlink } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { getQuerier } from "@/lib/database";
+import { getPublicSignupFlag } from "@/lib/signups";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AcceptInviteButton } from "./accept-invite-button";
@@ -160,6 +161,7 @@ export default async function InvitePage({
   const signupHref = `/signup?redirect=${encodeURIComponent(
     `${inviteUrl}${redirectParam}`
   )}`;
+  const { enableSignups } = getPublicSignupFlag();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-neutral-950 bg-[radial-gradient(ellipse_at_top,rgba(120,119,198,0.08),transparent_50%)] dark:bg-[radial-gradient(ellipse_at_top,rgba(120,119,198,0.12),transparent_50%)] p-6">
@@ -191,23 +193,49 @@ export default async function InvitePage({
             />
           ) : (
             <div className="space-y-4">
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">
-                Sign up to accept this invitation
-              </p>
-              <Button asChild variant="default" size="lg" className="w-full">
-                <a href={signupHref} data-testid="invite-signup-link">
-                  Sign up
-                </a>
-              </Button>
-              <div className="text-center">
-                <a
-                  href={loginHref}
-                  data-testid="invite-login-link"
-                  className="text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 underline transition-colors"
-                >
-                  I am already a Blink user
-                </a>
-              </div>
+              {enableSignups ? (
+                <>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">
+                    Sign up to accept this invitation
+                  </p>
+                  <Button
+                    asChild
+                    variant="default"
+                    size="lg"
+                    className="w-full"
+                  >
+                    <a href={signupHref} data-testid="invite-signup-link">
+                      Sign up
+                    </a>
+                  </Button>
+                  <div className="text-center">
+                    <a
+                      href={loginHref}
+                      data-testid="invite-login-link"
+                      className="text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 underline transition-colors"
+                    >
+                      I am already a Blink user
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400 text-center">
+                    Signups are disabled. If you already have an account, sign
+                    in to accept this invitation.
+                  </p>
+                  <Button
+                    asChild
+                    variant="default"
+                    size="lg"
+                    className="w-full"
+                  >
+                    <a href={loginHref} data-testid="invite-login-link">
+                      Sign in
+                    </a>
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>

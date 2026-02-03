@@ -86,6 +86,13 @@ export const CLI_OPTION_DEFINITIONS = {
     parse: parseBoolean,
     hidden: true,
   },
+  enableSignups: {
+    flags: "--enable-signups",
+    description: "Enable public signups",
+    env: "BLINK_ENABLE_SIGNUPS",
+    defaultValue: "false",
+    parse: parseBoolean,
+  },
 } as const satisfies Record<string, CliOptionDefinition<unknown>>;
 
 export type CliOptionKey = keyof typeof CLI_OPTION_DEFINITIONS;

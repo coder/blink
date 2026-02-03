@@ -17,6 +17,7 @@ export interface ServeOptions {
   wildcardAccessUrl?: string | false;
   devProxy?: string | false;
   setEnv?: boolean;
+  enableSignups?: boolean;
 }
 
 const stripTrailingSlash = (value: string): string => {
@@ -175,6 +176,8 @@ export const serve = async (options?: ServeOptions) => {
         AUTH_SECRET: authSecret,
         POSTGRES_URL: postgresUrl,
         NEXT_PUBLIC_BASE_URL: baseUrl,
+        BLINK_ENABLE_SIGNUPS:
+          (options?.enableSignups ?? true) ? "true" : "false",
         SELF_HOSTED: "true",
       })
     : () => {};
@@ -190,6 +193,7 @@ export const serve = async (options?: ServeOptions) => {
     wildcardAccessUrl,
     agentImage: CLI_OPTION_DEFINITIONS.agentImage.defaultValue,
     devhookDisableAuth: false,
+    enableSignups: options?.enableSignups ?? true,
   });
 
   await waitForListening(server);

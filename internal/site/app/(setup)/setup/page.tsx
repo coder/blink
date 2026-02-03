@@ -1,6 +1,6 @@
-import { getQuerier } from "@/lib/database";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { getPublicSignupStatus } from "@/lib/signups";
 
 import { SetupForm } from "./setup-form";
 
@@ -14,12 +14,10 @@ interface SetupPageProps {
 }
 
 export default async function SetupPage({ searchParams }: SetupPageProps) {
-  // Check if this is actually the first user
-  const db = await getQuerier();
-  const teamOrgs = await db.selectTeamOrganizations();
+  const { isFirstUser } = await getPublicSignupStatus();
 
   // If not first user, redirect to normal signup
-  if (teamOrgs.length > 0) {
+  if (!isFirstUser) {
     redirect("/signup");
   }
 

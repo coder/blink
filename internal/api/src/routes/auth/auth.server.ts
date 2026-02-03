@@ -56,6 +56,24 @@ const providers = {
 // ============================================================================
 
 const INVITE_COOKIE = "blink_invite_verified";
+type Database = Awaited<ReturnType<Bindings["database"]>>;
+
+const isPublicSignupAllowed = async (
+  c: Context<{ Bindings: Bindings }>,
+  db: Database
+) => {
+  if (c.env.enableSignups) {
+    return true;
+  }
+
+  const teamOrgs = await db.selectTeamOrganizations();
+  if (teamOrgs.length > 0) {
+    return false;
+  }
+
+  const users = await db.selectAllUsers({ page: 1, per_page: 1 });
+  return users.items.length === 0;
+};
 
 // ============================================================================
 // OAuth
@@ -279,6 +297,11 @@ async function handleOAuthCallback(
         );
       }
     }
+
+    if (!(await isPublicSignupAllowed(c, db))) {
+      return c.redirect("/login?error=signups_disabled");
+    }
+
     // Create new user
     let usedInviteId: string | null = null;
 
@@ -924,6 +947,10 @@ export default function mountAuth(server: APIServer) {
     async (c) => {
       const { email, password, redirect: redirectTarget } = c.req.valid("json");
       const db = await c.env.database();
+
+      if (!(await isPublicSignupAllowed(c, db))) {
+        return c.json({ error: "Signups are disabled" }, 403);
+      }
 
       // Check if user exists
       const existingUser = await db.selectUserByEmail(email);

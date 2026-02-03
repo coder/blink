@@ -32,6 +32,7 @@ export interface ServerOptions {
   wildcardAccessUrl?: string;
   agentImage: string;
   devhookDisableAuth: boolean;
+  enableSignups: boolean;
 }
 
 // Files are now stored in the database instead of in-memory
@@ -54,6 +55,7 @@ export async function startServer(
     wildcardAccessUrl,
     agentImage,
     devhookDisableAuth,
+    enableSignups,
   } = options;
 
   const db = await connectToPostgres(postgresUrl);
@@ -91,6 +93,7 @@ export async function startServer(
       postgresUrl,
       authSecret,
       baseUrl,
+      enableSignups,
     });
     await app.prepare();
     handleSiteRequest = app.getRequestHandler();
@@ -147,6 +150,7 @@ export async function startServer(
     AUTH_SECRET: authSecret,
     NODE_ENV: "development",
     autoJoinOrganizations: true,
+    enableSignups,
     serverVersion: pkg.version,
     ONBOARDING_AGENT_BUNDLE_URL:
       "https://artifacts.blink.host/starter-agent/bundle.tar.gz",
@@ -636,6 +640,7 @@ export interface StartNextServerOptions {
   postgresUrl: string;
   authSecret: string;
   baseUrl: string;
+  enableSignups: boolean;
 }
 
 /**
@@ -660,6 +665,7 @@ const startNextServer = async (opts: StartNextServerOptions) => {
   process.env.POSTGRES_URL = opts.postgresUrl;
   process.env.AUTH_SECRET = opts.authSecret;
   process.env.NEXT_PUBLIC_BASE_URL = opts.baseUrl;
+  process.env.BLINK_ENABLE_SIGNUPS = opts.enableSignups ? "true" : "false";
 
   let nextConfig: any = {};
   try {
