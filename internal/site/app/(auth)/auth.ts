@@ -27,13 +27,17 @@ declare module "next-auth" {
   }
 }
 
+export async function getSessionToken() {
+  const cookieStore = await cookies();
+  return cookieStore.get(SESSION_COOKIE_NAME)?.value;
+}
+
 /**
  * Server-side auth helper function that decodes session from cookies.
  * This replaces the NextAuth auth() function.
  */
 export async function auth() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const token = await getSessionToken();
 
   if (!token) return null;
 

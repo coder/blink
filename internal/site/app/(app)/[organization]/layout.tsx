@@ -1,8 +1,9 @@
-import { auth } from "@/app/(auth)/auth";
-import { getQuerier } from "@/lib/database";
+import Client from "@blink.so/api";
 import * as convert from "@blink.so/database/convert";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
+import { auth, getSessionToken } from "@/app/(auth)/auth";
+import { getQuerier } from "@/lib/database";
 
 export default async function OrganizationLayout({
   children,
@@ -29,7 +30,7 @@ export const getOrganization = cache(
       return notFound();
     }
     const baseURL = new URL(
-      process.env.NEXT_PUBLIC_BASE_URL! ?? "http://localhost:3000"
+      process.env.NEXT_PUBLIC_BASE_URL! ?? "http://localhost:3005"
     );
     return convert.organization(baseURL, organization);
   }
@@ -46,7 +47,7 @@ export const getOrganizationByID = cache(
       return notFound();
     }
     const baseURL = new URL(
-      process.env.NEXT_PUBLIC_BASE_URL! ?? "http://localhost:3000"
+      process.env.NEXT_PUBLIC_BASE_URL! ?? "http://localhost:3005"
     );
     return convert.organization(baseURL, organization);
   }
@@ -74,51 +75,26 @@ export const getAgent = cache(
 export const getAgentOrNull = cache(
   async (organizationName: string, agentName: string) => {
     const session = await auth();
+    const token = await getSessionToken();
+    const baseURL = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3005";
+    const client = new Client({
+      baseURL,
+      authToken: token,
+    });
     const userID = session?.user?.id;
     const db = await getQuerier();
-    const agent = await db.selectAgentByNameForUser({
+    const agentFromDB = await db.selectAgentByNameForUser({
       organizationName,
       agentName,
       userID,
     });
+    if (!agentFromDB) {
+      return null;
+    }
+    const agent = await client.agents.get(agentFromDB.id);
     if (!agent) {
       return null;
     }
-    // Get the production deployment target's request_id
-    const productionTarget = await db.selectAgentDeploymentTargetByName(
-      agent.id,
-      "production"
-    );
-    const requestURL = productionTarget?.request_id
-      ? new URL(`https://${productionTarget.request_id}.blink.host/`)
-      : undefined;
-
-    // Get user permission for the agent
-    let userPermission: "read" | "write" | "admin" | undefined;
-    if (userID) {
-      const org = await db.selectOrganizationForUser({
-        organizationID: agent.organization_id,
-        userID,
-      });
-      // Org owners and admins get admin permission
-      if (
-        org?.membership &&
-        (org.membership.role === "owner" || org.membership.role === "admin")
-      ) {
-        userPermission = "admin";
-      } else {
-        userPermission = await db.getAgentPermissionForUser({
-          agentId: agent.id,
-          userId: userID,
-          orgRole: org?.membership?.role,
-        });
-        // If permission is undefined, user doesn't have access
-        if (userPermission === undefined) {
-          return null;
-        }
-      }
-    }
-
-    return convert.agent(agent, requestURL, userPermission);
+    return agent;
   }
 );

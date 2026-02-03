@@ -10,7 +10,8 @@ const serve = () => {
     bindings: {
       accessUrl: new URL("https://test.blink.so"),
       matchRequestHost: undefined,
-      createRequestURL: undefined,
+      createRequestURL: (id) =>
+        new URL(`https://test.blink.so/api/webhook/${id}`),
     },
   });
 };

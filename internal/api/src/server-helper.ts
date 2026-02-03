@@ -77,18 +77,17 @@ export const createWebhookURL = (
   requestId: string,
   path: string
 ): string => {
-  // Normalize path to always start with /
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-
-  if (env.createRequestURL) {
-    const baseUrl = env.createRequestURL(requestId);
-    return new URL(normalizedPath, baseUrl).toString();
+  if (!env.createRequestURL) {
+    throw new Error(
+      "createRequestURL is not configured - unable to create webhook URL"
+    );
   }
-
-  // Path-based webhook mode: /api/webhook/{request_id}/{path}
-  const baseUrl = getAccessUrlBase(env.accessUrl);
-  return new URL(
-    `api/webhook/${requestId}${normalizedPath}`,
-    baseUrl
-  ).toString();
+  // Normalize path to never start with /
+  const normalizedPath = path.replace(/^\/+/, "");
+  const baseUrl = env.createRequestURL(requestId);
+  // Ensure the base URL ends with /
+  if (!baseUrl.pathname.endsWith("/")) {
+    baseUrl.pathname += "/";
+  }
+  return new URL(normalizedPath, baseUrl).toString();
 };

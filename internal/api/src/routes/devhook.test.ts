@@ -13,21 +13,6 @@ test("devhook url with createRequestURL", async () => {
   );
 });
 
-test("devhook url with path-based routing", async () => {
-  const { helpers, bindings } = await serve({
-    bindings: {
-      createRequestURL: undefined,
-    },
-  });
-  const { client } = await helpers.createUser();
-
-  const id = crypto.randomUUID();
-
-  const url = await client.devhook.getUrl(id);
-  const expectedUrl = new URL(`api/webhook/${id}`, bindings.accessUrl);
-  expect(url).toBe(expectedUrl.toString());
-});
-
 test("devhook routes require auth by default", async () => {
   const { url } = await serve();
   const id = crypto.randomUUID();

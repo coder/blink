@@ -4,6 +4,7 @@ import { Worker as DevhookWorker } from "@blink.so/compute-protocol-worker";
 import type Querier from "@blink.so/database/querier";
 import { validate as uuidValidate } from "uuid";
 import { WebSocket, WebSocketServer } from "ws";
+import { getAccessUrlBase } from "../../../internal/api/src/server-helper";
 
 type DevhookSession = {
   id: string;
@@ -72,7 +73,10 @@ export const createDevhookSupport = (opts: {
         url.hostname = `${id}.${wildcard.baseHost}`;
         return url;
       }
-    : undefined;
+    : (id: string): URL => {
+        const baseUrl = getAccessUrlBase(accessUrl);
+        return new URL(`api/webhook/${id}/`, baseUrl);
+      };
 
   const toUint8Array = (data: WebSocket.RawData): Uint8Array => {
     if (Array.isArray(data)) {
