@@ -87,11 +87,11 @@ export default function Home() {
     setIsMounted(true);
   }, []);
 
-  // Stop blink-hop animation after 4 seconds
+  // Stop blink-hop animation after 3.8 seconds
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowAnimatedIcon(false);
-    }, 4000);
+    }, 3800);
     return () => clearTimeout(timer);
   }, []);
 
