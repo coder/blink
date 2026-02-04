@@ -54,6 +54,7 @@ export default function Home() {
   const intervalIdsRef = useRef<number[]>([]);
   const [showAnimatedIcon, setShowAnimatedIcon] = useState(true);
   const [slideOutIcon, setSlideOutIcon] = useState(false);
+  const [animateInIcon, setAnimateInIcon] = useState(false);
 
   // Package manager configurations
   const packageManagers = [
@@ -86,6 +87,14 @@ export default function Home() {
   // Track if component is mounted (for portal)
   useEffect(() => {
     setIsMounted(true);
+  }, []);
+
+  // Animate icon in from left on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAnimateInIcon(true);
+    }, 100); // Small delay to ensure initial state is rendered
+    return () => clearTimeout(timer);
   }, []);
 
   // Stop blink-hop animation after 3.8 seconds
@@ -694,7 +703,9 @@ export default function Home() {
         <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[35px]">
           <div className="text-center">
             {/* Blink hop icon */}
-            <div className={`flex justify-center mb-6 h-[100px] w-full transition-transform duration-500 ease-in-out ${slideOutIcon ? 'translate-x-[200vw]' : 'translate-x-0'}`}>
+            <div className={`flex justify-center mb-6 h-[100px] w-full transition-transform duration-500 ease-in-out ${
+              slideOutIcon ? 'translate-x-[200vw]' : animateInIcon ? 'translate-x-0' : '-translate-x-[200vw]'
+            }`}>
               <Image
                 src="/blink-hop-cropped.png"
                 alt="Blink"
