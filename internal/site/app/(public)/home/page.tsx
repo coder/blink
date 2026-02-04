@@ -689,8 +689,8 @@ export default function Home() {
               <Image
                 src="/blink-hop-cropped.png"
                 alt="Blink"
-                width={400}
-                height={400}
+                width={100}
+                height={100}
                 className="brightness-0 invert"
               />
             </div>
