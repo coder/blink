@@ -1,5 +1,7 @@
-import Layout from "@/app/(public)/layout";
 import type { Meta, StoryObj } from "@storybook/react";
+import { mocked } from "storybook/test";
+import Layout from "@/app/(public)/layout";
+import { getEmailDeliveryConfigured } from "@/lib/email-delivery.mock";
 import ResetPasswordPage from "./page";
 
 const meta: Meta = {
@@ -12,8 +14,8 @@ const meta: Meta = {
       </Layout>
     ),
   ],
-  args: {
-    searchParams: Promise.resolve({}),
+  beforeEach: () => {
+    mocked(getEmailDeliveryConfigured).mockReturnValue(true);
   },
 };
 
@@ -22,4 +24,11 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   args: {},
+};
+
+export const EmailDeliveryDisabled: Story = {
+  args: {},
+  beforeEach: () => {
+    mocked(getEmailDeliveryConfigured).mockReturnValue(false);
+  },
 };

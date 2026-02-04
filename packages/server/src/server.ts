@@ -669,6 +669,7 @@ const startNextServer = async (opts: StartNextServerOptions) => {
   process.env.AUTH_SECRET = opts.authSecret;
   process.env.NEXT_PUBLIC_BASE_URL = opts.baseUrl;
   process.env.BLINK_ENABLE_SIGNUPS = opts.enableSignups ? "true" : "false";
+  process.env.BLINK_EMAIL_DELIVERY_CONFIGURED = "false";
 
   let nextConfig: any = {};
   try {
