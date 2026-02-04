@@ -719,9 +719,7 @@ export default function Home() {
               Your team's deep code research partner, in Slack
             </h1>
             <p className="text-lg md:text-xl text-gray-300 max-w-2xl mb-8 mx-auto">
-              Chat with Blink to turn your ideas into fully functional Slack
-              chatbots, tooled, deployed, and ready to /invite to your channels
-              — built on open source.
+              Blink is a self-hosted platform for deploying custom agents, and ships with a powerful coding agent that includes GitHub and Slack tools out of the box.
             </p>
 
             {/* View Docs CTA */}
