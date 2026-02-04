@@ -105,11 +105,11 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Slide out icon after 7.5 seconds
+  // Slide out icon after 4 seconds over headline (4600ms total: 100ms delay + 500ms slide-in + 4000ms stay)
   useEffect(() => {
     const timer = setTimeout(() => {
       setSlideOutIcon(true);
-    }, 7500);
+    }, 4600);
     return () => clearTimeout(timer);
   }, []);
 
