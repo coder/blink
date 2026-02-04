@@ -675,6 +675,16 @@ export default function Home() {
         />
         <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[35px]">
           <div className="text-center">
+            {/* Blink hop icon */}
+            <div className="flex justify-center mb-6">
+              <Image
+                src="/blink-hop.png"
+                alt="Blink"
+                width={80}
+                height={80}
+                className="brightness-0 invert"
+              />
+            </div>
             <h1 className="text-4xl md:text-6xl text-white mb-4 md:mb-6 font-laygrotesk max-w-[800px] mx-auto">
               Your team's deep code research partner, in Slack
             </h1>
