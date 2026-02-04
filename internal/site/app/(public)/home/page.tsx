@@ -52,6 +52,7 @@ export default function Home() {
   const [copiedPMIndex, setCopiedPMIndex] = useState<number | null>(null);
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
   const intervalIdsRef = useRef<number[]>([]);
+  const [showAnimatedIcon, setShowAnimatedIcon] = useState(true);
 
   // Package manager configurations
   const packageManagers = [
@@ -84,6 +85,14 @@ export default function Home() {
   // Track if component is mounted (for portal)
   useEffect(() => {
     setIsMounted(true);
+  }, []);
+
+  // Stop blink-hop animation after 4 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowAnimatedIcon(false);
+    }, 4000);
+    return () => clearTimeout(timer);
   }, []);
 
   // Load dark mode preference from localStorage on mount, or default to dark mode
@@ -678,7 +687,7 @@ export default function Home() {
             {/* Blink hop icon */}
             <div className="flex justify-center mb-6">
               <Image
-                src="/blink-hop.png"
+                src={showAnimatedIcon ? "/blink-hop.png" : "/blink-hop-static.png"}
                 alt="Blink"
                 width={400}
                 height={400}
