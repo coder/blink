@@ -670,7 +670,7 @@ export default function Home() {
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              "radial-gradient(ellipse 1200px 800px at 50% 100%, rgb(58 34 14 / 80%) 0%, rgba(9, 11, 11, 0) 65%)",
+              "radial-gradient(ellipse 1200px 800px at 50% 100%, rgba(14, 28, 58, 0.8) 0%, rgba(9, 11, 11, 0) 65%)",
           }}
         />
         <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[35px]">
@@ -1655,7 +1655,7 @@ export default function Home() {
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              "radial-gradient(ellipse 1200px 800px at 50% 0%, rgb(58 34 14 / 40%) 0%, rgba(9, 11, 11, 0) 65%)",
+              "radial-gradient(ellipse 1200px 800px at 50% 0%, rgba(14, 28, 58, 0.4) 0%, rgba(9, 11, 11, 0) 65%)",
           }}
         />
         <div className="max-w-7xl mx-auto px-4 md:px-8 pt-24 pb-32 relative">
@@ -1938,7 +1938,7 @@ export default function Home() {
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              "radial-gradient(ellipse 1200px 800px at 50% 0%, rgb(52 32 17 / 20%) 0%, rgba(9, 11, 11, 0) 65%)",
+              "radial-gradient(ellipse 1200px 800px at 50% 0%, rgba(14, 28, 58, 0.2) 0%, rgba(9, 11, 11, 0) 65%)",
           }}
         />
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-24 md:py-32 relative">
