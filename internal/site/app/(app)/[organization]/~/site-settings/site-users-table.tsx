@@ -51,6 +51,7 @@ interface SiteUsersTableProps {
   onNextPage?: () => void;
   onUpdateSuspension?: (userId: string, suspended: boolean) => Promise<void>;
   onChangeRole?: (user: SiteUser) => void;
+  onChangePassword?: (user: SiteUser) => void;
   onCreateUser?: () => void;
 }
 
@@ -86,6 +87,7 @@ export function SiteUsersTable({
   onNextPage,
   onUpdateSuspension,
   onChangeRole,
+  onChangePassword,
   onCreateUser,
 }: SiteUsersTableProps) {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -322,6 +324,11 @@ export function SiteUsersTable({
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => onChangeRole?.(user)}>
                           Change role
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => onChangePassword?.(user)}
+                        >
+                          Change password
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() =>

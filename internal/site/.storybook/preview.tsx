@@ -1,5 +1,6 @@
 import type { Preview } from "@storybook/react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "../app/globals.css";
 import { ThemeProvider } from "../components/theme-provider";
 import { TooltipProvider } from "../components/ui/tooltip";
@@ -35,6 +36,7 @@ const preview: Preview = {
       return (
         <ThemeProvider attribute="class" defaultTheme="dark">
           <TooltipProvider delayDuration={0}>
+            <Toaster position="top-center" />
             <Story />
           </TooltipProvider>
         </ThemeProvider>

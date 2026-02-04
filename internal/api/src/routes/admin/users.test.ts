@@ -431,3 +431,117 @@ test("PATCH /api/admin/users/:id/role returns 404 for non-existent user", async 
     )
   ).rejects.toThrow("User not found");
 });
+
+test("PATCH /api/admin/users/:id/password returns 403 for non-admin user", async () => {
+  const { helpers } = await serve();
+  const { client: memberClient } = await helpers.createUser({
+    site_role: "member",
+  });
+  const { user: targetUser } = await helpers.createUser({
+    site_role: "member",
+  });
+
+  await expect(
+    memberClient.admin.users.changePassword(targetUser.id, "newpassword123")
+  ).rejects.toThrow("Forbidden");
+});
+
+test("PATCH /api/admin/users/:id/password returns 401 for unauthenticated request", async () => {
+  const { helpers, url } = await serve();
+  const { user: targetUser } = await helpers.createUser({
+    site_role: "member",
+  });
+
+  const unauthClient = new Client({ baseURL: url.toString() });
+
+  await expect(
+    unauthClient.admin.users.changePassword(targetUser.id, "newpassword123")
+  ).rejects.toThrow("Unauthorized");
+});
+
+test("PATCH /api/admin/users/:id/password successfully changes password", async () => {
+  const { helpers, bindings } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+  const { user: targetUser } = await helpers.createUser({
+    site_role: "member",
+  });
+
+  const result = await adminClient.admin.users.changePassword(
+    targetUser.id,
+    "newpassword123"
+  );
+
+  expect(result.id).toBe(targetUser.id);
+
+  // Verify the password was updated in the database
+  const db = await bindings.database();
+  const updatedUser = await db.selectUserByID(targetUser.id);
+  expect(updatedUser?.password).toBeDefined();
+});
+
+test("PATCH /api/admin/users/:id/password returns 404 for non-existent user", async () => {
+  const { helpers } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+
+  await expect(
+    adminClient.admin.users.changePassword(
+      "00000000-0000-0000-0000-000000000000",
+      "newpassword123"
+    )
+  ).rejects.toThrow("User not found");
+});
+
+test("PATCH /api/admin/users/:id/password validates password minimum length", async () => {
+  const { helpers } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+  const { user: targetUser } = await helpers.createUser({
+    site_role: "member",
+  });
+
+  await expect(
+    adminClient.admin.users.changePassword(targetUser.id, "short")
+  ).rejects.toThrow();
+});
+
+test("PATCH /api/admin/users/:id/password user can login with new password", async () => {
+  const { helpers, url } = await serve();
+  const { client: adminClient } = await helpers.createUser({
+    site_role: "admin",
+  });
+
+  const email = "passwordchange@example.com";
+  const originalPassword = "originalpass123";
+  const newPassword = "newpassword456";
+
+  // Create a user with a known password
+  const createdUser = await adminClient.admin.users.create({
+    email,
+    password: originalPassword,
+    authentication_type: "password",
+  });
+
+  // Change the password via admin API
+  await adminClient.admin.users.changePassword(createdUser.id, newPassword);
+
+  // Verify user can login with new password
+  const newClient = new Client({ baseURL: url.toString() });
+  const loginResult = await newClient.auth.signInWithCredentials({
+    email,
+    password: newPassword,
+  });
+  expect(loginResult.ok).toBe(true);
+
+  // Verify user cannot login with old password
+  await expect(
+    newClient.auth.signInWithCredentials({
+      email,
+      password: originalPassword,
+    })
+  ).rejects.toThrow("Invalid credentials");
+});

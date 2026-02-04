@@ -46,6 +46,14 @@ export const schemaUpdateRoleRequest = z.object({
 
 export type UpdateRoleRequest = z.infer<typeof schemaUpdateRoleRequest>;
 
+export const schemaAdminChangePasswordRequest = z.object({
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export type AdminChangePasswordRequest = z.infer<
+  typeof schemaAdminChangePasswordRequest
+>;
+
 export const schemaCreateUserRequest = z.object({
   email: z.email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -148,6 +156,26 @@ export default class AdminUsers {
       "PATCH",
       `/api/admin/users/${userId}/role`,
       JSON.stringify({ site_role: siteRole })
+    );
+    await assertResponseStatus(resp, 200);
+    return resp.json();
+  }
+
+  /**
+   * Change a user's password (admin only).
+   *
+   * @param userId - The user ID to update.
+   * @param password - The new password.
+   * @returns The updated user.
+   */
+  public async changePassword(
+    userId: string,
+    password: string
+  ): Promise<SiteUser> {
+    const resp = await this.client.request(
+      "PATCH",
+      `/api/admin/users/${userId}/password`,
+      JSON.stringify({ password })
     );
     await assertResponseStatus(resp, 200);
     return resp.json();

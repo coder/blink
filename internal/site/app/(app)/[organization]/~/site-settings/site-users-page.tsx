@@ -4,6 +4,7 @@ import type { SiteRole, SiteUser } from "@blink.so/api";
 import { useCallback, useState } from "react";
 import useSWR from "swr";
 import { useAPIClient } from "@/lib/api-client";
+import { ChangePasswordModal } from "./change-password-modal";
 import { ChangeRoleModal } from "./change-role-modal";
 import { CreateUserModal } from "./create-user-modal";
 import { SiteUsersLayout } from "./site-users-layout";
@@ -17,6 +18,9 @@ export function SiteUsersPage() {
   const [pageSize, setPageSize] = useState(25);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [changeRoleUser, setChangeRoleUser] = useState<SiteUser | null>(null);
+  const [changePasswordUser, setChangePasswordUser] = useState<SiteUser | null>(
+    null
+  );
 
   // Reset to page 1 when filters or page size change
   const handleSearchChange = (query: string) => {
@@ -66,6 +70,14 @@ export function SiteUsersPage() {
     [client, mutate]
   );
 
+  const handleChangePassword = useCallback(
+    async (userId: string, password: string) => {
+      await client.admin.users.changePassword(userId, password);
+      await mutate();
+    },
+    [client, mutate]
+  );
+
   // Show loading state when data hasn't loaded yet (handles initial hydration)
   const isLoadingUsers = isLoading || usersData === undefined;
   const users = usersData?.items || [];
@@ -88,6 +100,7 @@ export function SiteUsersPage() {
         onNextPage={() => setPage((p) => p + 1)}
         onUpdateSuspension={handleUpdateSuspension}
         onChangeRole={(user) => setChangeRoleUser(user)}
+        onChangePassword={(user) => setChangePasswordUser(user)}
         onCreateUser={() => setShowCreateUserModal(true)}
       />
       <CreateUserModal
@@ -101,6 +114,13 @@ export function SiteUsersPage() {
         user={changeRoleUser}
         onClose={() => setChangeRoleUser(null)}
         onRoleChanged={handleUpdateRole}
+      />
+      <ChangePasswordModal
+        key={changePasswordUser?.id}
+        open={changePasswordUser !== null}
+        user={changePasswordUser}
+        onClose={() => setChangePasswordUser(null)}
+        onPasswordChanged={handleChangePassword}
       />
     </SiteUsersLayout>
   );

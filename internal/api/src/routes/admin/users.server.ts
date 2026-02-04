@@ -9,6 +9,7 @@ import { provisionUser } from "../provision-user";
 import {
   type ListSiteUsersResponse,
   type SiteUser,
+  schemaAdminChangePasswordRequest,
   schemaCreateUserRequest,
   schemaListSiteUsersRequest,
   schemaUpdateRoleRequest,
@@ -118,6 +119,38 @@ export default function mountAdminUsers(server: APIServer) {
       await db.updateUserByID({ id, site_role });
 
       // Fetch updated user to return
+      const updatedUser = await db.selectUserByID(id);
+      if (!updatedUser) {
+        throw new HTTPException(404, { message: "User not found" });
+      }
+
+      return c.json(convertSiteUser(updatedUser));
+    }
+  );
+
+  // Change user password (site admin only).
+  server.patch(
+    "/:id/password",
+    withSiteAdmin,
+    validator("param", (value) => {
+      return z.object({ id: z.string().uuid() }).parse(value);
+    }),
+    validator("json", (value) => {
+      return schemaAdminChangePasswordRequest.parse(value);
+    }),
+    async (c) => {
+      const db = await c.env.database();
+      const { id } = c.req.valid("param");
+      const { password } = c.req.valid("json");
+
+      const existingUser = await db.selectUserByID(id);
+      if (!existingUser) {
+        throw new HTTPException(404, { message: "User not found" });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      await db.updateUserByID({ id, password: hashedPassword });
+
       const updatedUser = await db.selectUserByID(id);
       if (!updatedUser) {
         throw new HTTPException(404, { message: "User not found" });

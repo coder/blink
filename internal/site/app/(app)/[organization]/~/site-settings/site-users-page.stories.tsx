@@ -83,6 +83,26 @@ function configureMockClient(users: SiteUser[]) {
         throw new Error("User not found");
       }
     );
+
+    client.admin.users.updateRole.mockImplementation(
+      async (userId: string, siteRole: "admin" | "member") => {
+        const user = users.find((u) => u.id === userId);
+        if (user) {
+          return { ...user, site_role: siteRole };
+        }
+        throw new Error("User not found");
+      }
+    );
+
+    client.admin.users.changePassword.mockImplementation(
+      async (userId: string) => {
+        const user = users.find((u) => u.id === userId);
+        if (user) {
+          return user;
+        }
+        throw new Error("User not found");
+      }
+    );
   };
 }
 
