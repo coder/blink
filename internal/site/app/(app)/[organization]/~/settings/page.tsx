@@ -1,7 +1,8 @@
-import { auth } from "@/app/(auth)/auth";
-import { getQuerier } from "@/lib/database";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { auth } from "@/app/(auth)/auth";
+import { getQuerier } from "@/lib/database";
+import { getEmailDeliveryConfigured } from "@/lib/email-delivery";
 import { getOrganization, getUser } from "../../layout";
 import { DeleteOrganizationForm } from "./organization-delete-form";
 import { OrganizationIdSection } from "./organization-id-section";
@@ -44,6 +45,8 @@ export default async function OrganizationSettingsPage({
       redirect("/");
     }
 
+    const emailDeliveryConfigured = getEmailDeliveryConfigured();
+
     return (
       <div className="space-y-8">
         <UserProfileForm
@@ -55,10 +58,12 @@ export default async function OrganizationSettingsPage({
             organization_id: fullUser.organization_id,
           }}
         />
-        <UserEmailForm
-          userId={fullUser.id}
-          currentEmail={fullUser.email || ""}
-        />
+        {emailDeliveryConfigured && (
+          <UserEmailForm
+            userId={fullUser.id}
+            currentEmail={fullUser.email || ""}
+          />
+        )}
         <UserAuthentication />
         <UserIdSection userId={fullUser.id} />
         <DeleteUserForm userEmail={fullUser.email} />

@@ -9,6 +9,7 @@ import {
   getAuthProviders,
 } from "@/lib/auth-providers.mock";
 import { getQuerier } from "@/lib/database.mock";
+import { getEmailDeliveryConfigured } from "@/lib/email-delivery.mock";
 import OrganizationLayout from "../../layout";
 import OrganizationSettingsLayout from "./layout";
 import OrganizationSettingsPage from "./page";
@@ -145,5 +146,29 @@ export const OAuthDisabled: Story = {
       githubLinked: false,
       googleLinked: false,
     });
+  },
+};
+
+export const EmailDeliveryDisabled: Story = {
+  beforeEach: async () => {
+    await setupUserSettingsMocks();
+    mocked(getEmailDeliveryConfigured).mockReturnValue(false);
+  },
+};
+
+export const OAuthAndEmailDeliveryDisabled: Story = {
+  beforeEach: async () => {
+    await setupUserSettingsMocks({
+      providers: {
+        credentials: {
+          id: "credentials",
+          name: "Credentials",
+          type: "credentials",
+        },
+      },
+      githubLinked: false,
+      googleLinked: false,
+    });
+    mocked(getEmailDeliveryConfigured).mockReturnValue(false);
   },
 };
