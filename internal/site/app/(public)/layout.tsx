@@ -151,25 +151,6 @@ export default function Layout({ children }: { children: ReactNode }) {
               >
                 <LogoBlink size={22} />
               </Link>
-              {/* Mobile: Single line */}
-              <a
-                href="https://coder.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="md:hidden text-[13px] leading-[14px] text-gray-400 hover:text-gray-300 transition-colors duration-150"
-              >
-                {typedTextMobile}
-              </a>
-              {/* Desktop: Two lines */}
-              <a
-                href="https://coder.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden md:block text-[13px] leading-[14px] text-gray-400 hover:text-gray-300 transition-colors duration-150 min-h-[28px]"
-              >
-                <div>{typedText.split("\n")[0] || "\u00A0"}</div>
-                <div>{typedText.split("\n")[1] || "\u00A0"}</div>
-              </a>
             </div>
 
             {/* Navigation - Hidden on mobile, visible on large screens */}
