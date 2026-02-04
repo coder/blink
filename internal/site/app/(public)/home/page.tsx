@@ -687,7 +687,7 @@ export default function Home() {
             {/* Blink hop icon */}
             <div className="flex justify-center mb-6">
               <Image
-                src={showAnimatedIcon ? "/blink-hop.png" : "/blink-hop-static.png"}
+                src="/blink-hop-new.png"
                 alt="Blink"
                 width={400}
                 height={400}
