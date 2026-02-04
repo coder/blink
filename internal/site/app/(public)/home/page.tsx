@@ -957,7 +957,7 @@ export default function Home() {
                     build and launch.
                   </p>
                   <a
-                    href="https://docs.blink.so/get-started/quickstart"
+                    href="https://blink.coder.com/docs/get-started/quickstart"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`inline-flex items-center gap-1.5 text-base underline transition-colors duration-200 ${
@@ -1204,7 +1204,7 @@ export default function Home() {
                     terminal.
                   </p>
                   <a
-                    href="https://docs.blink.so/get-started/building-with-blink"
+                    href="https://blink.coder.com/docs/get-started/building-with-blink"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`inline-flex items-center gap-1.5 text-base underline transition-colors duration-200 ${
@@ -1377,7 +1377,7 @@ export default function Home() {
                     agents is free.
                   </p>
                   <a
-                    href="https://docs.blink.so/get-started/deploying-your-agent"
+                    href="https://blink.coder.com/docs/get-started/deploying-your-agent"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`inline-flex items-center gap-1.5 text-base underline transition-colors duration-200 ${
@@ -1772,7 +1772,7 @@ export default function Home() {
           {/* View Documentation Button */}
           <div className="flex justify-center">
             <a
-              href="https://docs.blink.so"
+              href="https://blink.coder.com/docs"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-black rounded-full font-medium hover:bg-gray-100 transition-colors duration-200"
@@ -1966,7 +1966,7 @@ export default function Home() {
                 )}
               </button>
               <a
-                href="https://docs.blink.so"
+                href="https://blink.coder.com/docs"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-300 hover:text-white transition-colors duration-300 text-base underline underline-offset-4 decoration-gray-500 hover:decoration-white inline-flex items-center justify-center gap-1 w-full sm:w-auto"
