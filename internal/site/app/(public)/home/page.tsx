@@ -10,10 +10,8 @@ import {
   ExternalLink,
   GitBranch,
   Key,
-  Moon,
   Play,
   RotateCw,
-  Sun,
   X,
   Zap,
 } from "lucide-react";
@@ -45,7 +43,6 @@ export default function Home() {
   const [thirdTerminalPrompt, setThirdTerminalPrompt] =
     useState("laptop slackbot % ");
   const thirdTerminalAnimationStarted = useRef(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
@@ -112,27 +109,6 @@ export default function Home() {
     }, 4600);
     return () => clearTimeout(timer);
   }, []);
-
-  // Load dark mode preference from localStorage on mount, or default to dark mode
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedMode = localStorage.getItem("blinkDarkMode");
-      if (savedMode !== null) {
-        // User has a saved preference
-        setIsDarkMode(savedMode === "true");
-      } else {
-        // No saved preference, default to dark mode
-        setIsDarkMode(true);
-      }
-    }
-  }, []);
-
-  // Save dark mode preference to localStorage whenever it changes
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("blinkDarkMode", isDarkMode.toString());
-    }
-  }, [isDarkMode]);
 
   // Handle escape key to close video modal and lock body scroll
   useEffect(() => {
@@ -767,9 +743,7 @@ export default function Home() {
       {/* Section 1: Two-column layout with animated line */}
       <section
         id="use-cases"
-        className={`w-full relative ${
-          isDarkMode ? "bg-[#090B0B] text-white" : "bg-white text-neutral-900"
-        }`}
+        className="w-full relative bg-white text-neutral-900"
       >
         {/* Shimmer divider line at top of section */}
         <div className="w-full flex justify-center absolute top-0 left-0 right-0 z-10">
@@ -783,31 +757,10 @@ export default function Home() {
           />
         </div>
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-24 relative">
-          {/* Dark/Light Mode Toggle */}
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`absolute top-8 right-8 p-2 rounded-lg transition-all duration-200 ${
-              isDarkMode
-                ? "bg-white/10 hover:bg-white/20 text-white"
-                : "bg-gray-100 hover:bg-gray-200 text-gray-900"
-            }`}
-            aria-label="Toggle dark mode"
-          >
-            {isDarkMode ? (
-              <Sun className="w-5 h-5" />
-            ) : (
-              <Moon className="w-5 h-5" />
-            )}
-          </button>
-
           {/* Vertical line continuing from above */}
           {lineAnimated && (
             <div
-              className={`absolute left-1/2 top-0 -translate-x-1/2 w-px animate-[line-extend-section_1.2s_ease-out_0.4s_forwards] opacity-0 ${
-                isDarkMode
-                  ? "bg-gradient-to-b from-neutral-800 via-neutral-700 to-transparent"
-                  : "bg-gradient-to-b from-gray-300 via-gray-300 to-transparent"
-              }`}
+              className="absolute left-1/2 top-0 -translate-x-1/2 w-px animate-[line-extend-section_1.2s_ease-out_0.4s_forwards] opacity-0 bg-gradient-to-b from-gray-300 via-gray-300 to-transparent"
               style={{ height: "calc(100% - 200px)" }}
             />
           )}
@@ -816,23 +769,13 @@ export default function Home() {
           <div
             className="text-center mb-20 mt-8 relative py-8"
             style={{
-              background: isDarkMode
-                ? "linear-gradient(to bottom, rgba(9,11,11,0) 0%, rgba(9,11,11,1) 15%, rgba(9,11,11,1) 85%, rgba(9,11,11,0) 100%)"
-                : "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
+              background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
             }}
           >
-            <h2
-              className={`text-3xl md:text-5xl font-medium mb-4 ${
-                isDarkMode ? "text-white" : "text-neutral-900"
-              }`}
-            >
+            <h2 className="text-3xl md:text-5xl font-medium mb-4 text-neutral-900">
               You ask. Blink builds.
             </h2>
-            <p
-              className={`text-lg md:text-xl max-w-3xl mx-auto ${
-                isDarkMode ? "text-gray-400" : "text-gray-600"
-              }`}
-            >
+            <p className="text-lg md:text-xl max-w-3xl mx-auto text-gray-600">
               Blink creates, configures, and deploys your agents. All from your
               terminal.
             </p>
@@ -851,23 +794,17 @@ export default function Home() {
               <div
                 className="relative py-4"
                 style={{
-                  background: isDarkMode
-                    ? "linear-gradient(to bottom, rgba(9,11,11,0) 0%, rgba(9,11,11,1) 15%, rgba(9,11,11,1) 85%, rgba(9,11,11,0) 100%)"
-                    : "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
+                  background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
                 }}
               >
                 <div
                   className={`rounded-lg border overflow-hidden shadow-sm ${
-                    isDarkMode
-                      ? "border-neutral-800 bg-neutral-900/50"
-                      : "border-gray-200 bg-gray-50/50"
+                    "border-gray-200 bg-gray-50/50"
                   }`}
                 >
                   <div
                     className={`flex items-center gap-2 px-4 py-3 border-b ${
-                      isDarkMode
-                        ? "border-neutral-800 bg-neutral-800/50"
-                        : "border-gray-200 bg-gray-100"
+                      "border-gray-200 bg-gray-100"
                     }`}
                   >
                     <div className="flex gap-1.5">
@@ -877,7 +814,7 @@ export default function Home() {
                     </div>
                     <span
                       className={`text-xs ml-2 ${
-                        isDarkMode ? "text-gray-400" : "text-gray-500"
+                        "text-gray-500"
                       }`}
                     >
                       Terminal — /agents/slackbot
@@ -885,9 +822,7 @@ export default function Home() {
                     <button
                       onClick={restartFirstTerminal}
                       className={`ml-auto transition-colors ${
-                        isDarkMode
-                          ? "text-gray-500 hover:text-gray-300"
-                          : "text-gray-400 hover:text-gray-600"
+                        "text-gray-400 hover:text-gray-600"
                       }`}
                       aria-label="Restart animation"
                     >
@@ -896,13 +831,13 @@ export default function Home() {
                   </div>
                   <div
                     className={`p-4 font-mono text-xs overflow-y-auto ${
-                      isDarkMode ? "bg-neutral-900" : "bg-white"
+                      "bg-white"
                     }`}
                     style={{ minHeight: "180px", maxHeight: "180px" }}
                   >
                     <div
                       className={`mb-2 ${
-                        isDarkMode ? "text-gray-100" : "text-gray-900"
+                        "text-gray-900"
                       }`}
                     >
                       {terminalPrompt.includes(" blink init") ? (
@@ -918,7 +853,7 @@ export default function Home() {
                       <div
                         key={index}
                         className={
-                          isDarkMode ? "text-gray-100" : "text-gray-900"
+                          "text-gray-900"
                         }
                       >
                         {line.includes("blink dev") ? (
@@ -939,9 +874,7 @@ export default function Home() {
               <div className="hidden lg:flex justify-center items-center">
                 <div
                   className={`w-3 h-3 rounded-full relative z-10 border ${
-                    isDarkMode
-                      ? "bg-[#090B0B] border-neutral-700"
-                      : "bg-white border-gray-300"
+                    "bg-white border-gray-300"
                   }`}
                 ></div>
               </div>
@@ -950,16 +883,14 @@ export default function Home() {
               <div
                 className="flex items-center relative py-4"
                 style={{
-                  background: isDarkMode
-                    ? "linear-gradient(to bottom, rgba(9,11,11,0) 0%, rgba(9,11,11,1) 15%, rgba(9,11,11,1) 85%, rgba(9,11,11,0) 100%)"
-                    : "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
+                  background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
                 }}
               >
                 <div className="text-center lg:text-left">
                   <div className="flex items-center gap-3 mb-3 justify-center lg:justify-start">
                     <h3
                       className={`text-2xl font-mono font-medium ${
-                        isDarkMode ? "text-white" : "text-neutral-900"
+                        "text-neutral-900"
                       }`}
                     >
                       blink init
@@ -971,9 +902,7 @@ export default function Home() {
                         setTimeout(() => setCopiedCommand1(false), 2000);
                       }}
                       className={`transition-colors ${
-                        isDarkMode
-                          ? "text-gray-500 hover:text-gray-300"
-                          : "text-gray-400 hover:text-gray-600"
+                        "text-gray-400 hover:text-gray-600"
                       }`}
                       aria-label="Copy command"
                     >
@@ -986,7 +915,7 @@ export default function Home() {
                   </div>
                   <p
                     className={`text-base leading-relaxed mb-3 ${
-                      isDarkMode ? "text-gray-400" : "text-gray-600"
+                      "text-gray-600"
                     }`}
                   >
                     Blink sets up everything your agent needs to deploy, from
@@ -999,9 +928,7 @@ export default function Home() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`inline-flex items-center gap-1.5 text-base underline transition-colors duration-200 ${
-                      isDarkMode
-                        ? "text-white hover:text-gray-400"
-                        : "text-black hover:text-gray-600"
+                      "text-black hover:text-gray-600"
                     }`}
                   >
                     View docs
@@ -1023,23 +950,17 @@ export default function Home() {
               <div
                 className="relative py-4"
                 style={{
-                  background: isDarkMode
-                    ? "linear-gradient(to bottom, rgba(9,11,11,0) 0%, rgba(9,11,11,1) 15%, rgba(9,11,11,1) 85%, rgba(9,11,11,0) 100%)"
-                    : "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
+                  background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
                 }}
               >
                 <div
                   className={`rounded-lg border overflow-hidden shadow-sm ${
-                    isDarkMode
-                      ? "border-neutral-800 bg-neutral-900/50"
-                      : "border-gray-200 bg-gray-50/50"
+                    "border-gray-200 bg-gray-50/50"
                   }`}
                 >
                   <div
                     className={`flex items-center gap-2 px-4 py-3 border-b ${
-                      isDarkMode
-                        ? "border-neutral-800 bg-neutral-800/50"
-                        : "border-gray-200 bg-gray-100"
+                      "border-gray-200 bg-gray-100"
                     }`}
                   >
                     <div className="flex gap-1.5">
@@ -1049,7 +970,7 @@ export default function Home() {
                     </div>
                     <span
                       className={`text-xs ml-2 ${
-                        isDarkMode ? "text-gray-400" : "text-gray-500"
+                        "text-gray-500"
                       }`}
                     >
                       Terminal — /agents/slackbot
@@ -1057,9 +978,7 @@ export default function Home() {
                     <button
                       onClick={() => restartSecondTerminal(false)}
                       className={`ml-auto transition-colors ${
-                        isDarkMode
-                          ? "text-gray-500 hover:text-gray-300"
-                          : "text-gray-400 hover:text-gray-600"
+                        "text-gray-400 hover:text-gray-600"
                       }`}
                       aria-label="Restart animation"
                     >
@@ -1067,7 +986,7 @@ export default function Home() {
                     </button>
                   </div>
                   <div
-                    className={`flex flex-col ${isDarkMode ? "bg-neutral-900" : "bg-white"}`}
+                    className={`flex flex-col ${"bg-white"}`}
                     style={{ height: "240px" }}
                   >
                     {/* Messages area - scrollable */}
@@ -1077,7 +996,7 @@ export default function Home() {
                     >
                       <div
                         className={
-                          isDarkMode ? "text-gray-100" : "text-gray-900"
+                          "text-gray-900"
                         }
                       >
                         <div className="mb-4">
@@ -1085,7 +1004,7 @@ export default function Home() {
                           development
                         </div>
                         <div
-                          className={`mb-4 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                          className={`mb-4 ${"text-gray-600"}`}
                         >
                           You're in edit mode! Describe what you want your agent
                           to do and Blink will make it happen.
@@ -1096,13 +1015,11 @@ export default function Home() {
                           <>
                             {/* User message */}
                             <div
-                              className={`mb-3 rounded-lg px-3 py-2 ${
-                                isDarkMode ? "bg-neutral-800" : "bg-gray-100"
-                              }`}
+                              className="mb-3 rounded-lg px-3 py-2 bg-gray-100"
                             >
                               <div
                                 className={
-                                  isDarkMode ? "text-gray-100" : "text-gray-900"
+                                  "text-gray-900"
                                 }
                               >
                                 Give my agent tools to research GitHub
@@ -1114,7 +1031,7 @@ export default function Home() {
                             {secondTerminalResponse && (
                               <div
                                 className={
-                                  isDarkMode ? "text-gray-300" : "text-gray-700"
+                                  "text-gray-700"
                                 }
                               >
                                 <div className="font-semibold mb-1">Blink:</div>
@@ -1128,20 +1045,16 @@ export default function Home() {
 
                     {/* Input field - fixed at bottom */}
                     <div
-                      className={`border-t p-3 ${
-                        isDarkMode ? "border-neutral-800" : "border-gray-200"
-                      }`}
+                      className="border-t p-3 border-gray-200"
                     >
                       <div
                         className={`bg-gradient-to-r border px-3 py-2 min-h-[36px] ${
-                          isDarkMode
-                            ? "from-orange-900/30 to-orange-800/20 border-orange-600"
-                            : "from-orange-100 to-orange-50 border-orange-400"
+                          "from-orange-100 to-orange-50 border-orange-400"
                         }`}
                       >
                         <div
                           className={`font-mono text-xs min-h-[16px] ${
-                            isDarkMode ? "text-gray-100" : "text-gray-900"
+                            "text-gray-900"
                           }`}
                         >
                           {secondTerminalInput.length > 0 ? (
@@ -1158,9 +1071,7 @@ export default function Home() {
                       </div>
                       {/* Footer text */}
                       <div
-                        className={`flex justify-between mt-2 font-mono text-[10px] ${
-                          isDarkMode ? "text-gray-500" : "text-gray-500"
-                        }`}
+                        className="flex justify-between mt-2 font-mono text-[10px] text-gray-500"
                       >
                         <div className="flex gap-3">
                           <span>
@@ -1186,9 +1097,7 @@ export default function Home() {
               <div className="hidden lg:flex justify-center items-center">
                 <div
                   className={`w-3 h-3 rounded-full relative z-10 border ${
-                    isDarkMode
-                      ? "bg-[#090B0B] border-neutral-700"
-                      : "bg-white border-gray-300"
+                    "bg-white border-gray-300"
                   }`}
                 ></div>
               </div>
@@ -1197,16 +1106,14 @@ export default function Home() {
               <div
                 className="flex items-center relative py-4"
                 style={{
-                  background: isDarkMode
-                    ? "linear-gradient(to bottom, rgba(9,11,11,0) 0%, rgba(9,11,11,1) 15%, rgba(9,11,11,1) 85%, rgba(9,11,11,0) 100%)"
-                    : "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
+                  background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
                 }}
               >
                 <div className="text-center lg:text-left">
                   <div className="flex items-center gap-3 mb-3 justify-center lg:justify-start">
                     <h3
                       className={`text-2xl font-mono font-medium ${
-                        isDarkMode ? "text-white" : "text-neutral-900"
+                        "text-neutral-900"
                       }`}
                     >
                       blink dev
@@ -1218,9 +1125,7 @@ export default function Home() {
                         setTimeout(() => setCopiedCommand2(false), 2000);
                       }}
                       className={`transition-colors ${
-                        isDarkMode
-                          ? "text-gray-500 hover:text-gray-300"
-                          : "text-gray-400 hover:text-gray-600"
+                        "text-gray-400 hover:text-gray-600"
                       }`}
                       aria-label="Copy command"
                     >
@@ -1233,7 +1138,7 @@ export default function Home() {
                   </div>
                   <p
                     className={`text-base leading-relaxed mb-3 ${
-                      isDarkMode ? "text-gray-400" : "text-gray-600"
+                      "text-gray-600"
                     }`}
                   >
                     Chat with Blink in your terminal to shape your agent's tools
@@ -1246,9 +1151,7 @@ export default function Home() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`inline-flex items-center gap-1.5 text-base underline transition-colors duration-200 ${
-                      isDarkMode
-                        ? "text-white hover:text-gray-400"
-                        : "text-black hover:text-gray-600"
+                      "text-black hover:text-gray-600"
                     }`}
                   >
                     View docs
@@ -1270,23 +1173,17 @@ export default function Home() {
               <div
                 className="relative py-4"
                 style={{
-                  background: isDarkMode
-                    ? "linear-gradient(to bottom, rgba(9,11,11,0) 0%, rgba(9,11,11,1) 15%, rgba(9,11,11,1) 85%, rgba(9,11,11,0) 100%)"
-                    : "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
+                  background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
                 }}
               >
                 <div
                   className={`rounded-lg border overflow-hidden shadow-sm ${
-                    isDarkMode
-                      ? "border-neutral-800 bg-neutral-900/50"
-                      : "border-gray-200 bg-gray-50/50"
+                    "border-gray-200 bg-gray-50/50"
                   }`}
                 >
                   <div
                     className={`flex items-center gap-2 px-4 py-3 border-b ${
-                      isDarkMode
-                        ? "border-neutral-800 bg-neutral-800/50"
-                        : "border-gray-200 bg-gray-100"
+                      "border-gray-200 bg-gray-100"
                     }`}
                   >
                     <div className="flex gap-1.5">
@@ -1296,7 +1193,7 @@ export default function Home() {
                     </div>
                     <span
                       className={`text-xs ml-2 ${
-                        isDarkMode ? "text-gray-400" : "text-gray-500"
+                        "text-gray-500"
                       }`}
                     >
                       Terminal — /agents/slackbot
@@ -1304,9 +1201,7 @@ export default function Home() {
                     <button
                       onClick={restartThirdTerminal}
                       className={`ml-auto transition-colors ${
-                        isDarkMode
-                          ? "text-gray-500 hover:text-gray-300"
-                          : "text-gray-400 hover:text-gray-600"
+                        "text-gray-400 hover:text-gray-600"
                       }`}
                       aria-label="Restart animation"
                     >
@@ -1315,13 +1210,13 @@ export default function Home() {
                   </div>
                   <div
                     className={`p-4 font-mono text-xs overflow-y-auto ${
-                      isDarkMode ? "bg-neutral-900" : "bg-white"
+                      "bg-white"
                     }`}
                     style={{ minHeight: "180px", maxHeight: "180px" }}
                   >
                     <div
                       className={`mb-2 ${
-                        isDarkMode ? "text-gray-100" : "text-gray-900"
+                        "text-gray-900"
                       }`}
                     >
                       {thirdTerminalPrompt.includes("blink deploy") ? (
@@ -1337,7 +1232,7 @@ export default function Home() {
                       <div
                         key={index}
                         className={
-                          isDarkMode ? "text-gray-100" : "text-gray-900"
+                          "text-gray-900"
                         }
                       >
                         {line.includes("Deployment successful") ? (
@@ -1360,9 +1255,7 @@ export default function Home() {
               <div className="hidden lg:flex justify-center items-center">
                 <div
                   className={`w-3 h-3 rounded-full relative z-10 border ${
-                    isDarkMode
-                      ? "bg-[#090B0B] border-neutral-700"
-                      : "bg-white border-gray-300"
+                    "bg-white border-gray-300"
                   }`}
                 ></div>
               </div>
@@ -1371,16 +1264,14 @@ export default function Home() {
               <div
                 className="flex items-center relative py-4"
                 style={{
-                  background: isDarkMode
-                    ? "linear-gradient(to bottom, rgba(9,11,11,0) 0%, rgba(9,11,11,1) 15%, rgba(9,11,11,1) 85%, rgba(9,11,11,0) 100%)"
-                    : "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
+                  background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
                 }}
               >
                 <div className="text-center lg:text-left">
                   <div className="flex items-center gap-3 mb-3 justify-center lg:justify-start">
                     <h3
                       className={`text-2xl font-mono font-medium ${
-                        isDarkMode ? "text-white" : "text-neutral-900"
+                        "text-neutral-900"
                       }`}
                     >
                       blink deploy
@@ -1392,9 +1283,7 @@ export default function Home() {
                         setTimeout(() => setCopiedCommand3(false), 2000);
                       }}
                       className={`transition-colors ${
-                        isDarkMode
-                          ? "text-gray-500 hover:text-gray-300"
-                          : "text-gray-400 hover:text-gray-600"
+                        "text-gray-400 hover:text-gray-600"
                       }`}
                       aria-label="Copy command"
                     >
@@ -1407,7 +1296,7 @@ export default function Home() {
                   </div>
                   <p
                     className={`text-base leading-relaxed mb-3 ${
-                      isDarkMode ? "text-gray-400" : "text-gray-600"
+                      "text-gray-600"
                     }`}
                   >
                     Deploy to Blink Cloud to make your agent accessible from
@@ -1419,9 +1308,7 @@ export default function Home() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`inline-flex items-center gap-1.5 text-base underline transition-colors duration-200 ${
-                      isDarkMode
-                        ? "text-white hover:text-gray-400"
-                        : "text-black hover:text-gray-600"
+                      "text-black hover:text-gray-600"
                     }`}
                   >
                     View docs
@@ -1441,18 +1328,14 @@ export default function Home() {
             >
               {/* Full-width container with animated border - NO padding on container */}
               <div
-                className={`relative w-full rounded-lg ${
-                  isDarkMode ? "bg-[#090B0B]" : "bg-white"
-                }`}
+                className="relative w-full rounded-lg bg-white"
               >
                 {/* Animated border segments */}
                 {visibleSections.has(6) && (
                   <>
                     {/* Top-left border (from center) */}
                     <div
-                      className={`absolute top-0 h-px ${
-                        isDarkMode ? "bg-neutral-800" : "bg-gray-300"
-                      }`}
+                      className="absolute top-0 h-px bg-gray-300"
                       style={{
                         left: "50%",
                         width: "0%",
@@ -1461,9 +1344,7 @@ export default function Home() {
                     />
                     {/* Top-right border (from center) */}
                     <div
-                      className={`absolute top-0 h-px ${
-                        isDarkMode ? "bg-neutral-800" : "bg-gray-300"
-                      }`}
+                      className="absolute top-0 h-px bg-gray-300"
                       style={{
                         right: "50%",
                         width: "0%",
@@ -1472,9 +1353,7 @@ export default function Home() {
                     />
                     {/* Left border */}
                     <div
-                      className={`absolute top-0 left-0 w-px ${
-                        isDarkMode ? "bg-neutral-800" : "bg-gray-300"
-                      }`}
+                      className="absolute top-0 left-0 w-px bg-gray-300"
                       style={{
                         height: "0%",
                         animation:
@@ -1483,9 +1362,7 @@ export default function Home() {
                     />
                     {/* Right border */}
                     <div
-                      className={`absolute top-0 right-0 w-px ${
-                        isDarkMode ? "bg-neutral-800" : "bg-gray-300"
-                      }`}
+                      className="absolute top-0 right-0 w-px bg-gray-300"
                       style={{
                         height: "0%",
                         animation:
@@ -1494,9 +1371,7 @@ export default function Home() {
                     />
                     {/* Bottom-left border */}
                     <div
-                      className={`absolute bottom-0 left-0 h-px ${
-                        isDarkMode ? "bg-neutral-800" : "bg-gray-300"
-                      }`}
+                      className="absolute bottom-0 left-0 h-px bg-gray-300"
                       style={{
                         width: "0%",
                         animation:
@@ -1505,9 +1380,7 @@ export default function Home() {
                     />
                     {/* Bottom-right border */}
                     <div
-                      className={`absolute bottom-0 right-0 h-px ${
-                        isDarkMode ? "bg-neutral-800" : "bg-gray-300"
-                      }`}
+                      className="absolute bottom-0 right-0 h-px bg-gray-300"
                       style={{
                         width: "0%",
                         animation:
@@ -1525,14 +1398,14 @@ export default function Home() {
                 >
                   <h2
                     className={`text-3xl md:text-5xl font-medium mb-6 ${
-                      isDarkMode ? "text-white" : "text-neutral-900"
+                      "text-neutral-900"
                     }`}
                   >
                     Add your agent to Slack
                   </h2>
                   <p
                     className={`text-lg md:text-xl max-w-2xl mx-auto ${
-                      isDarkMode ? "text-gray-400" : "text-gray-600"
+                      "text-gray-600"
                     }`}
                   >
                     Your deployed agent is instantly available as a Slack
@@ -1567,19 +1440,19 @@ export default function Home() {
                   {/* Three-row staggered table */}
                   {/* Row 1: Text before image on mobile, image left on desktop */}
                   <div
-                    className={`grid grid-cols-1 md:grid-cols-2 w-full border-t ${isDarkMode ? "border-neutral-800" : "border-gray-300"}`}
+                    className="grid grid-cols-1 md:grid-cols-2 w-full border-t border-gray-300"
                   >
                     <div
-                      className={`flex items-center px-6 md:px-12 py-8 md:py-12 md:border-l order-1 md:order-2 ${isDarkMode ? "border-neutral-800" : "border-gray-300"}`}
+                      className="flex items-center px-6 md:px-12 py-8 md:py-12 md:border-l order-1 md:order-2 border-gray-300"
                     >
                       <div>
                         <h3
-                          className={`text-xl font-medium mb-3 ${isDarkMode ? "text-white" : "text-neutral-900"}`}
+                          className={`text-xl font-medium mb-3 ${"text-neutral-900"}`}
                         >
                           Democratize information access
                         </h3>
                         <p
-                          className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                          className={`text-base ${"text-gray-600"}`}
                         >
                           Ship agents that connect directly to your business
                           systems, with or without MCP, so everyone can find the
@@ -1601,19 +1474,19 @@ export default function Home() {
 
                   {/* Row 2: Text before image on mobile, text left on desktop */}
                   <div
-                    className={`grid grid-cols-1 md:grid-cols-2 w-full border-t ${isDarkMode ? "border-neutral-800" : "border-gray-300"}`}
+                    className="grid grid-cols-1 md:grid-cols-2 w-full border-t border-gray-300"
                   >
                     <div
-                      className={`flex items-center px-6 md:px-12 py-8 md:py-12 md:border-r order-1 ${isDarkMode ? "border-neutral-800" : "border-gray-300"}`}
+                      className="flex items-center px-6 md:px-12 py-8 md:py-12 md:border-r order-1 border-gray-300"
                     >
                       <div>
                         <h3
-                          className={`text-xl font-medium mb-3 ${isDarkMode ? "text-white" : "text-neutral-900"}`}
+                          className={`text-xl font-medium mb-3 ${"text-neutral-900"}`}
                         >
                           Stay informed, stay inspired
                         </h3>
                         <p
-                          className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                          className={`text-base ${"text-gray-600"}`}
                         >
                           Slack agents can do more than automate work. Build
                           ones that keep your team connected with the latest
@@ -1634,19 +1507,19 @@ export default function Home() {
 
                   {/* Row 3: Text before image on mobile, image left on desktop */}
                   <div
-                    className={`grid grid-cols-1 md:grid-cols-2 w-full border-t ${isDarkMode ? "border-neutral-800" : "border-gray-300"}`}
+                    className="grid grid-cols-1 md:grid-cols-2 w-full border-t border-gray-300"
                   >
                     <div
-                      className={`flex items-center px-6 md:px-12 py-8 md:py-12 md:border-l order-1 md:order-2 ${isDarkMode ? "border-neutral-800" : "border-gray-300"}`}
+                      className="flex items-center px-6 md:px-12 py-8 md:py-12 md:border-l order-1 md:order-2 border-gray-300"
                     >
                       <div>
                         <h3
-                          className={`text-xl font-medium mb-3 ${isDarkMode ? "text-white" : "text-neutral-900"}`}
+                          className={`text-xl font-medium mb-3 ${"text-neutral-900"}`}
                         >
                           Supplement your teams
                         </h3>
                         <p
-                          className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+                          className={`text-base ${"text-gray-600"}`}
                         >
                           Give agents tools that let them work alongside your
                           team, handling the backlog tasks and noisy requests
@@ -1824,9 +1697,7 @@ export default function Home() {
 
       {/* FAQ Section */}
       <section
-        className={`w-full relative ${
-          isDarkMode ? "bg-[#090B0B] text-white" : "bg-white text-neutral-900"
-        }`}
+        className="w-full relative bg-white text-neutral-900"
       >
         {/* Shimmer divider line at top of section */}
         <div className="w-full flex justify-center absolute top-0 left-0 right-0 z-10">
@@ -1843,18 +1714,14 @@ export default function Home() {
           {/* Centered vertical line */}
           <div className="absolute inset-0 flex justify-center">
             <div
-              className={`w-px h-full ${
-                isDarkMode ? "bg-neutral-800" : "bg-gray-200"
-              }`}
+              className="w-px h-full bg-gray-200"
             ></div>
           </div>
           {/* Elegant FAQ Accordion */}
           <div className="relative z-10 flex justify-center">
             <div
               className={`rounded-lg shadow-sm max-w-2xl w-full border ${
-                isDarkMode
-                  ? "bg-[#090B0B] border-neutral-800"
-                  : "bg-white border-gray-200"
+                "bg-white border-gray-200"
               }`}
             >
               {[
@@ -1889,30 +1756,24 @@ export default function Home() {
                   className={`${
                     index === 0
                       ? ""
-                      : isDarkMode
-                        ? "border-t border-neutral-800"
-                        : "border-t border-gray-200"
+                      : "border-t border-gray-200"
                   }`}
                 >
                   <button
-                    className={`w-full px-6 py-5 text-left flex items-center justify-between transition-colors duration-200 ${
-                      isDarkMode ? "hover:bg-white/5" : "hover:bg-gray-50"
-                    }`}
+                    className="w-full px-6 py-5 text-left flex items-center justify-between transition-colors duration-200 hover:bg-gray-50"
                     onClick={() =>
                       setOpenFAQ2(openFAQ2 === index ? null : index)
                     }
                   >
                     <span
-                      className={`text-base font-medium pr-4 ${
-                        isDarkMode ? "text-white" : "text-gray-900"
-                      }`}
+                      className="text-base font-medium pr-4 text-gray-900"
                     >
                       {faq.question}
                     </span>
                     <ChevronDown
                       className={`w-4 h-4 transition-transform duration-200 shrink-0 ${
                         openFAQ2 === index ? "rotate-180" : "rotate-0"
-                      } ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
+                      } ${"text-gray-500"}`}
                     />
                   </button>
                   <div
@@ -1923,7 +1784,7 @@ export default function Home() {
                     {" "}
                     <div
                       className={`px-6 leading-relaxed text-base ${
-                        isDarkMode ? "text-gray-400" : "text-gray-600"
+                        "text-gray-600"
                       }`}
                     >
                       {faq.question ===
@@ -1938,9 +1799,7 @@ export default function Home() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className={`underline ${
-                              isDarkMode
-                                ? "text-white hover:text-gray-300"
-                                : "text-gray-900 hover:text-black"
+                              "text-gray-900 hover:text-black"
                             }`}
                           >
                             blink.so/signup
