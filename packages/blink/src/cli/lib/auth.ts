@@ -171,8 +171,11 @@ function getAuthTokenConfigPath() {
 }
 
 export async function loginIfNeeded(host?: string): Promise<string> {
+  if (host) {
+    setHost(host);
+  }
   // If host is not configured, prompt for it or show help message
-  host = host ?? getHost();
+  host = getHost();
   if (!host) {
     const isInteractive = process.stdin.isTTY && process.stdout.isTTY;
 
@@ -221,10 +224,10 @@ export async function loginIfNeeded(host?: string): Promise<string> {
         throw new Error("BLINK_TOKEN environment variable is invalid");
       }
       // Try to login again
-      token = await login();
+      token = await login(host);
     }
   } else {
-    token = await login();
+    token = await login(host);
   }
 
   return token;
