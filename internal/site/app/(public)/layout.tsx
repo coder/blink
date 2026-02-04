@@ -209,7 +209,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 </svg>
               </a>
               <a
-                href="https://docs.blink.so"
+                href="https://blink.coder.com/docs"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 text-gray-400 hover:text-white transition-colors duration-200"
