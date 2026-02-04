@@ -79,6 +79,9 @@ async function runServer(options: ResolvedCliOptions) {
     const tunnel = await startTunnelProxy(tunnelServerUrl, options.port);
     accessUrl = tunnel.accessUrl;
     tunnelCleanup = tunnel[Symbol.dispose];
+    logger.info(
+      `Opening tunnel so external services can send webhooks to your deployment. For production scenarios, specify an external access URL`
+    );
   }
 
   if (!/^https?:\/\//.test(accessUrl)) {
@@ -111,12 +114,7 @@ async function runServer(options: ResolvedCliOptions) {
   });
 
   const box = boxen(
-    [
-      "View the Web UI:",
-      chalk.magenta.underline(accessUrl),
-      "",
-      `Set ${chalk.bold(`BLINK_API_URL=${accessUrl}`)} when using the Blink CLI.`,
-    ].join("\n"),
+    ["View the Web UI:", chalk.magenta.underline(accessUrl)].join("\n"),
     {
       borderColor: "cyan",
       padding: {
