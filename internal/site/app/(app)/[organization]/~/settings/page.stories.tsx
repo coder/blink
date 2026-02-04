@@ -1,13 +1,14 @@
+import { usePathname } from "@storybook/nextjs-vite/navigation.mock";
+import type { Meta, StoryObj } from "@storybook/react";
+import { SessionProvider } from "next-auth/react";
+import { mocked } from "storybook/test";
 import Layout from "@/app/(app)/layout";
+import { withMockClient } from "@/lib/api-client.mock";
 import {
   defaultAuthProviders,
   getAuthProviders,
 } from "@/lib/auth-providers.mock";
 import { getQuerier } from "@/lib/database.mock";
-import type { Meta, StoryObj } from "@storybook/react";
-import { usePathname } from "@storybook/nextjs-vite/navigation.mock";
-import { SessionProvider } from "next-auth/react";
-import { mocked } from "storybook/test";
 import OrganizationLayout from "../../layout";
 import OrganizationSettingsLayout from "./layout";
 import OrganizationSettingsPage from "./page";
@@ -94,6 +95,9 @@ const meta: Meta<typeof OrganizationSettingsPage> = {
     }),
   },
   decorators: [
+    withMockClient((client) => {
+      client.auth.changePassword.mockResolvedValue({ ok: true });
+    }),
     (Story, { args }) => (
       <SessionProvider
         refetchOnWindowFocus={false}

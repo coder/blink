@@ -1,5 +1,9 @@
 "use client";
 
+import Client from "@blink.so/api";
+import { Check, Lock } from "lucide-react";
+import type { ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { GithubIcon, LogoGoogle, TrashIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,10 +11,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import Client from "@blink.so/api";
-import { Check, Lock } from "lucide-react";
-import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { ChangePasswordDialog } from "./change-password-dialog";
 
 interface UserAuthenticationClientProps {
   githubAccounts: Array<{ provider_account_id: string }>;
@@ -170,9 +171,19 @@ export function UserAuthenticationClient({
           title="Password"
           content={hasPassword ? "Set" : "Not set"}
           actions={
-            <Button type="button" variant="outline" size="sm" disabled>
-              Change
-            </Button>
+            hasPassword ? (
+              <ChangePasswordDialog
+                trigger={
+                  <Button type="button" variant="outline" size="sm">
+                    Change
+                  </Button>
+                }
+              />
+            ) : (
+              <Button type="button" variant="outline" size="sm" disabled>
+                Change
+              </Button>
+            )
           }
         />
       </div>

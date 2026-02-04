@@ -85,6 +85,15 @@ export const schemaResendPasswordResetResponse = z.object({
   ok: z.boolean(),
 });
 
+export const schemaChangePasswordRequest = z.object({
+  currentPassword: z.string(),
+  newPassword: z.string().min(8),
+});
+
+export const schemaChangePasswordResponse = z.object({
+  ok: z.boolean(),
+});
+
 export const schemaAuthProvider = z.object({
   id: z.string(),
   name: z.string(),
@@ -131,6 +140,10 @@ export type RequestPasswordResetResponse = z.infer<
 >;
 export type ResendPasswordResetResponse = z.infer<
   typeof schemaResendPasswordResetResponse
+>;
+export type ChangePasswordRequest = z.infer<typeof schemaChangePasswordRequest>;
+export type ChangePasswordResponse = z.infer<
+  typeof schemaChangePasswordResponse
 >;
 export type AuthProvider = z.infer<typeof schemaAuthProvider>;
 export type GetProvidersResponse = z.infer<typeof schemaGetProvidersResponse>;
@@ -348,6 +361,26 @@ export default class Auth {
       "POST",
       "/api/auth/resend-password-reset",
       ""
+    );
+
+    await assertResponseStatus(response, 200);
+    return response.json();
+  }
+
+  /**
+   * changePassword changes the user's password.
+   * Requires authentication - user ID is taken from the session.
+   *
+   * @param request - The password change request.
+   * @returns A promise that resolves to the response.
+   */
+  public async changePassword(
+    request: ChangePasswordRequest
+  ): Promise<ChangePasswordResponse> {
+    const response = await this.client.request(
+      "POST",
+      "/api/auth/change-password",
+      JSON.stringify(request)
     );
 
     await assertResponseStatus(response, 200);

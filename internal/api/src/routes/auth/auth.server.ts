@@ -10,6 +10,9 @@ import type { APIServer, Bindings } from "../../server";
 import { hashPassword } from "../../util/password";
 import { provisionUser } from "../provision-user";
 import {
+  SESSION_COOKIE_NAME,
+  SESSION_SECURE,
+  schemaChangePasswordRequest,
   schemaRequestEmailChangeRequest,
   schemaRequestPasswordResetRequest,
   schemaResetPasswordRequest,
@@ -17,8 +20,6 @@ import {
   schemaSignupRequest,
   schemaVerifyEmailChangeRequest,
   schemaVerifyEmailRequest,
-  SESSION_COOKIE_NAME,
-  SESSION_SECURE,
 } from "./auth.client";
 
 // ============================================================================
@@ -1311,4 +1312,44 @@ export default function mountAuth(server: APIServer) {
 
     return c.json({ ok: true });
   });
+
+  // POST /change-password - Change password for authenticated users
+  server.post(
+    "/change-password",
+    withAuth,
+    validator("json", (value) => {
+      return schemaChangePasswordRequest.parse(value);
+    }),
+    async (c) => {
+      const { currentPassword, newPassword } = c.req.valid("json");
+      const userId = c.get("user_id");
+      const db = await c.env.database();
+
+      // Get current user
+      const user = await db.selectUserByID(userId);
+      if (!user) {
+        return c.json({ error: "User not found" }, 404);
+      }
+
+      // Check if user has a password
+      if (!user.password) {
+        return c.json(
+          { error: "Password authentication is not enabled for this account" },
+          400
+        );
+      }
+
+      // Verify current password
+      const passwordValid = await compare(currentPassword, user.password);
+      if (!passwordValid) {
+        return c.json({ error: "Current password is incorrect" }, 401);
+      }
+
+      // Hash and update password
+      const hashedPassword = await hashPassword(newPassword);
+      await db.updateUserByID({ id: userId, password: hashedPassword });
+
+      return c.json({ ok: true });
+    }
+  );
 }

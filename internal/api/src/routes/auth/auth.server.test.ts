@@ -1,4 +1,5 @@
 import { hash } from "bcrypt-ts";
+import Client from "@blink.so/api";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { http, HttpResponse } from "msw";
 import { setupServer, SetupServerApi } from "msw/node";
@@ -1548,4 +1549,105 @@ test("POST /verify-email rejects suspended user", async () => {
   expect(res.status).toBe(403);
   const data = (await res.json()) as { error: string };
   expect(data.error).toBe("Your account has been suspended");
+});
+
+// Change password tests
+
+const changePasswordTestCases = [
+  {
+    name: "successfully changes password",
+    hasPassword: true,
+    currentPassword: "oldpassword123",
+    newPassword: "newpassword456",
+    sendCurrentPassword: "oldpassword123",
+    expectedOk: true,
+  },
+  {
+    name: "with wrong current password returns error",
+    hasPassword: true,
+    currentPassword: "correctpassword",
+    newPassword: "newpassword456",
+    sendCurrentPassword: "wrongpassword",
+    expectedError: "Current password is incorrect",
+  },
+  {
+    name: "for user without password returns error",
+    hasPassword: false,
+    currentPassword: null,
+    newPassword: "newpassword456",
+    sendCurrentPassword: "anypassword",
+    expectedError: "Password authentication is not enabled for this account",
+  },
+  {
+    name: "with short new password returns error",
+    hasPassword: true,
+    currentPassword: "oldpassword123",
+    newPassword: "short",
+    sendCurrentPassword: "oldpassword123",
+    expectedError: "Too small: expected string to have >=8 characters",
+  },
+];
+
+test.each(changePasswordTestCases)(
+  "POST /change-password $name",
+  async ({
+    hasPassword,
+    currentPassword,
+    newPassword,
+    sendCurrentPassword,
+    expectedOk,
+    expectedError,
+  }) => {
+    const { helpers, bindings } = await serve();
+    const db = await bindings.database();
+
+    const { user, client } = await helpers.createUser({
+      email: `changepass-${Date.now()}@example.com`,
+    });
+
+    await db.updateUserByID({
+      id: user.id,
+      password: hasPassword ? await hash(currentPassword!, 10) : null,
+      email_verified: new Date(),
+    });
+
+    let error: string | undefined;
+    const data = await client.auth
+      .changePassword({
+        currentPassword: sendCurrentPassword,
+        newPassword,
+      })
+      .catch((err) => {
+        error = err instanceof Error ? err.message : "Unknown error";
+      });
+
+    if (expectedOk) {
+      expect(data?.ok).toBe(true);
+      // Verify password was actually changed
+      const { compare } = await import("bcrypt-ts");
+      const updatedUser = await db.selectUserByID(user.id);
+      expect(await compare(newPassword, updatedUser!.password!)).toBe(true);
+    }
+    if (expectedError) {
+      expect(error).toContain(expectedError);
+    }
+  }
+);
+
+test("POST /change-password without authentication returns unauthorized error", async () => {
+  const { url } = await serve();
+
+  const client = new Client({ baseURL: url.toString() });
+
+  let error: string | undefined;
+  await client.auth
+    .changePassword({
+      currentPassword: "oldpassword123",
+      newPassword: "newpassword456",
+    })
+    .catch((err) => {
+      error = err instanceof Error ? err.message : "Unknown error";
+    });
+
+  expect(error).toContain("Unauthorized");
 });
