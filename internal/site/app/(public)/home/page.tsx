@@ -724,7 +724,7 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-gray-200 transition-colors duration-200 text-sm underline underline-offset-4"
                 >
-                  Visit Github
+                  Visit GitHub
                 </a>
               </div>
 
