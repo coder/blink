@@ -706,17 +706,25 @@ export default function Home() {
                   : "opacity-0 translate-y-4"
               }`}
             >
-              <div className="relative z-10">
+              <div className="relative z-10 flex flex-col items-center gap-3">
                 <a
                   href="https://blink.coder.com/docs"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center gap-3 px-8 py-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:border-white/20 hover:px-9 transition-all duration-300 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]"
+                  className="group flex items-center gap-3 px-8 py-3 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 hover:border-white/20 hover:px-9 transition-all duration-300 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]"
                 >
                   <span className="text-[18px] text-gray-100 font-medium">
                     View Docs
                   </span>
                   <ExternalLink className="w-4 h-4 text-gray-400 group-hover:text-gray-300 transition-colors" />
+                </a>
+                <a
+                  href="https://github.com/coder/blink"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-400 hover:text-gray-200 transition-colors duration-200 text-sm underline underline-offset-4"
+                >
+                  Visit Github
                 </a>
               </div>
 
