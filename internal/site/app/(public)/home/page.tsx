@@ -676,7 +676,7 @@ export default function Home() {
         <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[35px]">
           <div className="text-center">
             <h1 className="text-4xl md:text-6xl text-white mb-4 md:mb-6 font-laygrotesk">
-              hello world!
+              Your Team's Codebase Expert, in Slack
             </h1>
             <p className="text-lg md:text-xl text-gray-300 max-w-2xl mb-8 mx-auto">
               Chat with Blink to turn your ideas into fully functional Slack
