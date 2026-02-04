@@ -700,7 +700,7 @@ export default function Home() {
               "radial-gradient(ellipse 1200px 800px at 50% 100%, rgba(14, 28, 58, 0.8) 0%, rgba(9, 11, 11, 0) 65%)",
           }}
         />
-        <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[35px]">
+        <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[85px]">
           <div className="text-center">
             {/* Blink hop icon */}
             <div className={`flex justify-center mb-6 h-[100px] w-full transition-transform duration-500 ease-in-out ${
