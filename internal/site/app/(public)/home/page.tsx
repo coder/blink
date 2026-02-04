@@ -694,13 +694,13 @@ export default function Home() {
         <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[35px]">
           <div className="text-center">
             {/* Blink hop icon */}
-            <div className={`flex justify-center mb-6 h-[50px] transition-transform duration-500 ease-in-out ${slideOutIcon ? 'translate-x-[200vw]' : 'translate-x-0'}`}>
+            <div className={`flex justify-center mb-6 h-[50px] w-full transition-transform duration-500 ease-in-out ${slideOutIcon ? 'translate-x-[200vw]' : 'translate-x-0'}`}>
               <Image
                 src="/blink-hop-cropped.png"
                 alt="Blink"
                 width={50}
                 height={50}
-                className="brightness-0 invert"
+                className="brightness-0 invert object-contain"
                 priority
               />
             </div>
