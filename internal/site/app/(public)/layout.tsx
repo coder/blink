@@ -157,38 +157,8 @@ export default function Layout({ children }: { children: ReactNode }) {
             {/* <div className="hidden lg:flex flex-row items-center gap-6 text-neutral-400 ml-16">
               </div> */}
 
-            {/* Mobile menu button */}
-            <button
-              className="lg:hidden ml-auto p-2 text-white hover:opacity-80 transition-opacity"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              aria-label="Toggle mobile menu"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                {isMobileMenuOpen ? (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                ) : (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                )}
-              </svg>
-            </button>
-
-            {/* Auth buttons */}
-            <div className="hidden lg:flex ml-auto flex-row items-center gap-1 md:gap-2">
+            {/* GitHub and Docs icons - visible on all viewports */}
+            <div className="flex ml-auto flex-row items-center gap-1 md:gap-2">
               <a
                 href="https://github.com/coder/blink"
                 target="_blank"
@@ -229,71 +199,8 @@ export default function Layout({ children }: { children: ReactNode }) {
                   />
                 </svg>
               </a>
-              <Link href="/login">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs md:text-sm px-4 rounded-full inline-flex items-center gap-2 border-gray-600 bg-gray-900/20 hover:bg-gray-800/30 hover:border-gray-500"
-                >
-                  Login
-                </Button>
-              </Link>
             </div>
           </div>
-
-          {/* Mobile Navigation Menu */}
-          {isMobileMenuOpen && (
-            <div className="lg:hidden fixed inset-x-0 top-[72px] md:top-[104px] bottom-0 bg-[#090B0B] z-40 animate-in fade-in duration-200">
-              <div className="h-full flex flex-col px-6 py-8 overflow-y-auto">
-                <nav className="flex-1 flex flex-col space-y-2">
-                  {/* <SmartNavLink
-                      href="#use-cases"
-                      className="text-gray-400 hover:text-white transition-colors py-3 text-lg font-medium"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      Use Cases
-                    </SmartNavLink>
-                    <SmartNavLink
-                      href="#features"
-                      className="text-gray-400 hover:text-white transition-colors py-3 text-lg font-medium"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      Features
-                    </SmartNavLink>
-                    <SmartNavLink
-                      href="#how-it-works"
-                      className="text-gray-400 hover:text-white transition-colors py-3 text-lg font-medium"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      How it Works
-                    </SmartNavLink>
-
-                    <SmartNavLink
-                      href="#community"
-                      className="text-gray-400 hover:text-white transition-colors py-3 text-lg font-medium"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      Community
-                    </SmartNavLink> */}
-                </nav>
-
-                <div className="pb-8">
-                  <Link
-                    href="/login"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      className="w-full text-base px-6 py-4 rounded-full inline-flex items-center justify-center gap-3 border-gray-600 bg-gray-900/20 hover:bg-gray-800/30 hover:border-gray-500"
-                    >
-                      Login
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="relative z-10 w-full flex flex-1 flex-col justify-center">
             {children}
