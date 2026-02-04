@@ -53,6 +53,7 @@ export default function Home() {
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
   const intervalIdsRef = useRef<number[]>([]);
   const [showAnimatedIcon, setShowAnimatedIcon] = useState(true);
+  const [slideOutIcon, setSlideOutIcon] = useState(false);
 
   // Package manager configurations
   const packageManagers = [
@@ -92,6 +93,14 @@ export default function Home() {
     const timer = setTimeout(() => {
       setShowAnimatedIcon(false);
     }, 3800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Slide out icon after 8 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSlideOutIcon(true);
+    }, 8000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -685,7 +694,7 @@ export default function Home() {
         <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[35px]">
           <div className="text-center">
             {/* Blink hop icon */}
-            <div className="flex justify-center mb-6">
+            <div className={`flex justify-center mb-6 transition-transform duration-500 ease-in-out ${slideOutIcon ? 'translate-x-[200vw]' : 'translate-x-0'}`}>
               <Image
                 src="/blink-hop-cropped.png"
                 alt="Blink"
