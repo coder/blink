@@ -675,19 +675,6 @@ export default function Home() {
         />
         <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[35px]">
           <div className="text-center">
-            {/* Early Access Pill */}
-            <div className="flex justify-center mb-6">
-              <button
-                onClick={() => setIsVideoModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/20 text-sm text-gray-300 hover:border-white/30 hover:text-white transition-colors duration-200 cursor-pointer group"
-              >
-                <span>Early Access: Agent Development Engine</span>
-                <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-white/10 group-hover:border-white/20 transition-all duration-200">
-                  <Play className="w-2 h-2 text-gray-300 fill-gray-300" />
-                </div>
-              </button>
-            </div>
-
             <h1 className="text-4xl md:text-6xl text-white mb-4 md:mb-6 font-laygrotesk">
               hello world!
             </h1>
