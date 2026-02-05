@@ -1,25 +1,25 @@
 "use client";
 
 import {
+  Bot,
   Check,
   CheckSquare,
   ChevronDown,
   Cloud,
+  Code,
   Container,
   Copy,
   ExternalLink,
+  Eye,
   GitBranch,
   Key,
+  MessageSquare,
   Play,
   RotateCw,
+  Terminal,
+  Users,
   X,
   Zap,
-  Bot,
-  MessageSquare,
-  Code,
-  Terminal,
-  Eye,
-  Users,
 } from "lucide-react";
 import Image from "next/image";
 import Script from "next/script";
