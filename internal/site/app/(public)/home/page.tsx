@@ -628,7 +628,7 @@ export default function Home() {
             priceCurrency: "USD",
           },
           description:
-            "Build and deploy Slack agents from your terminal. Open source, local-first agent framework.",
+            "Self-hosted platform for deploying custom AI agents. Ships with Scout, a powerful coding agent for deep code research. Integrates with Slack, GitHub, and your infrastructure.",
           url: "https://blink.coder.com",
           downloadUrl: "https://blink.coder.com",
           softwareVersion: "1.0",

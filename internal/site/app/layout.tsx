@@ -6,9 +6,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Blink",
+  title: "Blink: Deep Code Research Agent for Slack & GitHub",
   description:
-    "Build and deploy Slack agents from your terminal. Open source, local-first agent framework.",
+    "Self-hosted platform for deploying custom AI agents. Ships with Scout, a powerful coding agent for deep code research. Integrates with Slack, GitHub, and your infrastructure. Build agents in TypeScript with the Blink SDK.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -16,6 +16,29 @@ export const metadata: Metadata = {
   },
   formatDetection: {
     telephone: false,
+  },
+  openGraph: {
+    title: "Blink - Self-Hosted AI Agents for Code Research",
+    description:
+      "Deploy custom AI coding agents to Slack and GitHub. Pre-built Scout agent, Web UI, and SDK for building agents in TypeScript.",
+    type: "website",
+    url: "https://blink.coder.com",
+    siteName: "Blink",
+    images: [
+      {
+        url: "https://blink.coder.com/slack-screenshots/web-ui-screenshot.jpg",
+        width: 1920,
+        height: 1080,
+        alt: "Blink Web UI",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Blink - Self-Hosted AI Agents for Code Research",
+    description:
+      "Deploy custom AI coding agents to Slack and GitHub with this self-hosted platform.",
+    images: ["https://blink.coder.com/slack-screenshots/web-ui-screenshot.jpg"],
   },
   icons: {
     shortcut: [
