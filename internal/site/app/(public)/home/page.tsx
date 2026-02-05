@@ -685,13 +685,15 @@ export default function Home() {
         <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[85px]">
           <div className="text-center">
             {/* Blink hop icon */}
-            <div className={`flex justify-center mb-6 h-[100px] w-full transition-all duration-500 ease-in-out ${
-              slideOutIcon 
-                ? 'translate-x-[200vw] opacity-0' 
-                : animateInIcon 
-                ? 'translate-y-0 opacity-100' 
-                : '-translate-y-[100vh] opacity-0'
-            }`}>
+            <div
+              className={`flex justify-center mb-6 h-[100px] w-full transition-all duration-500 ease-in-out ${
+                slideOutIcon
+                  ? "translate-x-[200vw] opacity-0"
+                  : animateInIcon
+                    ? "translate-y-0 opacity-100"
+                    : "-translate-y-[100vh] opacity-0"
+              }`}
+            >
               <Image
                 src="/blink-hop-cropped.png"
                 alt="Blink"
@@ -705,7 +707,9 @@ export default function Home() {
               Your team's deep code research partner, in Slack
             </h1>
             <p className="text-lg md:text-xl text-gray-300 max-w-2xl mb-8 mx-auto">
-              Blink is a self-hosted platform for deploying custom agents, and ships with a powerful coding agent that includes GitHub and Slack tools out of the box.
+              Blink is a self-hosted platform for deploying custom agents, and
+              ships with a powerful coding agent that includes GitHub and Slack
+              tools out of the box.
             </p>
 
             {/* View Docs CTA */}
@@ -785,14 +789,16 @@ export default function Home() {
           <div
             className="text-center mb-8 mt-8 relative py-8"
             style={{
-              background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
+              background:
+                "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
             }}
           >
             <h2 className="text-3xl md:text-5xl font-medium mb-4 text-neutral-900">
               Built for real work, not just chat
             </h2>
             <p className="text-lg md:text-xl max-w-3xl mx-auto text-gray-600">
-              Blink agents deliver a Slack experience that other agents can only hallucinate about.
+              Blink agents deliver a Slack experience that other agents can only
+              hallucinate about.
             </p>
           </div>
 
@@ -841,7 +847,9 @@ export default function Home() {
               A ready-to-ship agent, out of the box
             </h2>
             <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
-              Blink ships with a powerful coding agent out of the box, with the flexibility to customize it or build your own and deploy agents safely on your infrastructure.
+              Blink ships with a powerful coding agent out of the box, with the
+              flexibility to customize it or build your own and deploy agents
+              safely on your infrastructure.
             </p>
           </div>
 
@@ -874,7 +882,9 @@ export default function Home() {
                 Pre-built Scout Agent
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                A fully-functional coding agent that you can customize for your own use. Handles deep code research and complex tasks out of the box.
+                A fully-functional coding agent that you can customize for your
+                own use. Handles deep code research and complex tasks out of the
+                box.
               </p>
             </div>
 
@@ -885,7 +895,9 @@ export default function Home() {
                 Web UI
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                Chat with your agents directly in the browser. A clean, intuitive interface for interacting with all your deployed agents.
+                Chat with your agents directly in the browser. A clean,
+                intuitive interface for interacting with all your deployed
+                agents.
               </p>
             </div>
 
@@ -896,7 +908,8 @@ export default function Home() {
                 Blink SDK
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                A set of libraries for building agents compatible with the Blink platform. Build custom agents in TypeScript with ease.
+                A set of libraries for building agents compatible with the Blink
+                platform. Build custom agents in TypeScript with ease.
               </p>
             </div>
 
@@ -907,7 +920,8 @@ export default function Home() {
                 Blink CLI
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                A command-line tool for developing agents locally. Hot-reload, test, and iterate on your agents before deployment.
+                A command-line tool for developing agents locally. Hot-reload,
+                test, and iterate on your agents before deployment.
               </p>
             </div>
 
@@ -918,7 +932,8 @@ export default function Home() {
                 Observability
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                Use the web UI to view logs and traces. Debug and monitor your agents with full visibility into their operations.
+                Use the web UI to view logs and traces. Debug and monitor your
+                agents with full visibility into their operations.
               </p>
             </div>
 
@@ -929,7 +944,8 @@ export default function Home() {
                 Docker-based Deployment
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                Agents are deployed as Docker containers. Consistent, reliable deployment with all the benefits of containerization.
+                Agents are deployed as Docker containers. Consistent, reliable
+                deployment with all the benefits of containerization.
               </p>
             </div>
           </div>
@@ -950,9 +966,7 @@ export default function Home() {
       </section>
 
       {/* FAQ Section */}
-      <section
-        className="w-full relative bg-white text-neutral-900"
-      >
+      <section className="w-full relative bg-white text-neutral-900">
         {/* Shimmer divider line at top of section */}
         <div className="w-full flex justify-center absolute top-0 left-0 right-0 z-10">
           <div
@@ -967,16 +981,12 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-24 md:py-32 relative">
           {/* Centered vertical line */}
           <div className="absolute inset-0 flex justify-center">
-            <div
-              className="w-px h-full bg-gray-200"
-            ></div>
+            <div className="w-px h-full bg-gray-200"></div>
           </div>
           {/* Elegant FAQ Accordion */}
           <div className="relative z-10 flex justify-center">
             <div
-              className={`rounded-lg shadow-sm max-w-2xl w-full border ${
-                "bg-white border-gray-200"
-              }`}
+              className={`rounded-lg shadow-sm max-w-2xl w-full border ${"bg-white border-gray-200"}`}
             >
               {[
                 {
@@ -988,7 +998,17 @@ export default function Home() {
                   question: "How do I get started with Blink?",
                   answer: (
                     <>
-                      Install the Blink server with <code className="px-1.5 py-0.5 bg-gray-100 rounded text-sm font-mono text-gray-900">npm install -g blink-server</code> then run <code className="px-1.5 py-0.5 bg-gray-100 rounded text-sm font-mono text-gray-900">blink-server</code>. Open the web UI in your browser to create your first agent. You'll need Node.js 22+ (or Bun) and Docker installed on your server.
+                      Install the Blink server with{" "}
+                      <code className="px-1.5 py-0.5 bg-gray-100 rounded text-sm font-mono text-gray-900">
+                        npm install -g blink-server
+                      </code>{" "}
+                      then run{" "}
+                      <code className="px-1.5 py-0.5 bg-gray-100 rounded text-sm font-mono text-gray-900">
+                        blink-server
+                      </code>
+                      . Open the web UI in your browser to create your first
+                      agent. You'll need Node.js 22+ (or Bun) and Docker
+                      installed on your server.
                     </>
                   ),
                 },
@@ -1010,11 +1030,7 @@ export default function Home() {
               ].map((faq, index) => (
                 <div
                   key={index}
-                  className={`${
-                    index === 0
-                      ? ""
-                      : "border-t border-gray-200"
-                  }`}
+                  className={`${index === 0 ? "" : "border-t border-gray-200"}`}
                 >
                   <button
                     className="w-full px-6 py-5 text-left flex items-center justify-between transition-colors duration-200 hover:bg-gray-50"
@@ -1022,9 +1038,7 @@ export default function Home() {
                       setOpenFAQ2(openFAQ2 === index ? null : index)
                     }
                   >
-                    <span
-                      className="text-base font-medium pr-4 text-gray-900"
-                    >
+                    <span className="text-base font-medium pr-4 text-gray-900">
                       {faq.question}
                     </span>
                     <ChevronDown
@@ -1040,9 +1054,7 @@ export default function Home() {
                   >
                     {" "}
                     <div
-                      className={`px-6 leading-relaxed text-base ${
-                        "text-gray-600"
-                      }`}
+                      className={`px-6 leading-relaxed text-base ${"text-gray-600"}`}
                     >
                       {faq.answer}
                     </div>
