@@ -55,7 +55,6 @@ export default function Home() {
   const [copiedPMIndex, setCopiedPMIndex] = useState<number | null>(null);
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([]);
   const intervalIdsRef = useRef<number[]>([]);
-  const [showAnimatedIcon, setShowAnimatedIcon] = useState(true);
   const [slideOutIcon, setSlideOutIcon] = useState(false);
   const [animateInIcon, setAnimateInIcon] = useState(false);
 
@@ -92,7 +91,7 @@ export default function Home() {
     setIsMounted(true);
   }, []);
 
-  // Animate icon in from left on mount
+  // Animate icon in from top on mount
   useEffect(() => {
     const timer = setTimeout(() => {
       setAnimateInIcon(true);
@@ -100,19 +99,11 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Stop blink-hop animation after 3.8 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowAnimatedIcon(false);
-    }, 3800);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Slide out icon after 4 seconds over headline (4600ms total: 100ms delay + 500ms slide-in + 4000ms stay)
+  // Slide out icon after 4 seconds over headline (4400ms total: 100ms delay + 500ms slide-in + 3800ms stay)
   useEffect(() => {
     const timer = setTimeout(() => {
       setSlideOutIcon(true);
-    }, 4600);
+    }, 4400);
     return () => clearTimeout(timer);
   }, []);
 
@@ -686,14 +677,46 @@ export default function Home() {
           <div className="text-center">
             {/* Blink hop icon */}
             <div
-              className={`flex justify-center mb-6 h-[100px] w-full transition-all duration-500 ease-in-out ${
+              className={`flex justify-center mb-6 h-[100px] w-full ${
                 slideOutIcon
-                  ? "translate-x-[200vw] opacity-0"
+                  ? "animate-[hop-off-bottom_1s_linear_forwards]"
                   : animateInIcon
-                    ? "translate-y-0 opacity-100"
+                    ? "translate-y-0 opacity-100 transition-all duration-500 ease-in-out"
                     : "-translate-y-[100vh] opacity-0"
               }`}
             >
+              <style jsx>{`
+                @keyframes hop-off-bottom {
+                  0% {
+                    transform: translateY(0);
+                    opacity: 1;
+                  }
+                  20% {
+                    transform: translateY(-40px);
+                    opacity: 1;
+                  }
+                  30% {
+                    transform: translateY(-40px);
+                    opacity: 1;
+                  }
+                  45% {
+                    transform: translateY(-20px);
+                    opacity: 1;
+                  }
+                  60% {
+                    transform: translateY(20px);
+                    opacity: 1;
+                  }
+                  75% {
+                    transform: translateY(100px);
+                    opacity: 0.8;
+                  }
+                  100% {
+                    transform: translateY(100vh);
+                    opacity: 0;
+                  }
+                }
+              `}</style>
               <Image
                 src="/blink-hop-cropped.png"
                 alt="Blink"
