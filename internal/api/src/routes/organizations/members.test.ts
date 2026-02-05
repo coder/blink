@@ -156,3 +156,44 @@ test("Search organization members by query", async () => {
   });
   expect(members.items.length).toBe(4); // owner + 3 invited users
 });
+
+test("remove member disabled when enableMultiOrg is false", async () => {
+  const { helpers, bindings } = await serve({
+    bindings: {
+      enableMultiOrg: false,
+    },
+  });
+  const { client } = await helpers.createUser();
+
+  // Get the owner's personal organization
+  const orgs = await client.organizations.list();
+  const org = orgs[0];
+  if (!org) {
+    throw new Error("organization not found");
+  }
+
+  // Create another user and add them to the organization
+  const { user: memberUser } = await helpers.createUser();
+
+  // Directly add the user as a member via database
+  const db = await bindings.database();
+  await db.insertOrganizationMembership({
+    user_id: memberUser.id,
+    organization_id: org.id,
+    role: "member",
+  });
+
+  // Verify the member was added
+  const members = await client.organizations.members.list({
+    organization_id: org.id,
+  });
+  expect(members.items.length).toBe(2);
+
+  // Try to remove the member - should fail with 403
+  await expect(
+    client.organizations.members.delete({
+      organization_id: org.id,
+      user_id: memberUser.id,
+    })
+  ).rejects.toThrow("Removing members is disabled");
+});

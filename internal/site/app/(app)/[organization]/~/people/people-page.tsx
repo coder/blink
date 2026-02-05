@@ -1,8 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import Client from "@blink.so/api";
+import { useAPIClient } from "@/lib/api-client";
 import { Link as LinkIcon, UserPlus } from "lucide-react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
@@ -14,16 +15,20 @@ import { PendingInvitesTable } from "./pending-invites-table";
 
 interface PeoplePageProps {
   organizationId: string;
+  organizationName: string;
   isAdmin: boolean;
   viewerUserId: string;
+  enableMultiOrg: boolean;
 }
 
 export function PeoplePage({
   organizationId,
+  organizationName,
   isAdmin,
   viewerUserId,
+  enableMultiOrg,
 }: PeoplePageProps) {
-  const client = useMemo(() => new Client(), []);
+  const client = useAPIClient();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
@@ -104,7 +109,7 @@ export function PeoplePage({
           </div>
           <div className="flex items-center gap-4">
             <OrganizationPermissionsReferenceModal />
-            {isAdmin && (
+            {isAdmin && enableMultiOrg && (
               <>
                 <Button
                   variant="outline"
@@ -118,6 +123,14 @@ export function PeoplePage({
                   Invite Member
                 </Button>
               </>
+            )}
+            {isAdmin && !enableMultiOrg && (
+              <Button asChild>
+                <Link href={`/${organizationName}/~/site-settings`}>
+                  <UserPlus className="h-4 w-4" />
+                  Add Users
+                </Link>
+              </Button>
             )}
           </div>
         </div>
@@ -133,6 +146,7 @@ export function PeoplePage({
           onSearchChange={setSearchQuery}
           roleFilter={roleFilter}
           onRoleFilterChange={setRoleFilter}
+          enableMultiOrg={enableMultiOrg}
         />
       </div>
 

@@ -97,6 +97,10 @@ export default function mountMembers(server: APIServer) {
 
   // Remove a member from the organization.
   server.delete("/:user_id", withAuth, withOrganizationURLParam, async (c) => {
+    if (c.env.enableMultiOrg === false) {
+      return c.json({ message: "Removing members is disabled" }, 403);
+    }
+
     const db = await c.env.database();
     const org = c.get("organization");
     const membership = org.membership;

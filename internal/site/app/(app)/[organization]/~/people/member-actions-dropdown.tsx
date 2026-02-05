@@ -32,6 +32,7 @@ interface MemberActionsDropdownProps {
   onUpdated?: () => void;
   onRemoved?: () => void;
   onInviteDeleted?: () => void;
+  enableMultiOrg?: boolean;
 }
 
 type LoadingState = "idle" | "deleting" | "updating" | "removing";
@@ -47,6 +48,7 @@ export function MemberActionsDropdown({
   onUpdated,
   onRemoved,
   onInviteDeleted,
+  enableMultiOrg,
 }: MemberActionsDropdownProps) {
   const client = useMemo(() => new Client(), []);
   const [loadingState, setLoadingState] = useState<LoadingState>("idle");
@@ -190,13 +192,17 @@ export function MemberActionsDropdown({
               >
                 Manage Access
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleRemoveMember}
-                disabled={isLoading}
-                className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
-              >
-                {loadingState === "removing" ? "Removing..." : "Remove Member"}
-              </DropdownMenuItem>
+              {enableMultiOrg !== false && (
+                <DropdownMenuItem
+                  onClick={handleRemoveMember}
+                  disabled={isLoading}
+                  className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+                >
+                  {loadingState === "removing"
+                    ? "Removing..."
+                    : "Remove Member"}
+                </DropdownMenuItem>
+              )}
             </>
           )}
 
@@ -315,7 +321,9 @@ export function MemberActionsDropdown({
                 value: "admin",
                 title: "Admin",
                 description:
-                  "Can add/remove users and has admin access to all agents",
+                  enableMultiOrg !== false
+                    ? "Can add/remove users and has admin access to all agents"
+                    : "Has admin access to all agents",
               },
             ].map((role) => (
               <label

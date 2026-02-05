@@ -22,6 +22,7 @@ interface MembersTableProps {
   onSearchChange: (query: string) => void;
   roleFilter: string;
   onRoleFilterChange: (role: string) => void;
+  enableMultiOrg: boolean;
 }
 
 export function MembersTable({
@@ -35,6 +36,7 @@ export function MembersTable({
   onSearchChange,
   roleFilter,
   onRoleFilterChange,
+  enableMultiOrg,
 }: MembersTableProps) {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -211,6 +213,7 @@ export function MembersTable({
                           currentRole={member.role}
                           onUpdated={onMemberUpdated}
                           onRemoved={onMemberRemoved}
+                          enableMultiOrg={enableMultiOrg}
                         />
                       )}
                     </td>

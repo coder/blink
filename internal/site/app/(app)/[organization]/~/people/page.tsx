@@ -55,8 +55,10 @@ export default async function Page({
         />
         <PeoplePage
           organizationId={organization.id}
+          organizationName={organization.name}
           isAdmin={isAdmin}
           viewerUserId={session.user.id}
+          enableMultiOrg={getEnableMultiOrg()}
         />
       </PageContainer>
     </div>
