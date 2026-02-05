@@ -55,7 +55,7 @@ export default async function Page({
         />
         <PeoplePage
           organizationId={organization.id}
-          organizationName={organization.name}
+          username={user.username}
           isAdmin={isAdmin}
           viewerUserId={session.user.id}
           enableMultiOrg={getEnableMultiOrg()}

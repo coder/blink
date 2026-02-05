@@ -107,7 +107,7 @@ const meta: Meta<typeof PeoplePage> = {
   },
   args: {
     organizationId: "org-1",
-    organizationName: "my-org",
+    username: "alice",
     isAdmin: true,
     viewerUserId: "user-1",
     enableMultiOrg: true,

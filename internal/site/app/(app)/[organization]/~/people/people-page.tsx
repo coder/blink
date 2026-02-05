@@ -15,18 +15,18 @@ import { PendingInvitesTable } from "./pending-invites-table";
 
 interface PeoplePageProps {
   organizationId: string;
-  organizationName: string;
   isAdmin: boolean;
   viewerUserId: string;
   enableMultiOrg: boolean;
+  username: string;
 }
 
 export function PeoplePage({
   organizationId,
-  organizationName,
   isAdmin,
   viewerUserId,
   enableMultiOrg,
+  username,
 }: PeoplePageProps) {
   const client = useAPIClient();
   const searchParams = useSearchParams();
@@ -126,7 +126,7 @@ export function PeoplePage({
             )}
             {isAdmin && !enableMultiOrg && (
               <Button asChild>
-                <Link href={`/${organizationName}/~/site-settings`}>
+                <Link href={`/${username}/~/site-settings`}>
                   <UserPlus className="h-4 w-4" />
                   Add Users
                 </Link>
