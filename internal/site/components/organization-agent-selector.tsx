@@ -122,7 +122,23 @@ export default function AgentSelector({
 
   const activeOrg: Organization | null = useMemo(() => {
     const hovered = organizations?.find((o) => o.id === hoverOrgId) ?? null;
-    return hovered ?? selectedOrganization ?? organizations?.[0] ?? null;
+    if (hovered) {
+      return hovered;
+    }
+    if (selectedOrganization) {
+      return selectedOrganization;
+    }
+    if (!organizations) {
+      return null;
+    }
+    // Prefer oldest team org, fall back to first org (personal)
+    const oldestTeamOrg = organizations
+      .filter((o) => o.kind === "organization")
+      .sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )[0];
+    return oldestTeamOrg ?? organizations[0] ?? null;
   }, [hoverOrgId, organizations, selectedOrganization]);
 
   // Load agents when active org changes

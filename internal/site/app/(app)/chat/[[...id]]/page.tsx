@@ -82,11 +82,18 @@ export default async function Page(props: {
       querier.selectOrganizationMembershipsByUserID(session.user.id),
     ]);
 
-    const isCoderMember = memberships.some(
-      (m) => m.organization.id === CODER_ORG_ID
-    );
+    // Prefer oldest team org, fall back to personal org
+    const teamOrgs = memberships
+      .filter((m) => m.organization.kind === "organization")
+      .sort(
+        (a, b) =>
+          new Date(a.organization.created_at).getTime() -
+          new Date(b.organization.created_at).getTime()
+      );
 
-    if (!isCoderMember && user?.username) {
+    if (teamOrgs.length > 0) {
+      redirect(`/${teamOrgs[0].organization.name}`);
+    } else if (user?.username) {
       redirect(`/${user.username}`);
     }
   }

@@ -28,6 +28,7 @@ export const organization = (
     created_at: org.created_at,
     updated_at: org.updated_at,
     name: org.name,
+    kind: org.kind,
     avatar_url: org.avatar_url,
     membership: org.membership
       ? {

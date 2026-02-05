@@ -12,6 +12,7 @@ export type { OrganizationMember } from "./members.client";
 export const schemaOrganization = z.object({
   id: z.uuid(),
   name: z.string(),
+  kind: z.enum(["organization", "personal"]),
   created_at: z.date(),
   updated_at: z.date(),
   membership: schemaOrganizationMembership.nullable(),

@@ -8,6 +8,7 @@ const mockOrganizations: Organization[] = [
   {
     id: "1",
     name: "Personal",
+    kind: "personal",
     avatar_url: null,
     created_at: new Date(),
     updated_at: new Date(),
@@ -24,6 +25,7 @@ const mockOrganizations: Organization[] = [
   {
     id: "2",
     name: "Coder",
+    kind: "organization",
     avatar_url: "https://avatars.githubusercontent.com/u/95932066",
     created_at: new Date(),
     updated_at: new Date(),
@@ -40,6 +42,7 @@ const mockOrganizations: Organization[] = [
   {
     id: "3",
     name: "Acme Corp",
+    kind: "organization",
     avatar_url: null,
     created_at: new Date(),
     updated_at: new Date(),
