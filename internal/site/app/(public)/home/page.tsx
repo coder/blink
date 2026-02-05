@@ -14,6 +14,12 @@ import {
   RotateCw,
   X,
   Zap,
+  Bot,
+  MessageSquare,
+  Code,
+  Terminal,
+  Eye,
+  Users,
 } from "lucide-react";
 import Image from "next/image";
 import Script from "next/script";
@@ -679,8 +685,12 @@ export default function Home() {
         <div className="hero-masthead-section w-full max-w-7xl mx-auto px-4 md:px-8 relative z-10 py-20 md:-mt-20 -translate-y-[85px]">
           <div className="text-center">
             {/* Blink hop icon */}
-            <div className={`flex justify-center mb-6 h-[100px] w-full transition-transform duration-500 ease-in-out ${
-              slideOutIcon ? 'translate-x-[200vw]' : animateInIcon ? 'translate-x-0' : '-translate-x-[200vw]'
+            <div className={`flex justify-center mb-6 h-[100px] w-full transition-all duration-500 ease-in-out ${
+              slideOutIcon 
+                ? 'translate-x-[200vw] opacity-0' 
+                : animateInIcon 
+                ? 'translate-y-0 opacity-100' 
+                : '-translate-y-[100vh] opacity-0'
             }`}>
               <Image
                 src="/blink-hop-cropped.png"
@@ -773,21 +783,20 @@ export default function Home() {
 
           {/* Section Headline */}
           <div
-            className="text-center mb-20 mt-8 relative py-8"
+            className="text-center mb-8 mt-8 relative py-8"
             style={{
               background: "linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 15%, rgba(255,255,255,1) 85%, rgba(255,255,255,0) 100%)",
             }}
           >
             <h2 className="text-3xl md:text-5xl font-medium mb-4 text-neutral-900">
-              You ask. Blink builds.
+              Built for real work, not just chat
             </h2>
             <p className="text-lg md:text-xl max-w-3xl mx-auto text-gray-600">
-              Blink creates, configures, and deploys your agents. All from your
-              terminal.
+              Blink agents deliver a Slack experience that other agents can only hallucinate about.
             </p>
           </div>
 
-          <div className="mt-12 mb-20 w-full max-w-5xl mx-auto">
+          <div className="mb-20 w-full max-w-5xl mx-auto">
             <div className="relative aspect-video overflow-hidden rounded-lg">
               <iframe
                 src="https://www.youtube.com/embed/lR6GbKuhXRo?loop=1&playlist=lR6GbKuhXRo&mute=1&controls=1&modestbranding=1&rel=0&vq=hd1080&hd=1"
@@ -825,16 +834,14 @@ export default function Home() {
               "radial-gradient(ellipse 1200px 800px at 50% 0%, rgba(14, 28, 58, 0.4) 0%, rgba(9, 11, 11, 0) 65%)",
           }}
         />
-        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-24 pb-32 relative">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-24 relative">
           {/* Section Header */}
-          <div className="text-center mb-16 relative py-8">
+          <div className="text-center mb-16 mt-8 relative py-8">
             <h2 className="text-3xl md:text-5xl font-medium text-white mb-4">
-              From local to live, Blink powers it all.
+              A ready-to-ship agent, out of the box
             </h2>
             <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
-              Open-source and coupled with the Vercel AI SDK, Blink is an agent
-              development engine that delivers agents from your terminal to the
-              world.
+              Blink ships with a powerful coding agent out of the box, with the flexibility to customize it or build your own and deploy agents safely on your infrastructure.
             </p>
           </div>
 
@@ -863,81 +870,72 @@ export default function Home() {
             {/* Feature 1 */}
             <div className="p-8">
               <h3 className="text-xl font-medium text-white mb-3 flex items-center gap-3">
-                <Container className="w-5 h-5 text-gray-400" />
-                Simple HTTP Server
+                <Bot className="w-5 h-5 text-gray-400" />
+                Pre-built Scout Agent
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                Every Blink agent is simply a Node HTTP server. Deploy anywhere
-                Node runs—your laptop, VPS, or the cloud.
+                A fully-functional coding agent that you can customize for your own use. Handles deep code research and complex tasks out of the box.
               </p>
             </div>
 
             {/* Feature 2 */}
             <div className="p-8">
               <h3 className="text-xl font-medium text-white mb-3 flex items-center gap-3">
-                <Key className="w-5 h-5 text-gray-400" />
-                Bring Your Own Keys
+                <MessageSquare className="w-5 h-5 text-gray-400" />
+                Web UI
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                Use your own API keys for OpenAI, Anthropic, or any provider. No
-                gateway required. Built on the familiar AI SDK for maximum
-                flexibility.
+                Chat with your agents directly in the browser. A clean, intuitive interface for interacting with all your deployed agents.
               </p>
             </div>
 
             {/* Feature 3 */}
             <div className="p-8">
               <h3 className="text-xl font-medium text-white mb-3 flex items-center gap-3">
-                <Zap className="w-5 h-5 text-gray-400" />
-                Agent-Ready SDKs
+                <Code className="w-5 h-5 text-gray-400" />
+                Blink SDK
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                Pre-built tools for Slack, GitHub, and search. Extend with
-                custom tools and even manual approval workflows.
+                A set of libraries for building agents compatible with the Blink platform. Build custom agents in TypeScript with ease.
               </p>
             </div>
 
             {/* Feature 4 */}
             <div className="p-8">
               <h3 className="text-xl font-medium text-white mb-3 flex items-center gap-3">
-                <GitBranch className="w-5 h-5 text-gray-400" />
-                Local-First Development
+                <Terminal className="w-5 h-5 text-gray-400" />
+                Blink CLI
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                Hot-reload your agent with blink dev. Chats and storage persist
-                locally in JSON files. Test everything offline before deploying
-                anywhere.
+                A command-line tool for developing agents locally. Hot-reload, test, and iterate on your agents before deployment.
               </p>
             </div>
 
             {/* Feature 5 */}
             <div className="p-8">
               <h3 className="text-xl font-medium text-white mb-3 flex items-center gap-3">
-                <Cloud className="w-5 h-5 text-gray-400" />
-                Deploy Anywhere (or Nowhere)
+                <Eye className="w-5 h-5 text-gray-400" />
+                Observability
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                Bundle as an npm package to share, run locally forever, or
-                optionally deploy to blink.so. Cloud is never required—Blink is
-                local-first by design.
+                Use the web UI to view logs and traces. Debug and monitor your agents with full visibility into their operations.
               </p>
             </div>
 
             {/* Feature 6 */}
             <div className="p-8">
               <h3 className="text-xl font-medium text-white mb-3 flex items-center gap-3">
-                <CheckSquare className="w-5 h-5 text-gray-400" />
-                Open Source, MIT Licensed
+                <Container className="w-5 h-5 text-gray-400" />
+                Docker-based Deployment
               </h3>
               <p className="text-gray-300 leading-relaxed">
-                Open source under MIT. Audit the code, fork it, modify it. We
-                believe that agent development tooling shouldn't be black boxed.
+                Agents are deployed as Docker containers. Consistent, reliable deployment with all the benefits of containerization.
               </p>
             </div>
           </div>
 
           {/* View Documentation Button */}
-          <div className="flex justify-center">
+          <div className="flex justify-center mb-8">
             <a
               href="https://blink.coder.com/docs"
               target="_blank"
@@ -984,27 +982,30 @@ export default function Home() {
                 {
                   question: "What is Blink?",
                   answer:
-                    "Blink is an open-source development engine for building Slack agents from your terminal. It turns your natural language instructions into fully functional agents with tools, handles deployment to Slack, and runs locally-first so you can tinker before going live.",
+                    "Blink is a self-hosted platform for deploying custom AI agents. It ships with a built-in coding agent (Scout) tooled for deep code research and complex tasks. You can work alongside Blink agents in GitHub, the web UI, or in threaded Slack conversations.",
                 },
                 {
                   question: "How do I get started with Blink?",
-                  answer:
-                    "Run 'blink init' in your terminal to create a new agent. Then use 'blink dev' to describe what you want your agent to do—Blink will build the tools and functionality. When ready, run 'blink deploy' to make it available in Slack. The entire workflow happens in your terminal.",
+                  answer: (
+                    <>
+                      Install the Blink server with <code className="px-1.5 py-0.5 bg-gray-100 rounded text-sm font-mono text-gray-900">npm install -g blink-server</code> then run <code className="px-1.5 py-0.5 bg-gray-100 rounded text-sm font-mono text-gray-900">blink-server</code>. Open the web UI in your browser to create your first agent. You'll need Node.js 22+ (or Bun) and Docker installed on your server.
+                    </>
+                  ),
                 },
                 {
-                  question: "Do I need to host Blink somewhere?",
+                  question: "What's a Blink agent?",
                   answer:
-                    "No! Blink agents run locally on your machine during development. For production, you can optionally deploy to Blink Cloud (free during Early Access). Blink is local-first by design so you can experiment without deploying to a cloud.",
+                    "Blink agents are HTTP servers that respond to events. The Blink Server deploys them as Docker containers, routes messages from Slack/GitHub/web UI, and manages conversation state—your agent just defines how to respond. You build them in TypeScript using the Blink SDK.",
                 },
                 {
-                  question: "How does Blink compare to other agent frameworks?",
+                  question: "Can I customize the Scout agent or build my own?",
                   answer:
-                    "Blink is open source (MIT license) and local-first. You bring your own API keys for OpenAI, Anthropic, or any LLM provider—no gateways or markup. Every Blink agent is just a Node.js HTTP server, so there's no vendor lock-in. You can audit the code, fork it, and deploy anywhere.",
+                    "Yes! The Scout agent is fully customizable with new tools and prompts. You can also build completely new agents in TypeScript using the Blink SDK, which provides pre-built tools for Slack, GitHub, search, and more.",
                 },
                 {
-                  question: "When will Blink be generally available?",
+                  question: "What license is Blink under?",
                   answer:
-                    "Blink is currently in Early Access with limited availability. We're prioritizing users who can provide strong feedback to help improve the platform. You can join the waitlist at blink.so/signup to be notified when access expands.",
+                    "The server code is licensed under AGPLv3, while the agent SDKs are licensed under MIT. This means you can build and deploy custom agents freely while the platform itself remains open source.",
                 },
               ].map((faq, index) => (
                 <div
@@ -1043,28 +1044,7 @@ export default function Home() {
                         "text-gray-600"
                       }`}
                     >
-                      {faq.question ===
-                      "When will Blink be generally available?" ? (
-                        <>
-                          Blink is currently in Early Access with limited
-                          availability. We're prioritizing users who can provide
-                          strong feedback to help improve the platform. You can
-                          join the waitlist at{" "}
-                          <a
-                            href="https://blink.coder.com/signup"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`underline ${
-                              "text-gray-900 hover:text-black"
-                            }`}
-                          >
-                            blink.so/signup
-                          </a>{" "}
-                          to be notified when access expands.
-                        </>
-                      ) : (
-                        faq.answer
-                      )}
+                      {faq.answer}
                     </div>
                   </div>
                 </div>
@@ -1104,13 +1084,13 @@ export default function Home() {
             <h2 className="text-3xl md:text-4xl font-medium text-white mb-8">
               Try Blink for yourself
             </h2>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <div className="flex flex-col gap-4 justify-center items-center">
               <button
                 onClick={handleBottomCopy}
                 className="group flex items-center gap-3 px-8 py-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 hover:border-white/20 hover:px-9 transition-all duration-300 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]"
               >
                 <code className="font-mono text-[18px] text-gray-100">
-                  bun i -g blink
+                  npm install -g blink-server
                 </code>
                 {copiedBottom ? (
                   <Check className="w-4 h-4 text-white-400" />
@@ -1122,7 +1102,7 @@ export default function Home() {
                 href="https://blink.coder.com/docs"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-300 hover:text-white transition-colors duration-300 text-base underline underline-offset-4 decoration-gray-500 hover:decoration-white inline-flex items-center justify-center gap-1 w-full sm:w-auto"
+                className="text-gray-300 hover:text-white transition-colors duration-300 text-base underline underline-offset-4 decoration-gray-500 hover:decoration-white inline-flex items-center justify-center gap-1"
               >
                 Documentation
                 <ExternalLink className="w-3 h-3 ml-1" />
