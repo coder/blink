@@ -838,7 +838,7 @@ export default function Home() {
           </div>
 
           {/* Slack Screenshots */}
-          <div className="w-full max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="w-full max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3 relative">
             <div className="relative overflow-hidden rounded-lg shadow-lg drop-shadow-[0_0_15px_rgba(0,0,0,0.25)] translate-y-[5px]">
               <Image
                 src="/slack-screenshots/slack-1.jpg"
@@ -864,6 +864,17 @@ export default function Home() {
                 width={800}
                 height={600}
                 className="w-full h-auto object-cover"
+              />
+            </div>
+
+            {/* Blink hop icon */}
+            <div className="hidden md:block absolute -right-24 bottom-0 translate-y-[10px]">
+              <Image
+                src="/blink-hop-cropped.png"
+                alt="Blink"
+                width={40}
+                height={40}
+                className="object-contain"
               />
             </div>
           </div>
@@ -908,17 +919,17 @@ export default function Home() {
           </div>
 
           {/* Web UI Screenshot */}
-          <div className="w-full max-w-7xl mx-auto mb-16 relative">
+          <div className="w-full max-w-7xl mx-auto mb-24 relative">
             {/* Glowing effect */}
             <div
-              className="absolute inset-0 blur-3xl opacity-60"
+              className="absolute inset-0 blur-3xl opacity-90"
               style={{
                 background:
-                  "radial-gradient(ellipse 800px 400px at 50% 50%, rgba(14, 28, 58, 0.8) 0%, transparent 70%)",
+                  "radial-gradient(ellipse 800px 400px at 50% 50%, rgba(14, 28, 58, 1) 0%, transparent 70%)",
               }}
             />
             <div
-              className="relative overflow-hidden shadow-xl drop-shadow-[0_0_20px_rgba(14,28,58,0.4)]"
+              className="relative overflow-hidden shadow-xl drop-shadow-[0_0_20px_rgba(14,28,58,0.4)] border border-white/10"
               style={{ borderRadius: "14px" }}
             >
               <Image
