@@ -799,7 +799,7 @@ export default function Home() {
             }}
           />
         </div>
-        <div className="max-w-7xl mx-auto px-4 md:px-8 py-24 relative">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-24 pb-0 relative">
           {/* Vertical line continuing from above */}
           {lineAnimated && (
             <div
@@ -825,7 +825,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="mb-20 w-full max-w-5xl mx-auto">
+          <div className="mb-[172px] w-full max-w-7xl mx-auto">
             <div className="relative aspect-video overflow-hidden rounded-lg">
               <iframe
                 src="https://www.youtube.com/embed/lR6GbKuhXRo?loop=1&playlist=lR6GbKuhXRo&mute=1&controls=1&modestbranding=1&rel=0&vq=hd1080&hd=1"
@@ -836,13 +836,44 @@ export default function Home() {
               />
             </div>
           </div>
+
+          {/* Slack Screenshots */}
+          <div className="w-full max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="relative overflow-hidden rounded-lg shadow-lg drop-shadow-[0_0_15px_rgba(0,0,0,0.25)] translate-y-[5px]">
+              <Image
+                src="/slack-screenshots/slack-1.jpg"
+                alt="Slack conversation example 1"
+                width={800}
+                height={600}
+                className="w-full h-auto object-cover"
+              />
+            </div>
+            <div className="hidden md:block relative overflow-hidden rounded-lg shadow-xl scale-105 drop-shadow-[0_0_25px_rgba(0,0,0,0.4)]">
+              <Image
+                src="/slack-screenshots/slack-2.jpg"
+                alt="Slack conversation example 2"
+                width={800}
+                height={600}
+                className="w-full h-auto object-cover"
+              />
+            </div>
+            <div className="hidden md:block relative overflow-hidden rounded-lg shadow-lg drop-shadow-[0_0_15px_rgba(0,0,0,0.25)] translate-y-[5px]">
+              <Image
+                src="/slack-screenshots/slack-3.jpg"
+                alt="Slack conversation example 3"
+                width={800}
+                height={600}
+                className="w-full h-auto object-cover"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Section 3*/}
       <section
         id="prs"
-        className="w-full bg-[#090B0B] text-white relative overflow-hidden"
+        className="w-full bg-[#090B0B] text-white relative overflow-hidden z-10"
       >
         {/* Shimmer divider line at top of section */}
         <div className="w-full flex justify-center absolute top-0 left-0 right-0 z-10">
@@ -874,6 +905,30 @@ export default function Home() {
               flexibility to customize it or build your own and deploy agents
               safely on your infrastructure.
             </p>
+          </div>
+
+          {/* Web UI Screenshot */}
+          <div className="w-full max-w-7xl mx-auto mb-16 relative">
+            {/* Glowing effect */}
+            <div
+              className="absolute inset-0 blur-3xl opacity-60"
+              style={{
+                background:
+                  "radial-gradient(ellipse 800px 400px at 50% 50%, rgba(14, 28, 58, 0.8) 0%, transparent 70%)",
+              }}
+            />
+            <div
+              className="relative overflow-hidden shadow-xl drop-shadow-[0_0_20px_rgba(14,28,58,0.4)]"
+              style={{ borderRadius: "14px" }}
+            >
+              <Image
+                src="/slack-screenshots/web-ui-screenshot.jpg"
+                alt="Blink Web UI"
+                width={1920}
+                height={1080}
+                className="w-full h-auto object-cover"
+              />
+            </div>
           </div>
 
           {/* Six Features Grid with borders */}
