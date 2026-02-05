@@ -66,3 +66,36 @@ test("update organization name", async () => {
   const fetched = await client.organizations.get(org.id);
   expect(fetched.name).toBe("updated-name");
 });
+
+test("create organization disabled when enableMultiOrg is false", async () => {
+  const { helpers } = await serve({
+    bindings: {
+      enableMultiOrg: false,
+    },
+  });
+  const { client } = await helpers.createUser();
+
+  await expect(
+    client.organizations.create({
+      name: "test-org",
+    })
+  ).rejects.toThrow("Creating new organizations is disabled");
+});
+
+test("delete organization disabled when enableMultiOrg is false", async () => {
+  const { helpers } = await serve({
+    bindings: {
+      enableMultiOrg: false,
+    },
+  });
+  const { client } = await helpers.createUser();
+
+  // Get the personal org
+  const orgs = await client.organizations.list();
+  const personalOrg = orgs[0]!;
+
+  // Try to delete the personal org - should fail because multi-org is disabled
+  await expect(client.organizations.delete(personalOrg.id)).rejects.toThrow(
+    "Deleting organizations is disabled"
+  );
+});

@@ -244,6 +244,8 @@ export interface Bindings {
   readonly enableSignups?: boolean;
   /** When true, allow OAuth login/signup and provider linking. */
   readonly enableOauth?: boolean;
+  /** When false, disable creating new team organizations and deleting organizations. Defaults to true. */
+  readonly enableMultiOrg?: boolean;
 
   // Optional AWS credentials used by platform logging to CloudWatch
   readonly AWS_ACCESS_KEY_ID?: string;

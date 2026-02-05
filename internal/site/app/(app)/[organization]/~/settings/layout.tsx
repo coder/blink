@@ -1,5 +1,6 @@
 import { auth } from "@/app/(auth)/auth";
 import Header from "@/components/header";
+import { getEnableMultiOrg } from "@/lib/multi-org";
 import { redirect } from "next/navigation";
 import { getOrganization, getUser } from "../../layout";
 import { OrganizationNavigation } from "../../navigation";
@@ -27,7 +28,11 @@ export default async function OrganizationSettingsLayout({
 
   return (
     <div className="w-full relative">
-      <Header user={user} organization={organization} />
+      <Header
+        user={user}
+        organization={organization}
+        enableMultiOrg={getEnableMultiOrg()}
+      />
       <OrganizationNavigation
         name={organization.name}
         isPersonal={isPersonalOrg}

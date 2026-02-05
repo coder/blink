@@ -1,6 +1,7 @@
 import { auth } from "@/app/(auth)/auth";
 import Header from "@/components/header";
 import { getQuerier } from "@/lib/database";
+import { getEnableMultiOrg } from "@/lib/multi-org";
 import * as convert from "@blink.so/database/convert";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -34,7 +35,7 @@ export default async function NewPage({
 
   return (
     <div className="w-full relative">
-      <Header user={user} />
+      <Header user={user} enableMultiOrg={getEnableMultiOrg()} />
       <NewPageClient organizationName={organizationName} />
     </div>
   );

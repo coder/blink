@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/app/(auth)/auth";
 import { getQuerier } from "@/lib/database";
 import { getEmailDeliveryConfigured } from "@/lib/email-delivery";
+import { getEnableMultiOrg } from "@/lib/multi-org";
 import { getOrganization, getUser } from "../../layout";
 import { DeleteOrganizationForm } from "./organization-delete-form";
 import { OrganizationIdSection } from "./organization-id-section";
@@ -75,6 +76,7 @@ export default async function OrganizationSettingsPage({
   const isAdmin =
     organization.membership?.role === "admin" ||
     organization.membership?.role === "owner";
+  const enableMultiOrg = getEnableMultiOrg();
 
   return (
     <div className="space-y-8">
@@ -87,7 +89,7 @@ export default async function OrganizationSettingsPage({
         isAdmin={isAdmin}
       />
       <OrganizationIdSection organizationId={organization.id} />
-      {isAdmin && (
+      {isAdmin && enableMultiOrg && (
         <DeleteOrganizationForm
           organizationId={organization.id}
           organizationName={organization.name}

@@ -1,6 +1,7 @@
 import { getOrganization, getUser } from "@/app/(app)/[organization]/layout";
 import { auth } from "@/app/(auth)/auth";
 import Header from "@/components/header";
+import { getEnableMultiOrg } from "@/lib/multi-org";
 import { PageContainer, PageHeader } from "@/components/page-header";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -36,7 +37,11 @@ export default async function Page({
 
   return (
     <div className="w-full relative">
-      <Header user={user} organization={organization} />
+      <Header
+        user={user}
+        organization={organization}
+        enableMultiOrg={getEnableMultiOrg()}
+      />
       <OrganizationNavigation
         name={organization.name}
         isPersonal={isPersonal}

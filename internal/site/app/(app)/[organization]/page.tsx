@@ -1,5 +1,6 @@
 import { auth } from "@/app/(auth)/auth";
 import Header from "@/components/header";
+import { getEnableMultiOrg } from "@/lib/multi-org";
 import { PlusIcon } from "@/components/icons";
 import { AreaChart } from "@/components/ui/area-chart";
 import Avatar from "@/components/ui/avatar";
@@ -134,7 +135,11 @@ export default async function Page({
 
   return (
     <div className="w-full relative">
-      <Header user={user} organization={organization} />
+      <Header
+        user={user}
+        organization={organization}
+        enableMultiOrg={getEnableMultiOrg()}
+      />
       <OrganizationNavigation
         name={organization.name}
         isPersonal={isPersonal}

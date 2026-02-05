@@ -2,6 +2,7 @@ import { auth } from "@/app/(auth)/auth";
 import ChatSidebar from "@/components/chat-sidebar";
 import Header from "@/components/header";
 import { getQuerier } from "@/lib/database";
+import { getEnableMultiOrg } from "@/lib/multi-org";
 import * as convert from "@blink.so/database/convert";
 import type { UserWithPersonalOrganization } from "@blink.so/database/schema";
 
@@ -18,7 +19,10 @@ export default async function Layout({
   }
   return (
     <>
-      <Header user={user ? convert.user(user) : undefined} />
+      <Header
+        user={user ? convert.user(user) : undefined}
+        enableMultiOrg={getEnableMultiOrg()}
+      />
       <div className="flex flex-row max-h-[calc(100vh-var(--header-height))] flex-1">
         {user && <ChatSidebar hrefBase={"/chat"} user={convert.user(user)} />}
         <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>

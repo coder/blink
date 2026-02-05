@@ -152,6 +152,7 @@ export async function startServer(
     AUTH_SECRET: authSecret,
     NODE_ENV: "development",
     autoJoinOrganizations: true,
+    enableMultiOrg: false,
     enableSignups,
     enableOauth,
     serverVersion: pkg.version,

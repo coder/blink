@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/app/(auth)/auth";
 import Header from "@/components/header";
+import { getEnableMultiOrg } from "@/lib/multi-org";
 import { getOrganization, getUser } from "../../layout";
 import { OrganizationNavigation } from "../../navigation";
 import { SiteAdminNav } from "./navigation";
@@ -37,7 +38,11 @@ export default async function SiteAdminLayout({
 
   return (
     <div className="w-full relative">
-      <Header user={user} organization={organization} />
+      <Header
+        user={user}
+        organization={organization}
+        enableMultiOrg={getEnableMultiOrg()}
+      />
       <OrganizationNavigation
         name={organization.name}
         isPersonal={isPersonal}

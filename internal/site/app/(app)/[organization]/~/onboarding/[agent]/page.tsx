@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/app/(auth)/auth";
 import Header from "@/components/header";
+import { getEnableMultiOrg } from "@/lib/multi-org";
 import { getAgentOrNull, getOrganization, getUser } from "../../../layout";
 import { OrganizationNavigation } from "../../../navigation";
 import { AgentOnboardingWizard } from "./wizard";
@@ -36,7 +37,11 @@ export default async function AgentOnboardingPage({
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden">
-      <Header user={user} organization={organization} />
+      <Header
+        user={user}
+        organization={organization}
+        enableMultiOrg={getEnableMultiOrg()}
+      />
       <OrganizationNavigation
         name={organization.name}
         isPersonal={isPersonal}

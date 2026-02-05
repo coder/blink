@@ -26,10 +26,12 @@ export default function Header({
   user,
   organization,
   agent,
+  enableMultiOrg = true,
 }: {
   user?: User;
   organization?: Organization;
   agent?: Agent;
+  enableMultiOrg?: boolean;
 }) {
   const router = useRouter();
   const { setTheme, theme } = useTheme();
@@ -62,7 +64,10 @@ export default function Header({
                 </NavItemContent>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="p-0">
-                <AgentSelector selectedOrganization={organization} />
+                <AgentSelector
+                  selectedOrganization={organization}
+                  enableMultiOrg={enableMultiOrg}
+                />
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -92,7 +97,10 @@ export default function Header({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="p-0">
-                  <AgentSelector selectedOrganization={organization} />
+                  <AgentSelector
+                    selectedOrganization={organization}
+                    enableMultiOrg={enableMultiOrg}
+                  />
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -128,6 +136,7 @@ export default function Header({
                   <AgentSelector
                     selectedOrganization={organization}
                     selectedAgent={agent}
+                    enableMultiOrg={enableMultiOrg}
                   />
                 </DropdownMenuContent>
               </DropdownMenu>

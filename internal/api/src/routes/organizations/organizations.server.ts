@@ -30,6 +30,12 @@ export default function mountOrganizations(server: APIServer) {
       return schemaCreateOrganizationRequest.parse(value);
     }),
     async (c) => {
+      if (c.env.enableMultiOrg === false) {
+        return c.json(
+          { message: "Creating new organizations is disabled" },
+          403
+        );
+      }
       const db = await c.env.database();
       const { name } = c.req.valid("json");
       try {
@@ -150,6 +156,9 @@ export default function mountOrganizations(server: APIServer) {
   );
 
   server.delete("/:id", withAuth, async (c) => {
+    if (c.env.enableMultiOrg === false) {
+      return c.json({ message: "Deleting organizations is disabled" }, 403);
+    }
     const db = await c.env.database();
     const organization = await db.selectOrganizationForUser({
       organizationID: c.req.param("id"),

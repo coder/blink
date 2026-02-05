@@ -1,6 +1,7 @@
 import { auth } from "@/app/(auth)/auth";
 import Header from "@/components/header";
 import { getQuerier } from "@/lib/database";
+import { getEnableMultiOrg } from "@/lib/multi-org";
 import { redirect } from "next/navigation";
 import { getAgent, getOrganization, getUser } from "../layout";
 import { AgentNavigation } from "./navigation";
@@ -42,7 +43,12 @@ export default async function AgentLayout({
     // display their content properly.
     // don't remove it without a thorough review of the dependents.
     <div className="flex flex-col max-h-screen grow">
-      <Header user={user} organization={organization} agent={agent} />
+      <Header
+        user={user}
+        organization={organization}
+        agent={agent}
+        enableMultiOrg={getEnableMultiOrg()}
+      />
       <AgentNavigation
         organization={organization}
         agent={agent}
