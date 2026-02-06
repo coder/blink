@@ -3,6 +3,12 @@ name: Tag server Docker image for release
 on:
   release:
     types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to tag the Docker image with (e.g. 0.1.0)"
+        required: true
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -25,11 +31,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
+      - name: Resolve commit SHA from git tag
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          GIT_TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          SHA=$(gh api repos/${{ github.repository }}/git/ref/tags/${GIT_TAG} --jq '.object.sha')
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHA:0:7}" >> "$GITHUB_OUTPUT"
+
       - name: Tag image as latest and with git tag
         run: |
-          SHORT_SHA=$(echo "${{ github.event.release.target_commitish }}" | cut -c1-7)
-          SOURCE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}"
-          GIT_TAG="${{ github.event.release.tag_name }}"
+          SOURCE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.resolve.outputs.short_sha }}"
+          GIT_TAG="${{ github.event.release.tag_name || inputs.tag }}"
 
           echo "Tagging ${SOURCE} as latest and ${GIT_TAG}"
 
