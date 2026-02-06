@@ -60,7 +60,7 @@ const agent = new blink.Agent();
 
 agent.on("chat", async ({ messages }) => {
   return streamText({
-    model: "anthropic/claude-opus-4.5",
+    model: "anthropic/claude-opus-4.6",
     messages: convertToModelMessages(messages),
     system: "You are a helpful assistant.",
   });
