@@ -22,6 +22,10 @@ Tailor the included agent with new tools and prompts, or build new agents in Typ
 - **Investigating GitHub issues** - have Blink gather context, reproduce issues, or summarize findings before opening or updating an issue.
 - **Customer support in shared channels** - let your customers ask technical questions in shared Slack channels and get answers backed by citations from your codebase and documentation.
 
+<p align="center">
+  <img src="./scripts/blink-diagram.png" alt="Blink Diagram" width="600px">
+</p>
+
 ## Features
 
 - **Pre-built, fully-functional [Scout agent](./packages/scout-agent/README.md)**, which you can customize for your own use
