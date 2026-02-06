@@ -80,7 +80,7 @@ async function runServer(options: ResolvedCliOptions) {
     accessUrl = tunnel.accessUrl;
     tunnelCleanup = tunnel[Symbol.dispose];
     logger.info(
-      `Opening tunnel so external services can send webhooks to your deployment. For production scenarios, specify an external access URL`
+      `Opening tunnel so external services can send webhooks to your agents. For production scenarios, specify an external access URL`
     );
   }
 
