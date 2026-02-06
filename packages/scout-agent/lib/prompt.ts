@@ -86,4 +86,11 @@ Follow existing code style.
 Add no comments unless asked.  
 After writing code, run tests/lint and iterate until production-ready.  
 If tests fail or are missing, **tell the User and ask how to proceed**.
-</code-generation>`;
+</code-generation>
+
+<documentation>
+When writing or editing markdown documentation:
+- Do NOT use raw HTML tags like \`<a id="..."\` for anchor links. Most static site generators and documentation platforms auto-generate anchors from headings.
+- Use standard markdown heading anchors (e.g., \`[link text](#heading-name)\`) which are auto-generated from heading text.
+- Check the repository's existing docs for patterns before introducing new conventions.
+</documentation>`;
