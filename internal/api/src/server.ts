@@ -115,11 +115,15 @@ export interface Bindings {
       agent_id?: string;
       organization_id?: string;
       file: File;
+      querier?: Querier;
     }) => Promise<{
       id: string;
       url: string;
     }>;
-    readonly download: (id: string) => Promise<{
+    readonly download: (
+      id: string,
+      querier?: Querier
+    ) => Promise<{
       stream: ReadableStream;
       type: string;
       name: string;
@@ -209,7 +213,10 @@ export interface Bindings {
    * @param deployment - The agent deployment to deploy.
    * @returns - A promise that resolves when the agent has been deployed.
    */
-  readonly deployAgent: (deployment: AgentDeployment) => Promise<void> | void;
+  readonly deployAgent: (
+    deployment: AgentDeployment,
+    querier?: Querier
+  ) => Promise<void> | void;
 
   /**
    * apiBaseURL is the base URL that the API is running on.

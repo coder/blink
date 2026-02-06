@@ -229,6 +229,7 @@ export const createAgentDeployment = async ({
           file: new File([file.data], file.path),
           user_id: userID,
           organization_id: organizationID,
+          querier: db,
         });
         uploadedFiles.push({
           path: file.path,
@@ -248,7 +249,7 @@ export const createAgentDeployment = async ({
   if (uploadedOutputFiles.length > 0) {
     let totalSize = 0;
     for (const file of uploadedOutputFiles) {
-      const fileData = await bindings.files.download(file.id);
+      const fileData = await bindings.files.download(file.id, db);
       totalSize += fileData.size;
       // Cancel the stream to avoid memory leaks.
       await fileData.stream.cancel();

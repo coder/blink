@@ -265,16 +265,19 @@ export async function startServer(
         // noop
       },
     },
-    deployAgent: async (deployment) => {
+    deployAgent: async (deployment, db) => {
+      if (!db) {
+        db = querier;
+      }
       await deployAgentWithDocker({
         image: agentImage,
         deployment,
-        querier,
+        querier: db,
         baseUrl,
         accessUrl,
         authSecret,
         downloadFile: async (id: string) => {
-          const file = await querier.selectFileByID(id);
+          const file = await db.selectFileByID(id);
           if (!file || !file.content) {
             throw new Error("File not found");
           }
@@ -298,6 +301,10 @@ export async function startServer(
     },
     files: {
       upload: async (opts) => {
+        let db = opts.querier;
+        if (!db) {
+          db = querier;
+        }
         const id = crypto.randomUUID();
 
         // Read file content into buffer
@@ -305,7 +312,7 @@ export async function startServer(
         const buffer = Buffer.from(arrayBuffer);
 
         // Store file in database
-        await querier.insertFile({
+        await db.insertFile({
           id,
           name: opts.file.name,
           message_id: null,
@@ -322,8 +329,11 @@ export async function startServer(
           url: `${baseUrl}/api/files/${id}`,
         };
       },
-      download: async (id) => {
-        const file = await querier.selectFileByID(id);
+      download: async (id, db) => {
+        if (!db) {
+          db = querier;
+        }
+        const file = await db.selectFileByID(id);
         if (!file || !file.content) {
           throw new Error("File not found");
         }
