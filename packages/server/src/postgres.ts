@@ -119,7 +119,7 @@ async function createAndStartContainer(): Promise<void> {
     `${POSTGRES_PORT}:5432`,
     "-v",
     "blink-server-postgres-data:/var/lib/postgresql/data",
-    "pgvector/pgvector:pg17",
+    "postgres:17-alpine",
   ]);
 
   logger.plain("PostgreSQL container created");
@@ -153,7 +153,7 @@ async function waitForPostgres(): Promise<void> {
 
 async function promptUser(question: string): Promise<boolean> {
   logger.plain(question);
-  process.stdout.write("(y/n): ");
+  process.stdout.write("(Y/n): ");
 
   return new Promise((resolve) => {
     const stdin = process.stdin;
@@ -168,7 +168,13 @@ async function promptUser(question: string): Promise<boolean> {
 
       console.log(key);
 
-      if (key === "y" || key === "Y") {
+      if (
+        key === "y" ||
+        key === "Y" ||
+        key === "\r" ||
+        key === "\n" ||
+        key === "\r\n"
+      ) {
         resolve(true);
       } else {
         resolve(false);
