@@ -9,9 +9,9 @@
 ![NPM Version](https://img.shields.io/npm/v/blink)
 [![Documentation](https://img.shields.io/badge/documentation-blink.coder.com-blue)](https://blink.coder.com/docs)
 
-Blink is a self-hosted platform for deploying custom AI agents. It ships with a built-in agent tooled for coding tasks and deep code research.
-Work alongside Blink agents in GitHub, the web UI, or in threaded Slack conversations.
-Tailor the included agent with new tools and prompts, or build new agents in TypeScript with the Blink SDK.
+Blink is a self-hosted platform for running AI agents that your team can talk to in Slack, GitHub, and a web UI.
+It includes Scout, an agent built for coding tasks and codebase research, which you can customize with new tools and prompts.
+You can also build entirely new agents in TypeScript with the Blink SDK.
 
 ![Blink Demo](https://docs-resources.blink.so/blink-demo.gif)
 
@@ -19,7 +19,7 @@ Tailor the included agent with new tools and prompts, or build new agents in Typ
 
 - **Understanding complex codebases** - ask questions about how a repo works, how parts connect, or where to start when the code is unfamiliar.
 - **Coding partner in Slack** - discuss ideas, open GitHub issues, or handle small coding tasks directly in Slack without breaking the conversation.
-- **Investigating GitHub issues** - have Blink gather context, reproduce issues, or summarize findings before opening or updating an issue.
+- **Investigating GitHub issues** - gather context, reproduce issues, or summarize findings before opening or updating an issue.
 - **Customer support in shared channels** - let your customers ask technical questions in shared Slack channels and get answers backed by citations from your codebase and documentation.
 
 <p align="center">
