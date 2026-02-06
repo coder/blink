@@ -19,12 +19,18 @@ You can also build entirely new agents in TypeScript with the Blink SDK.
 
 - **Understanding complex codebases** - ask questions about how a repo works, how parts connect, or where to start when the code is unfamiliar.
 - **Coding partner in Slack** - discuss ideas, open GitHub issues, or handle small coding tasks directly in Slack without breaking the conversation.
-- **Investigating GitHub issues** - gather context, reproduce issues, or summarize findings before opening or updating an issue.
 - **Customer support in shared channels** - let your customers ask technical questions in shared Slack channels and get answers backed by citations from your codebase and documentation.
 
 <p align="center">
   <img src="./scripts/blink-diagram.png" alt="Blink Diagram" width="600px">
 </p>
+
+Many of the things you can do with Blink are also possible with ChatGPT, Claude Web, or Claude Code. Blink shines when you need to:
+
+- Retain control of your data and infrastructure. Blink runs on your own servers, and agents can use any LLM provider: be it Amazon Bedrock, Google Vertex, or a self-hosted model.
+- Centralize your conversations. Compared to Claude Code, all conversations are stored in a single database.
+- Centralize access. Blink lets you define access controls to your agents in a single place.
+- Fully control the source code of your agents. Blink is open source.
 
 ## Features
 
