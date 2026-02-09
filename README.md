@@ -15,33 +15,6 @@ You can also build entirely new agents in TypeScript with the Blink SDK.
 
 ![Blink Demo](https://docs-resources.blink.so/blink-demo.gif)
 
-## Use Cases
-
-- **Understanding complex codebases** - ask questions about how a repo works, how parts connect, or where to start when the code is unfamiliar.
-- **Coding partner in Slack** - discuss ideas, open GitHub issues, or handle small coding tasks directly in Slack without breaking the conversation.
-- **Customer support in shared channels** - let your customers ask technical questions in shared Slack channels and get answers backed by citations from your codebase and documentation.
-
-<p align="center">
-  <img src="./scripts/blink-diagram.png" alt="Blink Diagram" width="600px">
-</p>
-
-Many of the things you can do with Blink are also possible with ChatGPT, Claude Web, or Claude Code. Blink shines when you need to:
-
-- Retain control of your data and infrastructure. Blink runs on your own servers, and agents can use any LLM provider: be it Amazon Bedrock, Google Vertex, or a self-hosted model.
-- Centralize your conversations. Compared to Claude Code, all conversations are stored in a single database.
-- Centralize access. Blink lets you define access controls to your agents in a single place.
-- Fully control the source code of your agents. Blink is open source.
-
-## Features
-
-- **Pre-built, fully-functional [Scout agent](./packages/scout-agent/README.md)**, which you can customize for your own use
-- **Web UI** where you can chat with agents
-- **Blink SDK** - a set of libraries for building agents compatible with the Blink platform
-- **Blink CLI** - a command-line tool for developing agents locally
-- **Observability** - use the web UI to view logs and traces
-- **Docker-based deployment** - agents are deployed as Docker containers
-- **User and organization management** - invite your team to use and collaborate on agents
-
 ## Get Started
 
 ### Requirements
@@ -57,6 +30,35 @@ blink-server
 ```
 
 Open the Blink web UI in your browser and create your first agent. Alternatively, you may run the server [with Docker](https://blink.coder.com/docs/server/docker-deployment).
+
+## Use Cases
+
+- **Understanding complex codebases** - ask questions about how a repo works, how parts connect, or where to start when the code is unfamiliar.
+- **Coding partner in Slack** - discuss ideas, open GitHub issues, or handle small coding tasks directly in Slack without breaking the conversation.
+- **Customer support in shared channels** - let your customers ask technical questions in shared Slack channels and get answers backed by citations from your codebase and documentation.
+
+- **And more** - Blink lets you build custom agents for any use case.
+
+<p align="center">
+  <img src="./scripts/blink-diagram.png" alt="Blink Diagram" width="600px">
+</p>
+
+## Why Blink?
+
+- **Retain control of your data and infrastructure.** Blink runs on your own servers, and agents can use any LLM provider: be it Amazon Bedrock, Google Vertex, or a self-hosted model.
+- **Centralize your conversations.** Compared to Claude Code, all conversations are stored in a single database.
+- **Centralize access.** Blink lets you define access controls to your agents in a single place.
+- **Write code instead of configuring MCP and Skills.** With Blink you use TypeScript to build agents and add tools to them.
+
+## Features
+
+- **Pre-built, fully-functional [Scout agent](./packages/scout-agent/README.md)**, which you can customize for your own use
+- **Web UI** where you can chat with agents
+- **Blink SDK** - a set of libraries for building agents compatible with the Blink platform
+- **Blink CLI** - a command-line tool for developing agents locally
+- **Observability** - use the web UI to view logs and traces
+- **Docker-based deployment** - agents are deployed as Docker containers
+- **User and organization management** - invite your team to use and collaborate on agents
 
 ## What's a Blink agent?
 
