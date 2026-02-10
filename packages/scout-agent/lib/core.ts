@@ -44,6 +44,7 @@ import {
 import { defaultSystemPrompt } from "./prompt";
 import { createSlackApp, createSlackTools, getSlackMetadata } from "./slack";
 import type { Message } from "./types";
+import { createTasksTools, type TasksConfig } from "./tasks";
 import { createWebSearchTools } from "./web-search";
 
 type Tools = ToolSet &
@@ -217,6 +218,7 @@ export interface ScoutOptions {
   slack?: ConfigFields<SlackConfig>;
   webSearch?: ConfigFields<WebSearchConfig>;
   compute?: ComputeConfig;
+  tasks?: ConfigFields<TasksConfig>;
   logger?: Logger;
 }
 
@@ -243,6 +245,9 @@ export class Scout {
     | { config?: undefined; warningMessage?: string };
   private readonly compute:
     | { config: ComputeConfig; warningMessage?: undefined }
+    | { config?: undefined; warningMessage?: string };
+  private readonly tasks:
+    | { config: TasksConfig; warningMessage?: undefined }
     | { config?: undefined; warningMessage?: string };
 
   private readonly logger: Logger;
@@ -285,6 +290,20 @@ export class Scout {
     }
     this.webSearch = loadConfig(options.webSearch, ["exaApiKey"] as const);
     this.compute = options.compute ? { config: options.compute } : {};
+    if (options.tasks?.url && options.tasks?.sessionToken) {
+      this.tasks = {
+        config: options.tasks as TasksConfig,
+      };
+    } else if (options.tasks) {
+      const missing = [];
+      if (!options.tasks.url) missing.push("`url`");
+      if (!options.tasks.sessionToken) missing.push("`sessionToken`");
+      this.tasks = {
+        warningMessage: `The ${missing.join(" and ")} config field${missing.length > 1 ? "s are" : " is"} undefined.`,
+      };
+    } else {
+      this.tasks = {};
+    }
     this.logger = options.logger ?? console;
   }
 
@@ -328,6 +347,11 @@ export class Scout {
     if (this.webSearch.warningMessage !== undefined) {
       warnings.push(
         `Web search is not configured. ${this.webSearch.warningMessage} You may remove the \`webSearch\` config object to suppress this warning.`
+      );
+    }
+    if (this.tasks.warningMessage !== undefined) {
+      warnings.push(
+        `Tasks is not configured. ${this.tasks.warningMessage} You may remove the \`tasks\` config object to suppress this warning.`
       );
     }
     if (warnings.length > 0) {
@@ -504,6 +528,9 @@ export class Scout {
           })
         : undefined),
       ...computeTools,
+      ...(this.tasks.config
+        ? createTasksTools({ config: this.tasks.config })
+        : {}),
       // Always include compaction tool when compaction is enabled (for caching purposes)
       ...(compactionEnabled ? createCompactionTool() : {}),
       ...providedTools,
