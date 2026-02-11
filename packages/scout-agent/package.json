@@ -30,6 +30,7 @@
   ],
   "scripts": {
     "build": "tsdown",
+    "prepare": "npm run build",
     "dev": "blink dev",
     "deploy": "blink deploy",
     "lint": "biome check .",
