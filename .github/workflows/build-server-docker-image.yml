@@ -12,7 +12,7 @@ env:
 
 jobs:
   build-package:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -59,7 +59,7 @@ jobs:
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
             depot_runner: depot-ubuntu-24.04-arm
-    runs-on: ${{ github.repository_owner == 'coder' && matrix.depot_runner || matrix.runner }}
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -106,7 +106,7 @@ jobs:
 
   create-manifest:
     needs: build-image
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write

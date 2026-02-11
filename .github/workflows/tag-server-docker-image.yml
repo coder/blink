@@ -16,7 +16,7 @@ env:
 
 jobs:
   tag-image:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write

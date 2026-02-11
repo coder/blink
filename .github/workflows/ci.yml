@@ -8,7 +8,7 @@ on:
 
 jobs:
   ci:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
