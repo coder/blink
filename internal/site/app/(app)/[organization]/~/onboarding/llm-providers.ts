@@ -36,7 +36,7 @@ export const LLM_PROVIDERS: LlmProvider[] = [
     placeholder: "vck_...",
     helpUrl: "https://vercel.com/ai-gateway",
     createKeyText: "Create Vercel AI Gateway API Key",
-    envVarKey: "VERCEL_AI_GATEWAY_API_KEY",
+    envVarKey: "AI_GATEWAY_API_KEY",
   },
 ];
 
