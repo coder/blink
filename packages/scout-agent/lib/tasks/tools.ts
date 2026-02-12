@@ -163,5 +163,129 @@ export const createTasksTools = ({
         return { success: true };
       },
     }),
+
+    monitor_coder_task: tool({
+      description:
+        "Monitor a Coder Task until it completes, automatically polling status with 10-second delays. " +
+        "Returns a summary of what the task accomplished when it finishes. " +
+        "This tool will run for several minutes until the task completes.",
+      inputSchema: z.object({
+        task: z
+          .string()
+          .describe("The task ID or task name to monitor."),
+      }),
+      execute: async (args, { abortSignal }) => {
+        const startTime = Date.now();
+        let lastStatus = "";
+        let hasSeenWorking = false;
+        let stableIdleCount = 0;
+        let consecutiveErrorCount = 0;
+        
+        while (true) {
+          // Check if aborted
+          if (abortSignal?.aborted) {
+            return {
+              status: "aborted",
+              message: "Monitoring was cancelled by the user.",
+              duration_seconds: Math.floor((Date.now() - startTime) / 1000),
+            };
+          }
+
+          // Get current task status
+          const task = await client.getTask(user, args.task);
+          
+          // Track status changes
+          const currentStatus = `${task.status}:${task.current_state?.state || 'unknown'}:${task.current_state?.message || ''}`;
+          if (currentStatus !== lastStatus) {
+            lastStatus = currentStatus;
+            console.log(`[monitor_coder_task] Task ${task.name}: ${task.status} - ${task.current_state?.message || 'No message'}`);
+          }
+
+          // Track if we've seen the task actually working
+          if (task.current_state?.state === "working") {
+            hasSeenWorking = true;
+            stableIdleCount = 0; // Reset stable count when working
+            consecutiveErrorCount = 0; // Reset error count when working
+          }
+
+          // Count consecutive stable idle checks
+          if (task.current_state?.state === "idle") {
+            if (currentStatus === lastStatus) {
+              stableIdleCount++;
+            } else {
+              stableIdleCount = 1;
+            }
+            consecutiveErrorCount = 0; // Reset error count when idle
+          } else if (task.status !== "error") {
+            stableIdleCount = 0;
+          }
+
+          // Track consecutive errors
+          if (task.status === "error") {
+            consecutiveErrorCount++;
+          } else {
+            consecutiveErrorCount = 0;
+          }
+
+          // Check if task is done
+          // Tasks can be "complete", "failed", or "idle" when finished
+          // For idle: only consider done if we've seen it working AND it's been stable for 2+ checks
+          // AND the idle message is not empty (empty idle = waiting for work, not finished)
+          const idleWithMessage = task.current_state?.state === "idle" && 
+                                   task.current_state?.message && 
+                                   task.current_state.message.trim().length > 0;
+          
+          const isDone = 
+            task.current_state?.state === "complete" || 
+            task.current_state?.state === "failed" ||
+            (hasSeenWorking && idleWithMessage && stableIdleCount >= 2);
+
+          if (isDone) {
+            const logs = await client.getTaskLogs(user, args.task);
+            const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+            
+            return {
+              status: task.current_state?.state || "unknown",
+              task_status: task.status,
+              final_message: task.current_state?.message || "Task completed",
+              final_uri: task.current_state?.uri || "",
+              logs: logs.logs.map(log => log.content).join("\n"),
+              duration_seconds: durationSeconds,
+              duration_formatted: formatDuration(durationSeconds),
+              url: `${config.url}/tasks/${task.owner_name}/${task.name}`,
+            };
+          }
+
+          // Check for persistent error status
+          // Only bail on error after 3 consecutive checks (allow transient errors to recover)
+          if (task.status === "error" && consecutiveErrorCount >= 3) {
+            const logs = await client.getTaskLogs(user, args.task);
+            const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+            
+            return {
+              status: "error",
+              task_status: task.status,
+              final_message: task.current_state?.message || "Task encountered a persistent error",
+              logs: logs.logs.map(log => log.content).join("\n"),
+              duration_seconds: durationSeconds,
+              duration_formatted: formatDuration(durationSeconds),
+              url: `${config.url}/tasks/${task.owner_name}/${task.name}`,
+            };
+          }
+
+          // Wait 4 seconds before next check (faster polling)
+          await new Promise(resolve => setTimeout(resolve, 4000));
+        }
+      },
+    }),
   };
 };
+
+function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (mins > 0) {
+    return `${mins}m ${secs}s`;
+  }
+  return `${secs}s`;
+}
