@@ -119,7 +119,7 @@ describe("getFilesForTemplate", () => {
 
       const packageJson = JSON.parse(packageJsonContent);
       expect(packageJson.name).toBe("test-project");
-      expect(packageJson.devDependencies["@ai-sdk/anthropic"]).toBe("latest");
+      expect(packageJson.devDependencies["@ai-sdk/anthropic"]).toMatch(/^\^2/);
       expect(packageJson.devDependencies["@ai-sdk/openai"]).toBeUndefined();
     });
 
@@ -131,7 +131,7 @@ describe("getFilesForTemplate", () => {
       });
 
       const packageJson = JSON.parse(getFile(files, "package.json"));
-      expect(packageJson.devDependencies["@ai-sdk/openai"]).toBe("latest");
+      expect(packageJson.devDependencies["@ai-sdk/openai"]).toMatch(/^\^2/);
       expect(packageJson.devDependencies["@ai-sdk/anthropic"]).toBeUndefined();
     });
   });
