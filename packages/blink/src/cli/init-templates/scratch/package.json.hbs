@@ -8,12 +8,12 @@
     "deploy": "blink deploy"
   },
   "devDependencies": {
-    "zod": "latest",
+    "zod": "^4",
     "ai": "^5",
 {{#if (eq aiProvider "anthropic")}}
-    "@ai-sdk/anthropic": "latest",
+    "@ai-sdk/anthropic": "^2",
 {{else if (eq aiProvider "openai")}}
-    "@ai-sdk/openai": "latest",
+    "@ai-sdk/openai": "^2",
 {{/if}}
     "blink": "latest",
     "esbuild": "latest",
