@@ -43,8 +43,14 @@ export async function startDev({ directory }: { directory: string }) {
 
 const Root = ({ directory }: { directory: string }) => {
   const [logger, setLogger] = useState<Logger>(
-    new Logger(async (level, ...message) => {
-      console[level](...message);
+    new Logger(async (level, source, ...message) => {
+      const contentColor = level === "error" ? "red" : "gray";
+      const sourceLabel = source === "agent" ? `[${source}] ` : "";
+      console[level](
+        chalk[contentColor](
+          `${chalk.bold(sourceLabel)}${util.format(...message)}`
+        )
+      );
     })
   );
   return (
@@ -129,15 +135,6 @@ const App = ({ directory }: { directory: string }) => {
       }
     },
   });
-  useEffect(() => {
-    logger.setPrintLog((level, source, ...message) => {
-      return dev.chat.queueLogMessage({
-        message: util.format(...message),
-        level,
-        source,
-      });
-    });
-  }, [dev.chat.queueLogMessage, logger]);
 
   const { exit } = useApp();
   const [exitArmed, setExitArmed] = useState(false);
