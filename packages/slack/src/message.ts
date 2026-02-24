@@ -24,9 +24,15 @@ import type { KnownEventFromType } from "@slack/bolt";
  * @param text - The text to format.
  * @returns The formatted text.
  */
-export function formatMessage(text: string): string {
+export function formatMessage(text: string): {
+  text: string;
+  truncated: boolean;
+  originalLength: number;
+} {
   const maxLength = 3000;
-  if (text.length > maxLength) {
+  const originalLength = text.length;
+  const truncated = text.length > maxLength;
+  if (truncated) {
     text = text.slice(0, maxLength);
   }
 
@@ -71,7 +77,7 @@ export function formatMessage(text: string): string {
     text = text.replace(placeholder(i), preserved[i] ?? "");
   }
 
-  return text;
+  return { text, truncated, originalLength };
 }
 
 /**
@@ -86,6 +92,7 @@ export const formattingRules = `FORMATTING RULES:
 - <http://example.com|link text> = links
 - tables must be in a code block
 - user mentions must be in the format <@user_id> (e.g. <@U01UBAM2C4D>)
+- messages are limited to 3000 characters; if your response is longer, it will be truncated and you'll need to send follow-up messages
 
 NEVER USE:
 - Headings (#, ##, ###, etc.)
