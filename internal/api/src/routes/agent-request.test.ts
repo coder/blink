@@ -603,6 +603,55 @@ describe("subdomain requests", () => {
   });
 });
 
+describe("devhook URL rewriting", () => {
+  const fakeId = "00000000-0000-0000-0000-000000000000";
+
+  test("devhook receives subpath for webhook requests", async () => {
+    let receivedUrl: string | undefined;
+    const { url: apiUrl } = await serve({
+      bindings: {
+        devhook: {
+          handleRequest: async (_id: string, req: Request) => {
+            receivedUrl = req.url;
+            return new Response("devhook OK");
+          },
+        },
+      },
+    });
+
+    // Request with subpath /slack — devhook should receive just /slack
+    const response = await fetch(
+      `${apiUrl}/api/webhook/${fakeId}/slack?foo=bar`
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("devhook OK");
+
+    const parsed = new URL(receivedUrl!);
+    expect(parsed.pathname).toBe("/slack");
+    expect(parsed.searchParams.get("foo")).toBe("bar");
+  });
+
+  test("devhook receives / for webhook requests without subpath", async () => {
+    let receivedUrl: string | undefined;
+    const { url: apiUrl } = await serve({
+      bindings: {
+        devhook: {
+          handleRequest: async (_id: string, req: Request) => {
+            receivedUrl = req.url;
+            return new Response("devhook OK");
+          },
+        },
+      },
+    });
+
+    const response = await fetch(`${apiUrl}/api/webhook/${fakeId}`);
+    expect(response.status).toBe(200);
+
+    const parsed = new URL(receivedUrl!);
+    expect(parsed.pathname).toBe("/");
+  });
+});
+
 describe("Slack verification expiration", () => {
   test("clears expired slack_verification and skips verification processing", async () => {
     // Set expiresAt to 1 hour ago (already expired)
