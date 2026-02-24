@@ -113,7 +113,7 @@ ${formattingRules}`
           throw new Error("ts is required! Messaging in channels is disabled.");
         }
 
-        const text = formatMessage(args.message);
+        const { text, truncated, originalLength } = formatMessage(args.message);
         const blocks: AnyBlock[] = [
           {
             type: "section",
@@ -157,6 +157,13 @@ ${formattingRules}`
         });
         if (!res.ok) {
           throw new Error(`Failed to send message: ${res.error}`);
+        }
+        if (truncated) {
+          return {
+            success: true,
+            truncated: true,
+            message: `Your message was truncated from ${originalLength} to 3000 characters due to Slack's message limit. The last 100 characters sent were: "${text.slice(-100)}". Send a follow-up message to continue where you left off.`,
+          };
         }
         return {
           success: true,
