@@ -46,6 +46,7 @@ export function createAgentSlackManifest(appName: string, webhookUrl: string) {
           "groups:history",
           "groups:read",
           "files:read",
+          "files:write",
           "im:history",
           "im:read",
           "im:write",
