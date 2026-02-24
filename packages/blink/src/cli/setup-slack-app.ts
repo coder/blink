@@ -377,6 +377,7 @@ export async function setupSlackApp(
           "groups:history",
           "groups:read",
           "files:read",
+          "files:write",
           "im:history",
           "im:read",
           "im:write",
