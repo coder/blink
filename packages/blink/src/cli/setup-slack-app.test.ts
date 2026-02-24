@@ -11,6 +11,7 @@ import {
 } from "./lib/in-memory-cli";
 import { makeTmpDir } from "./lib/terminal";
 import {
+  appendSubpath,
   setupSlackApp,
   updateEnvCredentials,
   verifySlackSignature,
@@ -108,6 +109,44 @@ describe("verifySlackSignature", () => {
       signature
     );
     expect(result).toBe(false);
+  });
+});
+
+describe("appendSubpath", () => {
+  it("should append a subpath to a simple URL", () => {
+    expect(appendSubpath("https://example.com", "/slack")).toBe(
+      "https://example.com/slack"
+    );
+  });
+
+  it("should append a subpath to a URL with an existing path", () => {
+    expect(appendSubpath("https://example.com/devhook/abc", "/slack")).toBe(
+      "https://example.com/devhook/abc/slack"
+    );
+  });
+
+  it("should handle trailing slashes on the base URL", () => {
+    expect(appendSubpath("https://example.com/devhook/", "/slack")).toBe(
+      "https://example.com/devhook/slack"
+    );
+  });
+
+  it("should handle subpath without leading slash", () => {
+    expect(appendSubpath("https://example.com/devhook", "slack")).toBe(
+      "https://example.com/devhook/slack"
+    );
+  });
+
+  it("should handle both trailing and leading slashes", () => {
+    expect(appendSubpath("https://example.com/devhook///", "///slack")).toBe(
+      "https://example.com/devhook/slack"
+    );
+  });
+
+  it("should preserve query parameters", () => {
+    expect(
+      appendSubpath("https://example.com/devhook?token=abc", "/slack")
+    ).toBe("https://example.com/devhook/slack?token=abc");
   });
 });
 
