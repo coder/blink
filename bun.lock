@@ -362,7 +362,7 @@
     },
     "packages/server": {
       "name": "blink-server",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "bin": {
         "blink-server": "dist/cli.js",
       },
