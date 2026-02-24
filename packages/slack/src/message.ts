@@ -631,7 +631,14 @@ export const extractMessagesMetadata = async <
               const text = await response.text();
               throw new Error(text);
             }
-            if (response.headers.get("content-type") !== file.mimetype) {
+            const responseContentType = response.headers
+              .get("content-type")
+              ?.split(";")[0]
+              ?.trim();
+            if (
+              !responseContentType ||
+              !supportedFileTypes.includes(responseContentType)
+            ) {
               throw new Error(
                 `The file ${file.name} mime type returned by the server was ${response.headers.get("content-type")}.`
               );
