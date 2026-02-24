@@ -97,6 +97,12 @@ export function verifySlackSignature(
   );
 }
 
+export function appendSubpath(baseUrl: string, subpath: string): string {
+  const url = new URL(baseUrl);
+  url.pathname = `${url.pathname.replace(/\/+$/, "")}/${subpath.replace(/^\/+/, "")}`;
+  return url.toString();
+}
+
 const makeDisposable = (value: unknown): Disposable => {
   if (!(typeof value === "object" && value !== null)) {
     throw new Error("Unable to make value disposable, it's not an object");
@@ -234,7 +240,10 @@ export async function setupSlackApp(
       baseURL: host,
       authToken: getAuthToken(),
     });
-  const webhookUrl = await client.devhook.getUrl(devhookId);
+  const webhookUrl = appendSubpath(
+    await client.devhook.getUrl(devhookId),
+    "/slack"
+  );
 
   log.info("Starting webhook listener...");
 
