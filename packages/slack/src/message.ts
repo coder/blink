@@ -30,6 +30,14 @@ export function formatMessage(text: string): string {
     text = text.slice(0, maxLength);
   }
 
+  // Preserve code blocks and inline code from formatting
+  const preserved: string[] = [];
+  const placeholder = (i: number) => `\x00CODE${i}\x00`;
+  text = text.replace(/```[\s\S]*?```|`[^`]+`/g, (match) => {
+    preserved.push(match);
+    return placeholder(preserved.length - 1);
+  });
+
   // Manual formatting fixes for Slack compatibility
   // Convert markdown links [text](url) to Slack format <url|text>
   text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "<$2|$1>");
@@ -39,15 +47,17 @@ export function formatMessage(text: string): string {
 
   // Replace non-bracketed user IDs with Slack format <@user_id>
   // Only wrap when not already inside angle brackets
+  // Require at least one digit to avoid matching pure-alpha words like WORKSPACE
   text = text.replace(
-    /(?<!<)@(U|W)[A-Z0-9]{8,}(?!>)/g,
+    /(?<!<)@(?:U|W)(?=[A-Z0-9]*\d)[A-Z0-9]{8,}(?!>)/g,
     (match) => `<${match}>`
   );
 
   // Also handle bare user IDs that start with U or W (LLMs often omit @ and <>)
   // Ensure we don't match within a larger alphanumeric token and avoid already bracketed forms
+  // Require at least one digit to avoid matching pure-alpha words like WORKSPACE
   text = text.replace(
-    /(^|[^A-Z0-9<@])((?:U|W)[A-Z0-9]{8,})(?![A-Z0-9>])/g,
+    /(^|[^A-Z0-9<@])((?:U|W)(?=[A-Z0-9]*\d)[A-Z0-9]{8,})(?![A-Z0-9>])/g,
     (m, prefix, id) => `${prefix}<@${id}>`
   );
 
@@ -55,6 +65,11 @@ export function formatMessage(text: string): string {
   text = text.replace(/<@([a-z0-9._-]+)>/gi, (m, u) =>
     /^[UW][A-Z0-9]{8,}$/.test(u) ? m : `@${u}`
   );
+
+  // Restore preserved code blocks
+  for (let i = 0; i < preserved.length; i++) {
+    text = text.replace(placeholder(i), preserved[i] ?? "");
+  }
 
   return text;
 }
