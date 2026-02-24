@@ -56,9 +56,31 @@ export default async function handleAgentRequest(
   const query = await db.selectAgentDeploymentByRequestID(id);
   if (!query) {
     // There is no agent for this request, check if it's a dev request.
-    const response = await c.env.devhook?.handleRequest(id, c.req.raw);
-    if (response) {
-      return response;
+    if (c.env.devhook) {
+      // Rewrite the URL so the devhook receives just the subpath, not the
+      // full `/api/webhook/{id}/...` prefix.  This mirrors the rewriting
+      // done for deployed agents below (lines 99-106).
+      const incomingUrl = new URL(c.req.raw.url);
+      let devhookPath: string;
+      if (routing.mode === "webhook") {
+        devhookPath = routing.subpath || "/";
+      } else {
+        devhookPath = incomingUrl.pathname;
+      }
+      const devhookUrl = new URL(devhookPath, incomingUrl.origin);
+      devhookUrl.search = incomingUrl.search;
+
+      const devhookReq = new Request(devhookUrl.toString(), {
+        method: c.req.raw.method,
+        headers: c.req.raw.headers,
+        body: c.req.raw.body,
+        // @ts-expect-error - Required for Node.js streaming.
+        duplex: c.req.raw.body ? "half" : undefined,
+      });
+      const response = await c.env.devhook.handleRequest(id, devhookReq);
+      if (response) {
+        return response;
+      }
     }
     return c.json({ message: "No agent exists for this webook" }, 404);
   }
