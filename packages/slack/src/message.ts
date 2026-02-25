@@ -418,6 +418,25 @@ export interface MessageMetadata {
    * channel is the channel the message was sent in.
    */
   channel: ConversationsInfoResponse["channel"];
+
+  /**
+   * imageBlocks is a list of image blocks in the message (from block kit).
+   * These are different from file attachments - they're inline images with URLs.
+   */
+  imageBlocks: Array<{
+    image_url: string;
+    alt_text: string;
+    title?: string;
+    result:
+      | {
+          type: "downloaded";
+          content: Buffer;
+        }
+      | {
+          type: "error";
+          error: Error;
+        };
+  }>;
 }
 
 export interface ExtractMessagesMetadataOptions<T> {
@@ -491,6 +510,14 @@ export const extractMessagesMetadata = async <
       | { type: "not_supported" };
   }> = [];
 
+  // Collect image blocks (inline images from block kit)
+  const imageBlockUrls: Array<{
+    url: string;
+    alt_text: string;
+    title?: string;
+    messageIndex: number;
+  }> = [];
+
   // First pass: collect all IDs and files from all messages
   for (let i = 0; i < messages.length; i++) {
     const message = messages[i];
@@ -517,6 +544,24 @@ export const extractMessagesMetadata = async <
           case "user":
             userIds.add(mention.user_id);
             break;
+        }
+      }
+
+      // Extract image blocks
+      for (const block of message.blocks) {
+        if (block.type === "image" && "image_url" in block) {
+          const imageBlock = block as {
+            type: "image";
+            image_url: string;
+            alt_text: string;
+            title?: { text: string };
+          };
+          imageBlockUrls.push({
+            url: imageBlock.image_url,
+            alt_text: imageBlock.alt_text,
+            title: imageBlock.title?.text,
+            messageIndex: i,
+          });
         }
       }
     }
@@ -672,6 +717,58 @@ export const extractMessagesMetadata = async <
     }
   }
 
+  // Fetch image blocks (no auth needed for external URLs)
+  const imageBlockResults: Map<
+    number, // messageIndex
+    MessageMetadata["imageBlocks"]
+  > = new Map();
+
+  for (const entry of imageBlockUrls) {
+    const { url, alt_text, title, messageIndex } = entry;
+
+    // Ensure messageIndex array exists
+    if (!imageBlockResults.has(messageIndex)) {
+      imageBlockResults.set(messageIndex, []);
+    }
+    const messageImageBlocks = imageBlockResults.get(messageIndex)!;
+
+    // Download the image (external URL, no auth needed)
+    promises.push(
+      (async () => {
+        try {
+          const response = await fetch(url, {
+            redirect: "follow",
+          });
+
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text);
+          }
+          const content = await response.arrayBuffer();
+          messageImageBlocks.push({
+            image_url: url,
+            alt_text,
+            title,
+            result: {
+              type: "downloaded",
+              content: Buffer.from(content),
+            },
+          });
+        } catch (err) {
+          messageImageBlocks.push({
+            image_url: url,
+            alt_text,
+            title,
+            result: {
+              type: "error",
+              error: err as Error,
+            },
+          });
+        }
+      })()
+    );
+  }
+
   // Wait for all promises to resolve
   await Promise.all([
     ...promises,
@@ -779,6 +876,9 @@ export const extractMessagesMetadata = async <
       }
     }
 
+    // Get image blocks
+    const imageBlocks = imageBlockResults.get(i) ?? [];
+
     // Get user info
     const user = message.user ? users[message.user] : undefined;
 
@@ -803,6 +903,7 @@ export const extractMessagesMetadata = async <
       metadata: {
         mentions,
         files,
+        imageBlocks,
         user,
         createdAt,
         channel,
