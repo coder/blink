@@ -158,15 +158,45 @@ ${formattingRules}`
         if (!res.ok) {
           throw new Error(`Failed to send message: ${res.error}`);
         }
+
+        const snippetErrors: Array<{ name: string; error: string }> = [];
+        if (args.text_snippets.length > 0) {
+          const threadTs = args.ts ?? res.ts;
+          for (const snippet of args.text_snippets) {
+            try {
+              await client.files.uploadV2({
+                channel_id: args.channel,
+                thread_ts: threadTs,
+                content: snippet.content,
+                filename: snippet.name,
+                title: snippet.name,
+                snippet_type:
+                  snippet.type === "text" ? undefined : snippet.type,
+              } as Parameters<typeof client.files.uploadV2>[0]);
+            } catch (err) {
+              snippetErrors.push({
+                name: snippet.name,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
+        }
+
         if (truncated) {
           return {
             success: true,
             truncated: true,
             message: `Your message was truncated from ${originalLength} to 3000 characters due to Slack's message limit. The last 100 characters sent were: "${text.slice(-100)}". Send a follow-up message to continue where you left off.`,
+            ...(snippetErrors.length > 0
+              ? { snippet_errors: snippetErrors }
+              : {}),
           };
         }
         return {
           success: true,
+          ...(snippetErrors.length > 0
+            ? { snippet_errors: snippetErrors }
+            : {}),
         };
       },
     }),
