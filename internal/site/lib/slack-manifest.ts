@@ -53,6 +53,7 @@ export function createAgentSlackManifest(appName: string, webhookUrl: string) {
           "mpim:history",
           "mpim:read",
           "users:read",
+          "users:read.email",
           "links:read",
           "commands",
         ],

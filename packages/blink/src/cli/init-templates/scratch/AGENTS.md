@@ -340,6 +340,7 @@ Slack App Manifest:
   - "mpim:history"
   - "mpim:read"
   - "users:read"
+  - "users:read.email"
   - "links:read"
   - "commands"
 - For the best user experience, default to the following bot events (in the "settings" > "event_subscriptions" > "bot_events"):

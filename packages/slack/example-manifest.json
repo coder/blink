@@ -50,7 +50,8 @@
         "channels:read",
         "groups:history",
         "groups:read",
-        "users:read"
+        "users:read",
+        "users:read.email"
       ],
       "bot": [
         "app_mentions:read",
@@ -68,6 +69,7 @@
         "reactions:read",
         "reactions:write",
         "users:read",
+        "users:read.email",
         "links:read",
         "mpim:read"
       ]

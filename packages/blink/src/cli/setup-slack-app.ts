@@ -384,6 +384,7 @@ export async function setupSlackApp(
           "mpim:history",
           "mpim:read",
           "users:read",
+          "users:read.email",
           "links:read",
           "commands",
         ],
