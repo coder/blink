@@ -82,6 +82,7 @@ const handleSlackEvent = async ({
           ext_shared_channel: metadata.channel?.is_ext_shared ?? false,
           type: "slack",
           channel_name: metadata.channel?.name ?? "",
+          user_id: metadata.user?.id ?? "",
         } satisfies SlackMessageMetadata,
       },
     ]);
