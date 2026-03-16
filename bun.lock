@@ -330,13 +330,13 @@
     },
     "packages/scout-agent": {
       "name": "@blink-sdk/scout-agent",
-      "version": "0.0.20",
+      "version": "0.0.21",
       "dependencies": {
         "@blink-sdk/compute": "^0.0.15",
         "@blink-sdk/github": "^0.0.23",
         "@blink-sdk/model-intent": "^0.0.5",
         "@blink-sdk/multiplexer": "^0.0.1",
-        "@blink-sdk/slack": "^1.1.4",
+        "@blink-sdk/slack": "^1.2.0",
         "@octokit/webhooks": "^14.1.3",
         "exa-js": "^2.0.3",
       },

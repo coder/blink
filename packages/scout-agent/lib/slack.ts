@@ -73,6 +73,11 @@ const handleSlackEvent = async ({
       client: app.client,
       event,
     });
+    const isExternalUser =
+      metadata.botTeamId != null &&
+      metadata.user?.team_id != null &&
+      metadata.user.team_id !== metadata.botTeamId;
+
     await agent.chat.sendMessages(chat.id, [
       {
         ...message,
@@ -82,6 +87,7 @@ const handleSlackEvent = async ({
           ext_shared_channel: metadata.channel?.is_ext_shared ?? false,
           type: "slack",
           channel_name: metadata.channel?.name ?? "",
+          is_external_user: isExternalUser,
         } satisfies SlackMessageMetadata,
       },
     ]);
