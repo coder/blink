@@ -582,7 +582,12 @@ export const extractMessagesMetadata = async <
   for (const channelId of channelIds) {
     channelPromises[channelId] = client.conversations
       .info({ channel: channelId })
-      .then((res) => res.channel);
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to get channel info: ${res.error}`);
+        }
+        return res.channel;
+      });
   }
 
   // Fetch team info
@@ -591,9 +596,12 @@ export const extractMessagesMetadata = async <
     Promise<TeamInfoResponse["team"] | undefined>
   > = {};
   for (const teamId of teamIds) {
-    teamPromises[teamId] = client.team
-      .info({ team: teamId })
-      .then((res) => res.team);
+    teamPromises[teamId] = client.team.info({ team: teamId }).then((res) => {
+      if (!res.ok) {
+        throw new Error(`Failed to get team info: ${res.error}`);
+      }
+      return res.team;
+    });
   }
 
   // Fetch user info
@@ -602,9 +610,12 @@ export const extractMessagesMetadata = async <
     Promise<UsersInfoResponse["user"] | undefined>
   > = {};
   for (const userId of userIds) {
-    userPromises[userId] = client.users
-      .info({ user: userId })
-      .then((res) => res.user);
+    userPromises[userId] = client.users.info({ user: userId }).then((res) => {
+      if (!res.ok) {
+        throw new Error(`Failed to get user info: ${res.error}`);
+      }
+      return res.user;
+    });
   }
 
   // Fetch files
