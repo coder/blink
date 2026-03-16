@@ -582,8 +582,7 @@ export const extractMessagesMetadata = async <
   for (const channelId of channelIds) {
     channelPromises[channelId] = client.conversations
       .info({ channel: channelId })
-      .then((res) => res.channel)
-      .catch(() => undefined);
+      .then((res) => res.channel);
   }
 
   // Fetch team info
@@ -594,8 +593,7 @@ export const extractMessagesMetadata = async <
   for (const teamId of teamIds) {
     teamPromises[teamId] = client.team
       .info({ team: teamId })
-      .then((res) => res.team)
-      .catch(() => undefined);
+      .then((res) => res.team);
   }
 
   // Fetch user info
@@ -606,8 +604,7 @@ export const extractMessagesMetadata = async <
   for (const userId of userIds) {
     userPromises[userId] = client.users
       .info({ user: userId })
-      .then((res) => res.user)
-      .catch(() => undefined);
+      .then((res) => res.user);
   }
 
   // Fetch files
