@@ -215,7 +215,10 @@ export const createMessageFromEvent = async (
       parts,
       role: "user",
     },
-    metadata: response.metadata,
+    metadata: {
+      ...response.metadata,
+      botTeamId: botInfo?.team_id,
+    },
   };
 };
 
@@ -418,6 +421,12 @@ export interface MessageMetadata {
    * channel is the channel the message was sent in.
    */
   channel: ConversationsInfoResponse["channel"];
+
+  /**
+   * botTeamId is the team ID of the bot, from auth.test().
+   * Useful for determining if a user is external (Slack Connect).
+   */
+  botTeamId?: string;
 }
 
 export interface ExtractMessagesMetadataOptions<T> {
