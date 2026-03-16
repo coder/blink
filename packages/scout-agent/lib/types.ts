@@ -5,6 +5,7 @@ export interface SlackMessageMetadata {
   shared_channel: boolean;
   ext_shared_channel: boolean;
   channel_name: string;
+  is_external_user: boolean;
 }
 
 export type Message<
