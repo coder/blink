@@ -1,5 +1,7 @@
-import { render, waitFor } from "@testing-library/react";
+// Load the core package first so Bun initializes Lexical's shared exports before @lexical/react.
+import "lexical";
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { render, waitFor } from "@testing-library/react";
 import { Window } from "happy-dom";
 import {
   ChatMessageInput,
@@ -14,13 +16,13 @@ beforeAll(() => {
 });
 
 afterAll(async () => {
-  // @ts-ignore
+  // @ts-expect-error
   delete globalThis.window;
-  // @ts-ignore
+  // @ts-expect-error
   delete globalThis.document;
-  // @ts-ignore
+  // @ts-expect-error
   delete globalThis.MutationObserver;
-  // @ts-ignore
+  // @ts-expect-error
   delete globalThis.getComputedStyle;
 });
 
