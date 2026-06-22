@@ -49,8 +49,10 @@ export default function mountFiles(server: APIServer) {
     // Note: this happens with createServer from node:http, not with Bun.serve.
     return c.body(file.stream, 200, {
       "Content-Type": file.type,
-      // Inline to prevent the browser from downloading the file.
       "Content-Disposition": `inline; filename="${file.name}"`,
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy":
+        "default-src 'none'; sandbox; frame-ancestors 'none'",
     });
   });
 }
