@@ -506,6 +506,7 @@ self.onmessage = async (e) => {
       },
       async onMessage(data, { isAuthenticated }) {
         if (!isAuthenticated) return;
+        if (data[0] === FrontendMessageCode.Terminate) return;
         maybeClaimOnEnqueue(socket, data);
         return new Promise<Uint8Array>((resolve, reject) => {
           taskQueue.push({ socket, data, resolve, reject });
@@ -519,9 +520,12 @@ self.onmessage = async (e) => {
     const cleanupSocket = () => {
       releaseOwnerIf(socket);
       for (let i = taskQueue.length - 1; i >= 0; i--) {
-        if (taskQueue[i]!.socket === socket) {
+        const task = taskQueue[i];
+        if (task?.socket === socket) {
           try {
-            taskQueue[i]!.reject(new Error("Socket closed"));
+            // Closed sockets cannot receive pending responses, so complete
+            // queued work without producing an error.
+            task.resolve(new Uint8Array(0));
           } catch {}
           taskQueue.splice(i, 1);
         }
