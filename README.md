@@ -10,7 +10,7 @@
 [![Documentation](https://img.shields.io/badge/documentation-blink.coder.com-blue)](https://blink.coder.com/docs)
 
 > [!WARNING]
-> **This project is no longer actively maintained.** It is provided as-is, and issues and pull requests may not receive responses. You are welcome to fork the project or use it at your own risk.
+> **This project is not actively maintained.** It is provided as-is, and issues and pull requests may not receive responses.
 
 Blink is a self-hosted platform for running AI agents that your team can talk to in Slack, GitHub, and a web UI.
 It includes Scout, an agent built for coding tasks and codebase research, which you can customize with new tools and prompts.
