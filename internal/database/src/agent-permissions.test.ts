@@ -489,6 +489,14 @@ describe("Agent Permissions", () => {
       role: "member",
     });
 
+    // A private agent's organization default must not lower an owner's access.
+    await querier.upsertAgentPermission({
+      agent_id: privateAgent.id,
+      user_id: null,
+      permission: "read",
+      created_by: owner.id,
+    });
+
     // Member should NOT see the private agent
     const memberAgents = await querier.selectAgentsForUser({
       userID: member.id,
@@ -503,6 +511,7 @@ describe("Agent Permissions", () => {
     });
     expect(ownerAgents.items.length).toBe(1);
     expect(ownerAgents.items[0]!.id).toBe(privateAgent.id);
+    expect(ownerAgents.items[0]!.user_permission).toBe("admin");
   });
 
   test("selectAgentsForUser shows private agents to members with explicit permission", async () => {

@@ -28,6 +28,44 @@ test("CRUD /api/agents", async () => {
   expect(agents.items.length).toBe(0);
 });
 
+test("list agents does not perform per-agent database lookups", async () => {
+  const { helpers, bindings } = await serve();
+  const { client } = await helpers.createUser();
+  const org = await client.organizations.create({
+    name: "test-org",
+  });
+  await Promise.all(
+    Array.from({ length: 3 }, (_, index) =>
+      client.agents.create({
+        name: `test-agent-${index}`,
+        organization_id: org.id,
+      })
+    )
+  );
+
+  const db = await bindings.database();
+  const selectOrganizationForUser = db.selectOrganizationForUser.bind(db);
+  let organizationLookups = 0;
+  db.selectOrganizationForUser = async (...args) => {
+    organizationLookups++;
+    return selectOrganizationForUser(...args);
+  };
+  db.selectAgentDeploymentTargetByName = async () => {
+    throw new Error("unexpected per-agent deployment target lookup");
+  };
+  db.getAgentPermissionForUser = async () => {
+    throw new Error("unexpected per-agent permission lookup");
+  };
+
+  const agents = await client.agents.list({
+    organization_id: org.id,
+    per_page: 100,
+  });
+
+  expect(agents.items).toHaveLength(3);
+  expect(organizationLookups).toBe(1);
+});
+
 test("create agent with deployment and env", async () => {
   const { helpers } = await serve();
   const { client } = await helpers.createUser();

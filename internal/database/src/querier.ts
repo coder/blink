@@ -1801,6 +1801,31 @@ export default class Querier {
           ...getTableColumns(agent),
           pinned: sql<boolean>`${agent_pin.id} is not null`.as("pinned"),
           pinned_at: sql<Date>`${agent_pin.created_at}`.as("pinned_at"),
+          production_request_id: sql<string | null>`(
+            SELECT request_id
+            FROM ${agent_deployment_target}
+            WHERE ${agent_deployment_target.agent_id} = ${agent.id}
+              AND ${agent_deployment_target.target} = 'production'
+          )`.as("production_request_id"),
+          user_permission: sql<AgentPermissionLevel>`CASE
+            WHEN ${agent.visibility} = 'private'
+              AND ${organization_membership.role} IN ('owner', 'admin')
+              THEN 'admin'
+            ELSE COALESCE(
+              ${agent_permission.permission},
+              (
+                SELECT permission
+                FROM ${agent_permission} AS organization_agent_permission
+                WHERE organization_agent_permission.agent_id = ${agent.id}
+                  AND organization_agent_permission.user_id IS NULL
+                LIMIT 1
+              ),
+              CASE
+                WHEN ${organization_membership.role} IN ('owner', 'admin') THEN 'admin'
+                ELSE 'read'
+              END
+            )
+          END`.as("user_permission"),
           active_deployment_created_by: sql<string | null>`(
             SELECT created_by 
             FROM ${agent_deployment} 

@@ -151,13 +151,13 @@ export default function mountAgents(app: Hono<{ Bindings: Bindings }>) {
     });
 
     const response: ListAgentsResponse = {
-      items: await Promise.all(
-        agents.items.map(async (agent) =>
-          convert.agent(
-            agent,
-            await createAgentRequestURL(c, agent),
-            await getAgentUserPermission(c, agent)
-          )
+      items: agents.items.map((agent) =>
+        convert.agent(
+          agent,
+          agent.production_request_id && c.env.createRequestURL
+            ? c.env.createRequestURL(agent.production_request_id)
+            : undefined,
+          agent.user_permission
         )
       ),
       has_more: agents.has_more,
