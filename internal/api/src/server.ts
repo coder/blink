@@ -312,6 +312,9 @@ api.get("/", async (c) => {
 });
 api.onError((err, c) => {
   console.error(err);
+  if (err instanceof Error && err.cause) {
+    console.error("API error cause", err.cause);
+  }
 
   if (err instanceof ZodError) {
     const parsed = fromError(err);
