@@ -33,8 +33,6 @@ export default function handleNewAPI(
   env: Env,
   ctx: ExecutionContext
 ) {
-  let databasePromise: ReturnType<typeof connectToDatabase> | undefined;
-
   let apiBaseURL = new URL("https://blink.coder.com");
   if (env.NODE_ENV === "development") {
     apiBaseURL = new URL("http://localhost:3000");
@@ -124,7 +122,9 @@ export default function handleNewAPI(
           return cli.fetch(request);
         },
       },
-      database: () => (databasePromise ??= connectToDatabase(env)),
+      database: async () => {
+        return connectToDatabase(env);
+      },
       async deployAgent(deployment) {
         const agentDeployment = env.AGENT_DEPLOYMENT.get(
           env.AGENT_DEPLOYMENT.idFromName(deployment.id)
