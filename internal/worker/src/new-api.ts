@@ -1,3 +1,4 @@
+import { inspect } from "node:util";
 import type { Email, OtelSpan, TelemetryEvent } from "@blink.so/api/server";
 import server from "@blink.so/api/server";
 import type { AgentDeployment } from "./agent-deployment";
@@ -173,7 +174,10 @@ export default function handleNewAPI(
                 });
               })
               .catch((err) => {
-                console.warn("Failed to generate title from messages", err);
+                console.warn(
+                  "Failed to generate title from messages",
+                  inspect(err, { depth: null })
+                );
               })
           );
         },
