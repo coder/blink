@@ -158,7 +158,7 @@ export default function handleNewAPI(
           await chat.broadcastMessagesChanged(event, messages);
         },
         generateTitle: (opts) => {
-          if (!env.OPENAI_API_KEY) {
+          if (!env.AI_GATEWAY_API_KEY) {
             return;
           }
           ctx.waitUntil(

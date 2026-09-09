@@ -1,5 +1,4 @@
-import { createOpenAI } from "@ai-sdk/openai";
-import { generateText, type UIMessage } from "ai";
+import { createGateway, generateText, type UIMessage } from "ai";
 
 // generateTitleFromUserMessages generates a title from the first user message.
 export async function generateTitleFromMessages({
@@ -9,12 +8,12 @@ export async function generateTitleFromMessages({
   env: Cloudflare.Env;
   messages: Pick<UIMessage, "role" | "parts">[];
 }) {
-  const provider = createOpenAI({
-    apiKey: env.OPENAI_API_KEY,
-    baseURL: env.OPENAI_BASE_URL,
+  const gateway = createGateway({
+    apiKey: env.AI_GATEWAY_API_KEY,
+    baseURL: env.AI_GATEWAY_BASE_URL,
   });
   let { text: title } = await generateText({
-    model: provider.chat("gpt-4o"),
+    model: gateway("openai/gpt-4o"),
     system: `
 - you will generate a short title based on the first message a user begins a conversation with
 - ensure it is not more than 60 characters long
