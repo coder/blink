@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 interface SetupPageProps {
-  searchParams: { error?: string; redirect?: string };
+  searchParams: Promise<{ error?: string; redirect?: string }>;
 }
 
 export default async function SetupPage({ searchParams }: SetupPageProps) {

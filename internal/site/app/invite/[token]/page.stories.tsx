@@ -25,9 +25,9 @@ type Story = StoryObj<typeof meta>;
 
 export const Expired: Story = {
   args: {
-    params: {
+    params: Promise.resolve({
       token: "123",
-    },
+    }),
   },
   beforeEach: async () => {
     mocked(getQuerier).mockResolvedValue({
@@ -54,9 +54,9 @@ export const Expired: Story = {
 
 export const AlreadyUsed: Story = {
   args: {
-    params: {
+    params: Promise.resolve({
       token: "123",
-    },
+    }),
   },
   beforeEach: async () => {
     mocked(getQuerier).mockResolvedValue({
@@ -83,9 +83,9 @@ export const AlreadyUsed: Story = {
 
 export const Authenticated: Story = {
   args: {
-    params: {
+    params: Promise.resolve({
       token: "123",
-    },
+    }),
   },
   beforeEach: async () => {
     mocked(getQuerier).mockResolvedValue({
@@ -114,9 +114,9 @@ export const Authenticated: Story = {
 
 export const Unauthenticated: Story = {
   args: {
-    params: {
+    params: Promise.resolve({
       token: "123",
-    },
+    }),
   },
   beforeEach: async () => {
     mocked(getQuerier).mockResolvedValue({
