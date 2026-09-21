@@ -3,9 +3,9 @@ import { redirect } from "next/navigation";
 import AuthPageClient from "./auth-client";
 
 interface AuthPageProps {
-  searchParams: {
+  searchParams: Promise<{
     id?: string;
-  };
+  }>;
 }
 
 export default async function AuthPage({ searchParams }: AuthPageProps) {

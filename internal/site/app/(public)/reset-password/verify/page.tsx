@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 interface ResetVerificationPageProps {
-  searchParams: { error?: string; resent?: string };
+  searchParams: Promise<{ error?: string; resent?: string }>;
 }
 
 export default async function ResetVerificationPage({

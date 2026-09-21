@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 interface EmailVerificationPageProps {
-  searchParams: { error?: string; resent?: string; redirect?: string };
+  searchParams: Promise<{ error?: string; resent?: string; redirect?: string }>;
 }
 
 export default async function EmailVerificationPage({

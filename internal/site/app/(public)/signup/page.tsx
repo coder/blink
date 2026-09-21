@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 interface SignupPageProps {
-  searchParams: { error?: string; redirect?: string };
+  searchParams: Promise<{ error?: string; redirect?: string }>;
 }
 
 export default async function SignupPage({ searchParams }: SignupPageProps) {

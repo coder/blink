@@ -10,7 +10,7 @@ import { AcceptInviteButton } from "./accept-invite-button";
 export async function generateMetadata({
   params,
 }: {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }): Promise<Metadata> {
   const { token } = await params;
   const querier = await getQuerier();
@@ -30,9 +30,9 @@ export async function generateMetadata({
 }
 
 interface InvitePageProps {
-  params: {
+  params: Promise<{
     token: string;
-  };
+  }>;
   searchParams: Promise<{
     redirect?: string;
   }>;
