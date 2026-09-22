@@ -1,8 +1,8 @@
-import Client from "@blink.so/api";
 import * as convert from "@blink.so/database/convert";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
-import { auth, getSessionToken } from "@/app/(auth)/auth";
+import { auth } from "@/app/(auth)/auth";
+import { getAPIClient } from "@/lib/api-client.server";
 import { getQuerier } from "@/lib/database";
 
 export default async function OrganizationLayout({
@@ -75,12 +75,7 @@ export const getAgent = cache(
 export const getAgentOrNull = cache(
   async (organizationName: string, agentName: string) => {
     const session = await auth();
-    const token = await getSessionToken();
-    const baseURL = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3005";
-    const client = new Client({
-      baseURL,
-      authToken: token,
-    });
+    const client = await getAPIClient();
     const userID = session?.user?.id;
     const db = await getQuerier();
     const agentFromDB = await db.selectAgentByNameForUser({
