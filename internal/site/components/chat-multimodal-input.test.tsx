@@ -1,21 +1,24 @@
-// Load the core package first so Bun initializes Lexical's shared exports before @lexical/react.
-import "lexical";
 import { afterAll, beforeAll, expect, mock, test } from "bun:test";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { Window } from "happy-dom";
 import type { UIAttachment } from "@/hooks/use-attachments";
 import type { ChatMessageInputRef } from "./chat-message-input";
-import {
-  ChatMultimodalInput,
-  getInputLocalStorageKey,
-} from "./chat-multimodal-input";
 import { PreviewAttachment } from "./preview-attachment";
 
-beforeAll(() => {
+let ChatMultimodalInput: typeof import("./chat-multimodal-input").ChatMultimodalInput;
+let getInputLocalStorageKey: typeof import("./chat-multimodal-input").getInputLocalStorageKey;
+
+beforeAll(async () => {
   globalThis.window = new Window() as any;
   globalThis.document = window.document;
   globalThis.MutationObserver = window.MutationObserver;
   globalThis.getComputedStyle = window.getComputedStyle;
+  globalThis.Text = window.Text;
+
+  await import("lexical");
+  ({ ChatMultimodalInput, getInputLocalStorageKey } = await import(
+    "./chat-multimodal-input"
+  ));
 });
 
 afterAll(async () => {
@@ -27,6 +30,8 @@ afterAll(async () => {
   delete globalThis.MutationObserver;
   // @ts-expect-error
   delete globalThis.getComputedStyle;
+  // @ts-expect-error
+  delete globalThis.Text;
 });
 
 test("loads input value from localStorage", async () => {
