@@ -6,6 +6,56 @@ import { toast } from "sonner";
 import { LoaderIcon } from "./icons";
 import { Button } from "./ui/button";
 
+// TypeScript declarations for Web Speech API
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message?: string;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  onstart: (() => void) | null;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognition;
+    webkitSpeechRecognition?: new () => SpeechRecognition;
+  }
+}
+
+/**
+ * Check if the Web Speech API is supported in the current browser.
+ */
+function isSpeechRecognitionSupported(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+/**
+ * Create a SpeechRecognition instance if supported.
+ */
+function createSpeechRecognition(): SpeechRecognition | null {
+  if (typeof window === "undefined") return null;
+  const SpeechRecognitionClass =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognitionClass) return null;
+  return new SpeechRecognitionClass();
+}
+
 interface MicrophoneButtonProps {
   onTranscript: (text: string) => void;
   disabled?: boolean;
@@ -18,137 +68,99 @@ export function MicrophoneButton({
   onRecordingStateChange,
 }: MicrophoneButtonProps) {
   const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const [isSupported, setIsSupported] = useState(true);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const transcriptRef = useRef<string>("");
 
-  const stopRecording = useCallback(async () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-  }, [isRecording]);
+  // Check for browser support on mount
+  useEffect(() => {
+    setIsSupported(isSpeechRecognitionSupported());
+  }, []);
 
-  const getSupportedMimeType = () => {
-    const candidates = [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/ogg;codecs=opus",
-      "audio/ogg",
-      "audio/mp4",
-    ];
-    for (const type of candidates) {
-      try {
-        if (
-          typeof window !== "undefined" &&
-          "MediaRecorder" in window &&
-          MediaRecorder.isTypeSupported(type)
-        ) {
-          return type;
-        }
-      } catch {}
-    }
-    return undefined;
-  };
-
-  const startRecording = useCallback(async () => {
-    try {
-      let stream: MediaStream | null = null;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            channelCount: 1,
-          },
-        });
-      } catch (err) {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      }
-
-      if (!stream) {
-        throw new Error("No audio stream available");
-      }
-
-      streamRef.current = stream;
-
-      const mimeType = getSupportedMimeType();
-      const mediaRecorder = new MediaRecorder(
-        stream,
-        mimeType ? { mimeType } : undefined
-      );
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const usedType = (mimeType ?? mediaRecorder.mimeType) || "audio/webm";
-        const audioBlob = new Blob(chunksRef.current, { type: usedType });
-        await transcribeAudio(audioBlob);
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (error: any) {
-      console.error("Error starting recording:", error);
-      let message = "Failed to start recording.";
-      if (
-        error?.name === "NotAllowedError" ||
-        error?.name === "SecurityError"
-      ) {
-        message =
-          "Microphone access was blocked. Enable it in your browser/site settings.";
-      } else if (
-        error?.name === "NotFoundError" ||
-        error?.name === "DevicesNotFoundError"
-      ) {
-        message = "No microphone found. Check your input device.";
-      } else if (error?.name === "NotReadableError") {
-        message = "Microphone is in use by another application.";
-      }
-      toast.error(message);
+  const stopRecording = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
     }
   }, []);
 
-  const transcribeAudio = useCallback(
-    async (audioBlob: Blob) => {
-      setIsTranscribing(true);
-      try {
-        const formData = new FormData();
-        formData.append("audio", audioBlob);
+  const startRecording = useCallback(() => {
+    const recognition = createSpeechRecognition();
+    if (!recognition) {
+      toast.error("Speech recognition is not supported in this browser.");
+      return;
+    }
 
-        const response = await fetch("/api/speech-to-text", {
-          method: "POST",
-          body: formData,
-        });
+    recognitionRef.current = recognition;
+    transcriptRef.current = "";
 
-        if (!response.ok) {
-          throw new Error("Transcription failed");
+    // Configure recognition
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = navigator.language || "en-US";
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let finalTranscript = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result && result[0]) {
+          if (result.isFinal) {
+            finalTranscript += result[0].transcript;
+          }
         }
-
-        const result = (await response.json()) as { text: string };
-        if (result.text) {
-          onTranscript(result.text);
-        }
-      } catch (error) {
-        console.error("Transcription error:", error);
-        toast.error("Speech transcription failed. Please try again.");
-      } finally {
-        setIsTranscribing(false);
       }
-    },
-    [onTranscript]
-  );
+
+      if (finalTranscript) {
+        transcriptRef.current += finalTranscript;
+      }
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error("Speech recognition error:", event.error);
+
+      // Don't show error for aborted (user stopped) or no-speech
+      if (event.error === "aborted" || event.error === "no-speech") {
+        return;
+      }
+
+      let message = "Speech recognition failed. Please try again.";
+      if (event.error === "not-allowed") {
+        message =
+          "Microphone access was blocked. Enable it in your browser settings.";
+      } else if (event.error === "network") {
+        message = "Network error during speech recognition.";
+      } else if (event.error === "audio-capture") {
+        message = "No microphone found. Check your input device.";
+      }
+
+      toast.error(message);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+
+      // Send the accumulated transcript
+      const finalText = transcriptRef.current.trim();
+      if (finalText) {
+        onTranscript(finalText);
+      }
+
+      recognitionRef.current = null;
+      transcriptRef.current = "";
+    };
+
+    try {
+      recognition.start();
+    } catch (error) {
+      console.error("Error starting speech recognition:", error);
+      toast.error("Failed to start speech recognition.");
+      setIsRecording(false);
+    }
+  }, [onTranscript]);
 
   const handleToggleRecording = useCallback(() => {
     if (isRecording) {
@@ -162,22 +174,21 @@ export function MicrophoneButton({
     onRecordingStateChange?.(isRecording);
   }, [isRecording, onRecordingStateChange]);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
       }
     };
   }, []);
 
+  // Don't render the button if speech recognition is not supported
+  if (!isSupported) {
+    return null;
+  }
+
   const getButtonIcon = () => {
-    if (isTranscribing) {
-      return (
-        <div className="animate-spin">
-          <LoaderIcon size={14} />
-        </div>
-      );
-    }
     if (isRecording) {
       return <Mic size={14} className="text-white animate-pulse" />;
     }
@@ -192,7 +203,6 @@ export function MicrophoneButton({
   };
 
   const getTooltipText = () => {
-    if (isTranscribing) return "Processing speech...";
     if (isRecording) return "Stop recording";
     return "Start voice input";
   };
@@ -204,7 +214,7 @@ export function MicrophoneButton({
         isRecording ? "bg-red-600 hover:bg-red-700 border-red-600" : ""
       }`}
       onClick={handleToggleRecording}
-      disabled={disabled || isTranscribing}
+      disabled={disabled}
       variant={getButtonVariant()}
       title={getTooltipText()}
     >
