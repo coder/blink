@@ -18,12 +18,14 @@ export default class Client extends BrowserClient {
   public override websocket(path: string): WebSocket {
     const url = new URL(path, this.baseURL);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    const headers: Record<string, string> = {};
+    const headers = new Headers(this.headers);
     if (this.authToken) {
-      headers.Authorization = `Bearer ${this.authToken}`;
+      headers.set("Authorization", `Bearer ${this.authToken}`);
     }
     // biome-ignore lint/suspicious/noExplicitAny: types are wrong
-    return new WebSocket(url.toString(), { headers } as any);
+    return new WebSocket(url.toString(), {
+      headers: Object.fromEntries(headers),
+    } as any);
   }
 }
 
