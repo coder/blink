@@ -1,6 +1,7 @@
 import Client from "@blink.so/api";
 import { cache } from "react";
 import { getSessionToken } from "@/app/(auth)/auth";
+import { getAPIHeaders } from "./api-headers.server";
 
 const getBaseUrl = (): string => {
   return process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3005";
@@ -15,6 +16,7 @@ export const getAPIClient = cache(async (): Promise<Client> => {
   return new Client({
     baseURL: getBaseUrl(),
     authToken: token,
+    headers: getAPIHeaders(),
   });
 });
 
@@ -25,5 +27,6 @@ export const getAPIClient = cache(async (): Promise<Client> => {
 export const getPublicAPIClient = cache((): Client => {
   return new Client({
     baseURL: getBaseUrl(),
+    headers: getAPIHeaders(),
   });
 });

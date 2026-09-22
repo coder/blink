@@ -13,6 +13,7 @@ import Users from "./routes/users.client";
 export interface ClientOptions {
   baseURL?: string;
   authToken?: string;
+  headers?: Record<string, string>;
   fetch?: typeof globalThis.fetch;
 }
 
@@ -20,6 +21,7 @@ export default class Client {
   public authToken?: string;
 
   protected readonly baseURL: URL;
+  protected readonly headers: Headers;
   private readonly fetch?: typeof globalThis.fetch;
 
   public readonly admin = {
@@ -49,6 +51,7 @@ export default class Client {
           : "https://blink.coder.com")
     );
     this.fetch = options?.fetch;
+    this.headers = new Headers(options?.headers);
     this.authToken = options?.authToken;
     this.auth = new Auth(this, this.baseURL);
   }
@@ -64,7 +67,7 @@ export default class Client {
     }
   ) {
     const url = new URL(path, this.baseURL);
-    const headers = new Headers();
+    const headers = new Headers(this.headers);
     if (this.authToken) {
       headers.set("Authorization", `Bearer ${this.authToken}`);
     }
