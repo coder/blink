@@ -1,18 +1,19 @@
-// Load the core package first so Bun initializes Lexical's shared exports before @lexical/react.
-import "lexical";
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { render, waitFor } from "@testing-library/react";
 import { Window } from "happy-dom";
-import {
-  ChatMessageInput,
-  type ChatMessageInputRef,
-} from "./chat-message-input";
+import type { ChatMessageInputRef } from "./chat-message-input";
 
-beforeAll(() => {
+let ChatMessageInput: typeof import("./chat-message-input").ChatMessageInput;
+
+beforeAll(async () => {
   globalThis.window = new Window() as any;
   globalThis.document = window.document;
   globalThis.MutationObserver = window.MutationObserver;
   globalThis.getComputedStyle = window.getComputedStyle;
+  globalThis.Text = window.Text;
+
+  await import("lexical");
+  ({ ChatMessageInput } = await import("./chat-message-input"));
 });
 
 afterAll(async () => {
@@ -24,6 +25,8 @@ afterAll(async () => {
   delete globalThis.MutationObserver;
   // @ts-expect-error
   delete globalThis.getComputedStyle;
+  // @ts-expect-error
+  delete globalThis.Text;
 });
 
 test("has initial value", async () => {
