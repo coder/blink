@@ -62,7 +62,7 @@ const BOOTSTRAP_SCRIPT_BASE64 =
   Buffer.from(BOOTSTRAP_SCRIPT).toString("base64");
 
 const DOCKERFILE = `
-FROM node:24-bullseye-slim
+FROM node:24.22.1-bookworm-slim
 
 RUN apt update && apt install git -y
 RUN (type -p wget >/dev/null || (apt update && apt install wget -y)) \\

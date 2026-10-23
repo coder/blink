@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22.23.4-alpine
 
 # Install docker CLI for docker-in-docker via socket mounting
 RUN apk add --no-cache docker-cli

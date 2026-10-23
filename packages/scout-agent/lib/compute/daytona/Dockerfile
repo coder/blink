@@ -46,7 +46,7 @@ ENV HOME=/home/blink
 WORKDIR /workspace
 
 ### NODE VIA NVM ###
-ARG NODE_VERSION=22.13.0
+ARG NODE_VERSION=22.23.4
 ENV NVM_DIR=/home/blink/.nvm
 ENV PATH=/home/blink/.local/bin:/home/blink/.local/bun/bin:$NVM_DIR/versions/node/v${NODE_VERSION}/bin:$PATH
 RUN mkdir -p $NVM_DIR \

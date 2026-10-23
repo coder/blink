@@ -12,7 +12,7 @@ COPY otel/builder-config.yaml .
 # Build the collector
 RUN builder --config builder-config.yaml
 
-FROM node:22-alpine
+FROM node:22.23.4-alpine
 
 # Install bash (for process substitution)
 RUN apk add --no-cache bash
