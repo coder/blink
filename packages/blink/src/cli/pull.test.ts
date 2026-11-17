@@ -259,8 +259,8 @@ describe("pull command", () => {
 
     // Wait for confirm prompt, then reject it with LEFT + Enter
     await io.stdout.waitUntil((output) => output.includes("not empty"));
-    process.stdin.emit("data", KEY_CODES.LEFT);
-    process.stdin.emit("data", KEY_CODES.ENTER);
+    io.stdin.write(KEY_CODES.LEFT);
+    io.stdin.write(KEY_CODES.ENTER);
 
     const code = await pullPromise;
     expect(code).toBe(1); // Cancelled

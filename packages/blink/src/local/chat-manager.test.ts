@@ -425,6 +425,7 @@ test("disk watcher syncs changes from external processes", async () => {
     chatId,
     chatsDirectory: tempDir,
   });
+  const initialState = await waitForState(manager, (s) => !s.loading);
 
   // Simulate external write
   const chatStore = createDiskStore<StoredChat>(tempDir, "id");
@@ -432,7 +433,11 @@ test("disk watcher syncs changes from external processes", async () => {
   await locked.set({
     id: chatId,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    // The watcher uses this timestamp to detect changes. A fast write can
+    // otherwise share the manager's initial millisecond and be ignored.
+    updated_at: new Date(
+      Date.parse(initialState.updated_at!) + 1
+    ).toISOString(),
     messages: [createStoredMessage("External change")],
   });
   await locked.release();

@@ -10,6 +10,7 @@ describe("client default headers", () => {
       "content-type": "text/plain",
     };
     const client = new BrowserClient({
+      baseURL: "https://blink.example",
       headers: defaults,
       authToken: "session",
       fetch: (async (_url, init) => {

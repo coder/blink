@@ -182,7 +182,7 @@ describe("setup github-app command", () => {
     );
 
     // Cancel to end the test
-    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    io.stdin.write(KEY_CODES.CTRL_C);
     await setupPromise.catch(() => {});
   });
 
@@ -197,8 +197,8 @@ describe("setup github-app command", () => {
     await io.stdout.waitUntil((screen) =>
       screen.includes("What should your GitHub App be called?")
     );
-    process.stdin.emit("data", "my-test-app");
-    process.stdin.emit("data", KEY_CODES.ENTER);
+    io.stdin.write("my-test-app");
+    io.stdin.write(KEY_CODES.ENTER);
 
     await io.stdout.waitUntil((screen) =>
       screen.includes("Enter a GitHub organization name")
@@ -208,7 +208,7 @@ describe("setup github-app command", () => {
     expect(output).toContain("Leave blank for personal app");
 
     // Cancel to end the test
-    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    io.stdin.write(KEY_CODES.CTRL_C);
     await setupPromise.catch(() => {});
   });
 
@@ -224,14 +224,14 @@ describe("setup github-app command", () => {
     await io.stdout.waitUntil((screen) =>
       screen.includes("What should your GitHub App be called?")
     );
-    process.stdin.emit("data", "my-test-app");
-    process.stdin.emit("data", KEY_CODES.ENTER);
+    io.stdin.write("my-test-app");
+    io.stdin.write(KEY_CODES.ENTER);
 
     // Skip organization (leave blank for personal app)
     await io.stdout.waitUntil((screen) =>
       screen.includes("Enter a GitHub organization name")
     );
-    process.stdin.emit("data", KEY_CODES.ENTER);
+    io.stdin.write(KEY_CODES.ENTER);
 
     // Should show URL and ask about opening browser
     await io.stdout.waitUntil((screen) =>
@@ -242,7 +242,7 @@ describe("setup github-app command", () => {
     expect(output).toContain("Open this URL in your browser automatically?");
 
     // Cancel to end the test
-    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    io.stdin.write(KEY_CODES.CTRL_C);
     await setupPromise.catch(() => {});
   });
 });

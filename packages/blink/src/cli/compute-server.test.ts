@@ -164,24 +164,33 @@ test("multiple clients share the same compute server state", async () => {
     }
   );
 
-  const exec = await remoteA.client.request("process_execute", {
-    command: "bash",
-    args: ["-lc", 'echo "shared-process"'],
-    cwd: ".",
-  });
+  try {
+    // Keep the process alive until the second client supplies its input.
+    const exec = await remoteA.client.request("process_execute", {
+      command: "bash",
+      args: ["-lc", 'read -r value; echo "$value"'],
+      cwd: ".",
+    });
+    await remoteB.client.request("process_send_input", {
+      pid: exec.pid,
+      data: "shared-process\n",
+    });
 
-  const waitResult = await remoteB.client.request("process_wait", {
-    pid: exec.pid,
-    timeout_ms: 10_000,
-  });
+    const waitResult = await remoteB.client.request("process_wait", {
+      pid: exec.pid,
+      timeout_ms: 10_000,
+    });
 
-  expect(waitResult.pid).toBe(exec.pid);
-  expect(waitResult.plain_output.lines.join("\n")).toContain("shared-process");
-  expect(observedPids).toContain(exec.pid);
-
-  notificationDisposable.dispose();
-  await Promise.all([remoteA.close(), remoteB.close()]);
-  await close();
+    expect(waitResult.pid).toBe(exec.pid);
+    expect(waitResult.plain_output.lines.join("\n")).toContain(
+      "shared-process"
+    );
+    expect(observedPids).toContain(exec.pid);
+  } finally {
+    notificationDisposable.dispose();
+    await Promise.all([remoteA.close(), remoteB.close()]);
+    await close();
+  }
 });
 
 test("broadcasts process output notifications to all clients", async () => {
