@@ -88,6 +88,14 @@ export default defineConfig([
   {
     entry: "./src/cli/index.ts",
     platform: "node",
+    // Bundle the current server SDK without a workspace dependency: the API
+    // package itself depends on blink, which would create a Turbo build cycle.
+    alias: {
+      "@blink.so/api": join(
+        import.meta.dirname,
+        "../../internal/api/src/client.node.ts"
+      ),
+    },
     external,
     format: ["esm"],
     target: "node22",
