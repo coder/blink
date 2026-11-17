@@ -28,7 +28,7 @@ export default class AgentInvocationClient {
   private readonly headers: Headers;
 
   public constructor(options?: AgentInvocationClientOptions) {
-    this.baseURL = options?.baseURL ?? "https://blink.so";
+    this.baseURL = options?.baseURL ?? "https://blink.coder.com";
     this.authToken = options?.authToken;
     this.deploymentToken = options?.deploymentToken;
     this.headers = new Headers(getServerHeaders());
