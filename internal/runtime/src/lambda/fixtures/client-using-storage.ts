@@ -12,6 +12,12 @@ const InternalAuthHeader = "x-blink-internal-auth";
 
 http
   .createServer(async (req, res) => {
+    if (req.url === "/_agent/flush-otel") {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
     // Read auth token from request header (set by the wrapper's proxy)
     // and set up AsyncLocalStorage context so internal API calls work.
     const authToken = req.headers[InternalAuthHeader] as string;

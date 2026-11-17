@@ -1,4 +1,5 @@
 import BrowserClient, { type ClientOptions } from "./client.browser";
+import { getServerHeaders } from "@blink.so/runtime/types";
 import Devhook from "./routes/devhook.client";
 import Tools from "./routes/tools/tools.client.node";
 
@@ -9,9 +10,14 @@ export default class Client extends BrowserClient {
   public readonly tools = new Tools(this);
 
   public constructor(options?: ClientOptions) {
+    const headers = new Headers(getServerHeaders());
+    for (const [key, value] of Object.entries(options?.headers ?? {})) {
+      headers.set(key, value);
+    }
     super({
       ...options,
       baseURL: options?.baseURL ?? process.env.BLINK_API_URL,
+      headers: Object.fromEntries(headers),
     });
   }
 

@@ -3,6 +3,7 @@ import { serve } from "@blink.so/api/test";
 import {
   BlinkInvocationTokenHeader,
   InternalAPIServerListenPortEnvironmentVariable,
+  InternalAPIServerHeadersEnvironmentVariable,
   InternalAPIServerURLEnvironmentVariable,
 } from "@blink.so/runtime/types";
 import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
@@ -94,6 +95,63 @@ test(
     // Each request should receive back the same token it sent
     for (const { sent, received } of results) {
       expect(received).toBe(sent);
+    }
+  },
+  { timeout: 10_000 }
+);
+
+test(
+  "runtime forwards extra headers to the Blink server",
+  async () => {
+    const previousHeaders =
+      process.env[InternalAPIServerHeadersEnvironmentVariable];
+    const previousURL = process.env[InternalAPIServerURLEnvironmentVariable];
+    const requests: Headers[] = [];
+    const remote = Bun.serve({
+      port: 0,
+      fetch(request) {
+        requests.push(new Headers(request.headers));
+        return request.method === "GET"
+          ? new Response("Hello, world!")
+          : new Response(null, { status: 204 });
+      },
+    });
+    try {
+      process.env[InternalAPIServerURLEnvironmentVariable] =
+        remote.url.toString();
+      process.env[InternalAPIServerHeadersEnvironmentVariable] = JSON.stringify(
+        {
+          "X-Custom-Header": "custom-value",
+          "X-Another-Header": "another-value",
+        }
+      );
+      const fetch = await mockHandler(
+        require.resolve("./fixtures/client-using-storage")
+      );
+      const response = await fetch(
+        new Request("http://localhost/", {
+          headers: { [BlinkInvocationTokenHeader]: "blink-token" },
+        })
+      );
+      expect(await response.text()).toBe("Hello, world!");
+      expect(requests).toHaveLength(2);
+      for (const headers of requests) {
+        expect(headers.get("X-Custom-Header")).toBe("custom-value");
+        expect(headers.get("X-Another-Header")).toBe("another-value");
+        expect(headers.get("authorization")).toBe("Bearer blink-token");
+      }
+    } finally {
+      remote.stop(true);
+      for (const [key, value] of [
+        [InternalAPIServerHeadersEnvironmentVariable, previousHeaders],
+        [InternalAPIServerURLEnvironmentVariable, previousURL],
+      ]) {
+        if (value === undefined) {
+          delete process.env[key!];
+        } else {
+          process.env[key!] = value;
+        }
+      }
     }
   },
   { timeout: 10_000 }
@@ -199,6 +257,9 @@ const mockHandler = async (fixture: string) => {
   } as any;
 
   process.env.ENTRYPOINT = require.resolve(fixture);
+  // Fixtures capture the internal API URL at import time, so each runtime needs
+  // its own import after startInternalAPIServer updates the environment.
+  delete require.cache[process.env.ENTRYPOINT];
   const result = await import(testFile);
   const handler = result.handler;
 
