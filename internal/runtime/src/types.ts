@@ -35,7 +35,11 @@ export function getServerHeaders(): Record<string, string> {
       }
     }
     // Validate header names and values, and normalize names for merging.
-    return Object.fromEntries(new Headers(parsed as Record<string, string>));
+    const headers: Record<string, string> = {};
+    new Headers(parsed as Record<string, string>).forEach((value, key) => {
+      headers[key] = value;
+    });
+    return headers;
   } catch {
     // Do not include the value or parser error: headers can contain secrets.
     throw new Error(

@@ -10,14 +10,14 @@ export default class Client extends BrowserClient {
   public readonly tools = new Tools(this);
 
   public constructor(options?: ClientOptions) {
-    const headers = new Headers(getServerHeaders());
+    const headers = getServerHeaders();
     for (const [key, value] of Object.entries(options?.headers ?? {})) {
-      headers.set(key, value);
+      headers[key.toLowerCase()] = value;
     }
     super({
       ...options,
       baseURL: options?.baseURL ?? process.env.BLINK_API_URL,
-      headers: Object.fromEntries(headers),
+      headers,
     });
   }
 
@@ -28,9 +28,13 @@ export default class Client extends BrowserClient {
     if (this.authToken) {
       headers.set("Authorization", `Bearer ${this.authToken}`);
     }
+    const handshakeHeaders: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      handshakeHeaders[key] = value;
+    });
     // biome-ignore lint/suspicious/noExplicitAny: types are wrong
     return new WebSocket(url.toString(), {
-      headers: Object.fromEntries(headers),
+      headers: handshakeHeaders,
     } as any);
   }
 }

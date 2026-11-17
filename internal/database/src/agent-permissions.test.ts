@@ -492,7 +492,7 @@ describe("Agent Permissions", () => {
     // A private agent's organization default must not lower an owner's access.
     await querier.upsertAgentPermission({
       agent_id: privateAgent.id,
-      user_id: null,
+      user_id: undefined,
       permission: "read",
       created_by: owner.id,
     });
