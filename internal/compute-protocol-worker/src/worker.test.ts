@@ -132,7 +132,7 @@ test("proxy websocket upgrade failure", async () => {
   );
 
   expect(response.status).toBe(400);
-  expect(response.statusText).toBe("Expected 101 status code");
+  expect(response.upgrade).toBe(false);
 });
 
 test("proxy streaming request body", async () => {
@@ -374,7 +374,7 @@ test("proxy websocket", async () => {
   worker.sendProxiedWebSocketMessage(stream, "Test");
   msg = await awaitMessage();
   expect(msg).toBe("Test");
-  worker.sendProxiedWebSocketClose(stream);
+  worker.sendProxiedWebSocketClose(stream, 1000);
   const { code, reason } = await closePromise;
   expect(code).toBe(1000);
   expect(reason).toBe("");
@@ -450,7 +450,7 @@ test("proxy websocket with binary data", async () => {
   expect(typeof msg).toBe("string");
   expect(msg).toBe("Test text");
 
-  worker.sendProxiedWebSocketClose(stream);
+  worker.sendProxiedWebSocketClose(stream, 1000);
   const { code, reason } = await closePromise;
   expect(code).toBe(1000);
   expect(reason).toBe("");

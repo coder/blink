@@ -1,15 +1,50 @@
-import { describe, expect, test } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  test,
+} from "bun:test";
 import { Markdown, preprocessText } from "./markdown";
 // Initialize happy-dom globals
-import { render } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
 import { GlobalWindow } from "happy-dom";
 import { TooltipProvider } from "./ui/tooltip";
 
-// @ts-ignore
+const previousGlobals = new Map<string, PropertyDescriptor | undefined>();
+let testWindow: GlobalWindow;
 
-(globalThis as any).window = new GlobalWindow();
-// @ts-ignore
-(globalThis as any).document = (globalThis as any).window.document;
+beforeAll(() => {
+  testWindow = new GlobalWindow({ url: "http://localhost" });
+  for (const [name, value] of Object.entries({
+    window: testWindow,
+    document: testWindow.document,
+  })) {
+    previousGlobals.set(
+      name,
+      Object.getOwnPropertyDescriptor(globalThis, name)
+    );
+    Object.defineProperty(globalThis, name, {
+      configurable: true,
+      writable: true,
+      value,
+    });
+  }
+});
+
+afterEach(cleanup);
+
+afterAll(() => {
+  testWindow.close();
+  for (const [name, descriptor] of previousGlobals) {
+    if (descriptor) {
+      Object.defineProperty(globalThis, name, descriptor);
+    } else {
+      Reflect.deleteProperty(globalThis, name);
+    }
+  }
+});
 
 describe("preprocessText", () => {
   test("preserves brackets", () => {

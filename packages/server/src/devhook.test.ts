@@ -1,10 +1,18 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, describe, expect, test } from "bun:test";
 import Client from "@blink.so/api";
 import { createDevhookSupport } from "./devhook";
 import { serve } from "./test";
 
 describe("devhook integration tests", async () => {
   const server = await serve();
+  const connections = new Set<{ dispose(): void }>();
+
+  afterEach(() => {
+    for (const connection of connections) {
+      connection.dispose();
+    }
+    connections.clear();
+  });
 
   afterAll(async () => {
     await server[Symbol.asyncDispose]();
@@ -163,19 +171,21 @@ describe("devhook integration tests", async () => {
       let receivedMethod = "";
 
       const connectPromise = new Promise<void>((resolve) => {
-        client.devhook.listen({
-          id,
-          onConnect: () => resolve(),
-          onError: () => {},
-          onRequest: async (req) => {
-            requestReceived = true;
-            receivedMethod = req.method;
-            return new Response("Hello from devhook!", {
-              status: 200,
-              headers: { "X-Custom-Header": "test-value" },
-            });
-          },
-        });
+        connections.add(
+          client.devhook.listen({
+            id,
+            onConnect: () => resolve(),
+            onError: () => {},
+            onRequest: async (req) => {
+              requestReceived = true;
+              receivedMethod = req.method;
+              return new Response("Hello from devhook!", {
+                status: 200,
+                headers: { "X-Custom-Header": "test-value" },
+              });
+            },
+          })
+        );
       });
 
       await connectPromise;
@@ -202,15 +212,17 @@ describe("devhook integration tests", async () => {
       let receivedBody = "";
 
       const connectPromise = new Promise<void>((resolve) => {
-        client.devhook.listen({
-          id,
-          onConnect: () => resolve(),
-          onError: () => {},
-          onRequest: async (req) => {
-            receivedBody = await req.text();
-            return new Response("OK");
-          },
-        });
+        connections.add(
+          client.devhook.listen({
+            id,
+            onConnect: () => resolve(),
+            onError: () => {},
+            onRequest: async (req) => {
+              receivedBody = await req.text();
+              return new Response("OK");
+            },
+          })
+        );
       });
 
       await connectPromise;

@@ -1,6 +1,7 @@
-import { mock } from "bun:test";
+import { mock, spyOn } from "bun:test";
 import { Readable, Writable } from "node:stream";
 import Client from "@blink.so/api";
+import { Prompt } from "@clack/core";
 import { Terminal } from "@xterm/headless";
 
 // Type-safe mock function that preserves the original function's types
@@ -322,8 +323,8 @@ export function captureStdout(options?: {
 }
 
 /**
- * Mocks stdin to allow programmatic input to clack prompts.
- * Returns a disposable that restores the original stdin behavior.
+ * Gives Clack prompts a fresh input stream, independent of process stdin,
+ * which may already have reached EOF in a non-interactive test runner.
  *
  * @example
  * using stdin = mockStdin();
@@ -336,27 +337,30 @@ export function mockStdin(): Disposable & {
   write: (data: string) => void;
   writeKey: (key: keyof typeof KEY_CODES) => void;
 } {
-  const originalIsTTY = process.stdin.isTTY;
-  const originalSetRawMode = process.stdin.setRawMode?.bind(process.stdin);
-
-  // Make stdin look like a TTY
-  (process.stdin as { isTTY: boolean }).isTTY = true;
-
-  // Mock setRawMode to not throw
-  process.stdin.setRawMode = () => process.stdin;
+  const input = Object.assign(new Readable({ read() {} }), {
+    isTTY: true,
+    setRawMode() {
+      return this;
+    },
+  });
+  const originalPrompt = Prompt.prototype.prompt;
+  const promptSpy = spyOn(Prompt.prototype, "prompt").mockImplementation(
+    function (this: Prompt) {
+      Object.assign(this, { input });
+      return originalPrompt.call(this);
+    }
+  );
 
   return {
     write: (data: string) => {
-      process.stdin.push(data);
+      input.push(data);
     },
     writeKey: (key: keyof typeof KEY_CODES) => {
-      process.stdin.push(KEY_CODES[key]);
+      input.push(KEY_CODES[key]);
     },
     [Symbol.dispose]: () => {
-      (process.stdin as { isTTY: boolean | undefined }).isTTY = originalIsTTY;
-      if (originalSetRawMode) {
-        process.stdin.setRawMode = originalSetRawMode;
-      }
+      promptSpy.mockRestore();
+      input.destroy();
     },
   };
 }

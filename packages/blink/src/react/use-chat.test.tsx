@@ -21,6 +21,7 @@ const Harness: React.FC<HarnessProps> = ({ options, onUpdate }) => {
     onUpdate(result);
   }, [
     result.status,
+    result.loading,
     result.messages.length,
     result.streamingMessage,
     result.queuedMessages.length,
@@ -407,14 +408,16 @@ test("disk watcher syncs changes from external processes", async () => {
     />
   );
 
-  await waitFor(() => true);
+  const initialState = await waitFor((s) => !s.loading);
 
   // Simulate external write
   const locked = await chatStore.lock(chatId);
   await locked.set({
     id: chatId,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    updated_at: new Date(
+      Date.parse(initialState.updated_at!) + 1
+    ).toISOString(),
     messages: [createStoredMessage("External change")],
   });
   await locked.release();

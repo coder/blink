@@ -327,7 +327,7 @@ describe("setup slack-app command", () => {
     );
 
     // Cancel to end the test
-    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    io.stdin.write(KEY_CODES.CTRL_C);
     await setupPromise.catch(() => {});
   });
 
@@ -343,8 +343,8 @@ describe("setup slack-app command", () => {
     await io.stdout.waitUntil((screen) =>
       screen.includes("What should your Slack app be called?")
     );
-    process.stdin.emit("data", "my-test-slack-app");
-    process.stdin.emit("data", KEY_CODES.ENTER);
+    io.stdin.write("my-test-slack-app");
+    io.stdin.write(KEY_CODES.ENTER);
 
     // Should show URL and ask about opening browser
     await io.stdout.waitUntil((screen) =>
@@ -355,7 +355,7 @@ describe("setup slack-app command", () => {
     expect(output).toContain("Open this URL in your browser automatically?");
 
     // Cancel to end the test
-    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    io.stdin.write(KEY_CODES.CTRL_C);
     await setupPromise.catch(() => {});
   });
 
@@ -371,23 +371,23 @@ describe("setup slack-app command", () => {
     await io.stdout.waitUntil((screen) =>
       screen.includes("What should your Slack app be called?")
     );
-    process.stdin.emit("data", "my-test-slack-app");
-    process.stdin.emit("data", KEY_CODES.ENTER);
+    io.stdin.write("my-test-slack-app");
+    io.stdin.write(KEY_CODES.ENTER);
 
     // Decline to open browser
     await io.stdout.waitUntil((screen) =>
       screen.includes("Open this URL in your browser automatically?")
     );
     // Move selection to "No" and confirm
-    process.stdin.emit("data", KEY_CODES.LEFT);
-    process.stdin.emit("data", KEY_CODES.ENTER);
+    io.stdin.write(KEY_CODES.LEFT);
+    io.stdin.write(KEY_CODES.ENTER);
 
     // Should prompt for App ID
     await io.stdout.waitUntil((screen) => screen.includes("paste the App ID"));
     expect(await io.stdout.getOutput()).toContain("App ID");
 
     // Cancel to end the test
-    process.stdin.emit("data", KEY_CODES.CTRL_C);
+    io.stdin.write(KEY_CODES.CTRL_C);
     await setupPromise.catch(() => {});
   });
 });

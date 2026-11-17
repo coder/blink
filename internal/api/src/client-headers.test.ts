@@ -78,12 +78,16 @@ describe("Blink server headers", () => {
       return new Response();
     }) as typeof fetch;
     const client = new Client({
+      baseURL: "https://blink.example",
       authToken: "blink-token",
       headers: { "x-custom-header": "explicit-value" },
       fetch: capture,
     });
     await client.request("GET", "/api/test");
-    await new BrowserClient({ fetch: capture }).request("GET", "/api/test");
+    await new BrowserClient({
+      baseURL: "https://blink.example",
+      fetch: capture,
+    }).request("GET", "/api/test");
     expect(requests[0]!.get("X-Custom-Header")).toBe("explicit-value");
     expect(requests[0]!.get("X-Another-Header")).toBe("another-value");
     expect(requests[0]!.get("authorization")).toBe("Bearer blink-token");
@@ -149,6 +153,7 @@ describe("Blink server headers", () => {
   test("unset configuration leaves existing behavior intact", async () => {
     delete process.env[InternalAPIServerHeadersEnvironmentVariable];
     const client = new Client({
+      baseURL: "https://blink.example",
       authToken: "blink-token",
       fetch: (async (_url, init) => {
         const headers = new Headers(init?.headers);
