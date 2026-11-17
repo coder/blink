@@ -6,6 +6,7 @@ import type {
   CreateChatMessage,
   SendMessagesBehavior,
 } from "../../messages.client";
+import { getServerHeaders } from "@blink.so/runtime/types";
 
 export interface AgentInvocationClientOptions {
   baseURL?: string;
@@ -24,11 +25,13 @@ export default class AgentInvocationClient {
   private readonly baseURL: string;
   private readonly authToken?: string;
   private readonly deploymentToken?: string;
+  private readonly headers: Headers;
 
   public constructor(options?: AgentInvocationClientOptions) {
     this.baseURL = options?.baseURL ?? "https://blink.so";
     this.authToken = options?.authToken;
     this.deploymentToken = options?.deploymentToken;
+    this.headers = new Headers(getServerHeaders());
   }
 
   public async deleteStorage(key: string): Promise<void> {
@@ -262,7 +265,7 @@ export default class AgentInvocationClient {
     }
   ) {
     const url = new URL(path, this.baseURL);
-    const headers = new Headers();
+    const headers = new Headers(this.headers);
     if (this.authToken) {
       headers.set("Authorization", `Bearer ${this.authToken}`);
     }

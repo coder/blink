@@ -13,6 +13,37 @@ export const BlinkInvocationChatIDHeader = "x-blink-invocation-chat-id";
 export const InternalAPIServerURLEnvironmentVariable =
   "INTERNAL_BLINK_API_SERVER_URL";
 
+// JSON object of extra HTTP headers sent to the Blink API server.
+export const InternalAPIServerHeadersEnvironmentVariable =
+  "INTERNAL_BLINK_API_SERVER_HEADERS";
+
+/** Extra headers for server-side Blink clients, including the agent runtime. */
+export function getServerHeaders(): Record<string, string> {
+  const value = process.env[InternalAPIServerHeadersEnvironmentVariable];
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error();
+    }
+    for (const header of Object.values(parsed)) {
+      if (typeof header !== "string") {
+        throw new Error();
+      }
+    }
+    // Validate header names and values, and normalize names for merging.
+    return Object.fromEntries(new Headers(parsed as Record<string, string>));
+  } catch {
+    // Do not include the value or parser error: headers can contain secrets.
+    throw new Error(
+      `${InternalAPIServerHeadersEnvironmentVariable} must be a JSON object of valid HTTP header names and string values`
+    );
+  }
+}
+
 export const InternalAPIServerListenPortEnvironmentVariable =
   "INTERNAL_BLINK_API_SERVER_LISTEN_PORT";
 
