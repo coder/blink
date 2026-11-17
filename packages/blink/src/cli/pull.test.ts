@@ -17,6 +17,7 @@ function createMockOrganization(overrides: { id: string; name: string }) {
   return {
     id: overrides.id,
     name: overrides.name,
+    kind: "organization" as const,
     created_at: now,
     updated_at: now,
     membership: null,
