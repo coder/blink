@@ -44,6 +44,9 @@ export default function mountAgents(app: Hono<{ Bindings: Bindings }>) {
     async (c) => {
       const req = c.req.valid("json");
       const org = await authorizeOrganization(c, req.organization_id);
+      if (c.env.AGENT_DEPLOYMENT_ALLOWLIST !== undefined) {
+        throw new HTTPException(403, { message: "Agent creation is disabled." });
+      }
       const db = await c.env.database();
       try {
         const agent = await db.tx(async (tx) => {

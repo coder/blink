@@ -186,6 +186,16 @@ export const createAgentDeployment = async ({
   target: AgentDeploymentTarget;
   userMessage?: string;
 }) => {
+  const allowlist = bindings.AGENT_DEPLOYMENT_ALLOWLIST;
+  if (
+    allowlist !== undefined &&
+    !allowlist.split(",").some((id) => id.trim() === agentID)
+  ) {
+    throw new HTTPException(403, {
+      message: "Deployments are disabled for this agent.",
+    });
+  }
+
   if (!db) {
     db = await bindings.database();
   }

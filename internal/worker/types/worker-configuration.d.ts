@@ -33,6 +33,7 @@ declare namespace Cloudflare {
     AWS_LAMBDA_ROLE_ARN?: string;
 
     LOCAL_SHIMS_URL?: string;
+    AGENT_DEPLOYMENT_ALLOWLIST?: string;
 
     CLICKHOUSE_HOST?: string;
     CLICKHOUSE_USERNAME?: string;

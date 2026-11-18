@@ -232,6 +232,7 @@ export interface Bindings {
   readonly createRequestURL?: (id: string) => URL;
 
   readonly AUTH_SECRET: string;
+  readonly AGENT_DEPLOYMENT_ALLOWLIST?: string;
   readonly NODE_ENV: string;
   readonly AI_GATEWAY_API_KEY?: string;
   readonly TOOLS_EXA_API_KEY?: string;
