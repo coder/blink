@@ -26,9 +26,7 @@ upload_source_maps = true
 
 browser = { binding = "BROWSER" }
 
-tail_consumers = [
-  { service = "blink-tail-worker" }
-]
+tail_consumers = []
 
 [[durable_objects.bindings]]
 name = "WORKSPACE"
