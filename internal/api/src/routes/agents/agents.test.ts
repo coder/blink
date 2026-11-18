@@ -1,6 +1,28 @@
 import { expect, test } from "bun:test";
 import { serve } from "../../test";
 
+test("a configured deployment allowlist blocks creation with or without a deployment", async () => {
+  const { helpers } = await serve({
+    bindings: { AGENT_DEPLOYMENT_ALLOWLIST: crypto.randomUUID() },
+  });
+  const { client } = await helpers.createUser();
+  const org = await client.organizations.create({ name: "test-org" });
+  for (const output_files of [undefined, [{ path: "agent.js", data: "" }]]) {
+    const response = await client.request(
+      "POST",
+      "/api/agents",
+      JSON.stringify({
+        name: "new-agent",
+        organization_id: org.id,
+        output_files,
+      })
+    );
+    expect(response.status).toBe(403);
+  }
+  const agents = await client.agents.list({ organization_id: org.id });
+  expect(agents.items).toHaveLength(0);
+});
+
 test("CRUD /api/agents", async () => {
   const { helpers } = await serve();
   const { client } = await helpers.createUser();

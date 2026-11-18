@@ -1,3 +1,9 @@
+## Restrict agent deployments
+
+Set the worker environment variable `AGENT_DEPLOYMENT_ALLOWLIST` to a comma-separated list of existing agent IDs to allow deployments and redeployments only for those agents. Spaces around IDs are ignored. An empty string blocks all deployments. Any configured value also blocks new agent creation, including creation without an initial deployment.
+
+The worker returns HTTP 403 for blocked requests on both preview and production targets. Deployments accepted before the restriction continue. Unset the variable to allow agent creation and deployments again.
+
 ## Traces
 
 We use OpenTelemetry to collect traces from the worker. These traces are sent to GCP Cloud Trace via [the `otel-collector-otlp` Cloud Run service](https://console.cloud.google.com/run/detail/us-central1/otel-collector-otlp/metrics?inv=1&invt=Ab55YA&project=coder-blink) in the `coder-blink` project running the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-releases/releases).

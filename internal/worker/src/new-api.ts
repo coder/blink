@@ -430,6 +430,7 @@ export default function handleNewAPI(
           }
         : undefined,
       AUTH_SECRET: env.AUTH_SECRET,
+      AGENT_DEPLOYMENT_ALLOWLIST: env.AGENT_DEPLOYMENT_ALLOWLIST,
       NODE_ENV: env.NODE_ENV,
       AI_GATEWAY_API_KEY: env.AI_GATEWAY_API_KEY,
       TOOLS_EXA_API_KEY: env.EXA_API_KEY,

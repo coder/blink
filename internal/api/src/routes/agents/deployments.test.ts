@@ -2,6 +2,45 @@ import { expect, test } from "bun:test";
 import Client from "../../client.node";
 import { serve } from "../../test";
 
+test("the deployment allowlist applies to new deployments and redeploys", async () => {
+  const { helpers, bindings } = await serve();
+  const { client } = await helpers.createUser();
+  const org = await client.organizations.create({ name: "test-org" });
+  const agent = await client.agents.create({
+    name: "test-agent",
+    organization_id: org.id,
+    output_files: [{ path: "agent.js", data: "" }],
+  });
+  const path = `/api/agents/${agent.id}/deployments`;
+  const request = {
+    agent_id: agent.id,
+    target: "preview" as const,
+    output_files: [{ path: "updated.js", data: "" }],
+  };
+
+  for (const allowlist of ["", `${agent.id}-extra`]) {
+    Object.assign(bindings, { AGENT_DEPLOYMENT_ALLOWLIST: allowlist });
+    const create = await client.request("POST", path, JSON.stringify(request));
+    expect(create.status).toBe(403);
+    const redeploy = await client.request("POST", `${path}/1/redeploy`);
+    expect(redeploy.status).toBe(403);
+  }
+  const accepted = await client.agents.deployments.list({ agent_id: agent.id });
+  expect(accepted.items).toHaveLength(1);
+  expect(accepted.items[0]?.status).toBe("pending");
+
+  Object.assign(bindings, {
+    AGENT_DEPLOYMENT_ALLOWLIST: `${crypto.randomUUID()}, ${agent.id} `,
+  });
+  const preview = await client.agents.deployments.create(request);
+  expect(preview.target).toBe("preview");
+  const production = await client.agents.deployments.redeploy({
+    agent_id: agent.id,
+    deployment_number: 1,
+  });
+  expect(production.target).toBe("production");
+});
+
 test("CRUD /api/agents/:agent_id/deployments", async () => {
   const { helpers } = await serve();
   const { client } = await helpers.createUser();
