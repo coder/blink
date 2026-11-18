@@ -11,7 +11,11 @@ test("a configured deployment allowlist blocks creation with or without a deploy
     const response = await client.request(
       "POST",
       "/api/agents",
-      JSON.stringify({ name: "new-agent", organization_id: org.id, output_files })
+      JSON.stringify({
+        name: "new-agent",
+        organization_id: org.id,
+        output_files,
+      })
     );
     expect(response.status).toBe(403);
   }
